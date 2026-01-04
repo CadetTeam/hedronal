@@ -12,16 +12,20 @@ import {
   Keyboard,
   Platform,
   Alert,
+  Animated,
 } from 'react-native';
+import { useSharedValue } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import * as Contacts from 'expo-contacts';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useTheme } from '../context/ThemeContext';
+import { useClerkContext } from '../context/ClerkContext';
 import { BlurredModalOverlay } from './BlurredModalOverlay';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Button } from './Button';
+import { useEntityCreation } from '../services/entityService';
 
 const ENTITY_DRAFT_KEY = '@entity_draft';
 
@@ -36,7 +40,8 @@ interface EntityDraft {
     socialLinks: Array<{ type: string; url: string }>;
   };
   step2?: {
-    [key: string]: any;
+    data: { [key: string]: any };
+    completedItems: string[];
   };
   step3?: {
     selectedContacts: Array<{ id: string; name: string; phone?: string; email?: string }>;
@@ -50,18 +55,18 @@ interface EntityCreationModalProps {
 }
 
 const ACCORDION_ITEMS = [
-  'Domain',
-  'Workspace',
-  'Formation',
-  'Bank',
-  'Cap Table',
-  'CRM',
-  'Legal',
-  'Tax',
-  'Accounting',
-  'Invoicing',
-  'DUNS',
-  'Lender',
+  { key: 'Domain', description: 'Configure your entity\'s domain name and website settings' },
+  { key: 'Workspace', description: 'Set up your workspace and collaboration tools' },
+  { key: 'Formation', description: 'Document your entity formation details and structure' },
+  { key: 'Bank', description: 'Add banking information and account details' },
+  { key: 'Cap Table', description: 'Manage your capitalization table and ownership structure' },
+  { key: 'CRM', description: 'Configure customer relationship management system' },
+  { key: 'Legal', description: 'Add legal documents and compliance information' },
+  { key: 'Tax', description: 'Set up tax information and filing preferences' },
+  { key: 'Accounting', description: 'Configure accounting systems and chart of accounts' },
+  { key: 'Invoicing', description: 'Set up invoicing preferences and templates' },
+  { key: 'DUNS', description: 'Add DUNS number and business credit information' },
+  { key: 'Lender', description: 'Document lender information and loan details' },
 ];
 
 const SOCIAL_ICONS = [
@@ -75,12 +80,18 @@ const SOCIAL_ICONS = [
 
 export function EntityCreationModal({ visible, onClose, onComplete }: EntityCreationModalProps) {
   const { theme, isDark } = useTheme();
+  const { userId } = useClerkContext();
+  const { createEntityWithOrganization } = useEntityCreation();
   const insets = useSafeAreaInsets();
   const scrollViewRef = useRef<ScrollView>(null);
   const [currentStep, setCurrentStep] = useState(1);
   const [showMenu, setShowMenu] = useState(false);
   const [keyboardVisible, setKeyboardVisible] = useState(false);
   const [keyboardHeight, setKeyboardHeight] = useState(0);
+  const [showMinimizedTitle, setShowMinimizedTitle] = useState(false);
+  const scrollY = useSharedValue(0);
+  const minimizedTitleOpacity = useRef(new Animated.Value(0)).current;
+  const minimizedTitleTranslateY = useRef(new Animated.Value(20)).current;
 
   // Step 1 state
   const [name, setName] = useState('');
@@ -89,11 +100,12 @@ export function EntityCreationModal({ visible, onClose, onComplete }: EntityCrea
   const [avatar, setAvatar] = useState<string | undefined>();
   const [brief, setBrief] = useState('');
   const [socialLinks, setSocialLinks] = useState<Array<{ type: string; url: string }>>([]);
-  const [newSocialLink, setNewSocialLink] = useState({ type: 'twitter', url: '' });
+  const [showSocialDropdown, setShowSocialDropdown] = useState<number | null>(null);
 
   // Step 2 state
   const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set());
   const [step2Data, setStep2Data] = useState<{ [key: string]: any }>({});
+  const [completedItems, setCompletedItems] = useState<Set<string>>(new Set());
   const [hasScrolledToBottom, setHasScrolledToBottom] = useState(false);
 
   // Step 3 state
@@ -167,7 +179,8 @@ export function EntityCreationModal({ visible, onClose, onComplete }: EntityCrea
           setSocialLinks(draft.step1.socialLinks || []);
         }
         if (draft.step2) {
-          setStep2Data(draft.step2);
+          setStep2Data(draft.step2.data || {});
+          setCompletedItems(new Set(draft.step2.completedItems || []));
         }
         if (draft.step3) {
           setSelectedContacts(draft.step3.selectedContacts || []);
@@ -190,7 +203,10 @@ export function EntityCreationModal({ visible, onClose, onComplete }: EntityCrea
           brief,
           socialLinks,
         },
-        step2: step2Data,
+        step2: {
+          data: step2Data,
+          completedItems: Array.from(completedItems),
+        },
         step3: {
           selectedContacts,
         },
@@ -258,11 +274,48 @@ export function EntityCreationModal({ visible, onClose, onComplete }: EntityCrea
     setExpandedItems(newExpanded);
   }
 
+  function toggleCompletedItem(item: string) {
+    const newCompleted = new Set(completedItems);
+    if (newCompleted.has(item)) {
+      newCompleted.delete(item);
+    } else {
+      newCompleted.add(item);
+    }
+    setCompletedItems(newCompleted);
+  }
+
   function handleScroll(event: any) {
     const { layoutMeasurement, contentOffset, contentSize } = event.nativeEvent;
-    const paddingToBottom = 20;
-    const isAtBottom = layoutMeasurement.height + contentOffset.y >= contentSize.height - paddingToBottom;
-    setHasScrolledToBottom(isAtBottom);
+    const offsetY = contentOffset.y;
+    
+    // Update scroll position for minimized title
+    scrollY.value = offsetY;
+    const shouldShow = offsetY > 50;
+    
+    if (shouldShow !== showMinimizedTitle) {
+      setShowMinimizedTitle(shouldShow);
+      
+      // Animate title appearance
+      Animated.parallel([
+        Animated.timing(minimizedTitleOpacity, {
+          toValue: shouldShow ? 1 : 0,
+          duration: 300,
+          useNativeDriver: true,
+        }),
+        Animated.timing(minimizedTitleTranslateY, {
+          toValue: shouldShow ? 0 : 20,
+          duration: 300,
+          useNativeDriver: true,
+        }),
+      ]).start();
+    }
+    
+    // Check if scrolled to bottom (for step 2)
+    if (currentStep === 2) {
+      const paddingToBottom = 20;
+      const isAtBottom = layoutMeasurement.height + offsetY >= contentSize.height - paddingToBottom;
+      setHasScrolledToBottom(isAtBottom);
+    }
   }
 
   async function requestContactsPermission() {
@@ -320,19 +373,54 @@ export function EntityCreationModal({ visible, onClose, onComplete }: EntityCrea
   }
 
   async function handleComplete() {
-    const entity = {
-      name,
-      handle,
-      banner,
-      avatar,
-      brief,
-      socialLinks,
-      step2Data,
-      invitedContacts: selectedContacts,
-    };
-    await AsyncStorage.removeItem(ENTITY_DRAFT_KEY);
-    resetForm();
-    onComplete(entity);
+    if (!userId) {
+      Alert.alert('Error', 'You must be signed in to create an entity.');
+      return;
+    }
+
+    try {
+      // Create entity data
+      const entityData = {
+        name,
+        handle,
+        banner,
+        avatar,
+        brief,
+        type: step2Data.type || undefined,
+        socialLinks,
+        step2Data,
+        completedItems: Array.from(completedItems),
+      };
+
+      // Create Clerk organization and save to Supabase (via service)
+      const result = await createEntityWithOrganization(entityData);
+
+      if (!result.success) {
+        Alert.alert('Error', result.error || 'Failed to create entity');
+        return;
+      }
+
+      const entity = {
+        id: result.entityId || `entity-${Date.now()}`,
+        clerkOrgId: result.clerkOrgId,
+        name,
+        handle,
+        banner,
+        avatar,
+        brief,
+        socialLinks,
+        step2Data,
+        completedItems: Array.from(completedItems),
+        invitedContacts: selectedContacts,
+        createdAt: new Date().toISOString(),
+      };
+
+      await AsyncStorage.removeItem(ENTITY_DRAFT_KEY);
+      resetForm();
+      onComplete(entity);
+    } catch (error: any) {
+      Alert.alert('Error', error?.message || 'Failed to create entity. Please try again.');
+    }
   }
 
   async function handleSendInvites() {
@@ -346,12 +434,15 @@ export function EntityCreationModal({ visible, onClose, onComplete }: EntityCrea
     await handleComplete();
   }
 
+
   function renderStep1() {
     return (
       <ScrollView
         style={styles.stepContent}
         contentContainerStyle={[styles.stepContentContainer, { paddingBottom: insets.bottom * 2 }]}
         showsVerticalScrollIndicator={false}
+        onScroll={handleScroll}
+        scrollEventThrottle={16}
       >
         <Text style={[styles.stepTitle, { color: theme.colors.text }]}>Profile</Text>
         <Text style={[styles.stepDescription, { color: theme.colors.textSecondary }]}>
@@ -360,33 +451,43 @@ export function EntityCreationModal({ visible, onClose, onComplete }: EntityCrea
 
         {/* Banner */}
         <TouchableOpacity
-          style={[styles.imagePicker, { borderColor: theme.colors.border }]}
+          activeOpacity={0.8}
           onPress={() => pickImage('banner')}
         >
-          {banner ? (
-            <Image source={{ uri: banner }} style={styles.imagePreview} />
-          ) : (
-            <View style={styles.imagePlaceholder}>
-              <Ionicons name="image-outline" size={32} color={theme.colors.textTertiary} />
-              <Text style={[styles.imagePlaceholderText, { color: theme.colors.textTertiary }]}>
-                Add Banner
-              </Text>
-            </View>
-          )}
+          <View
+            style={[
+              styles.banner,
+              { backgroundColor: theme.colors.background },
+            ]}
+          >
+            {banner ? (
+              <Image source={{ uri: banner }} style={styles.bannerImage} />
+            ) : (
+              <View style={styles.bannerPlaceholder}>
+                <Ionicons name="image-outline" size={32} color={theme.colors.textTertiary} />
+                <Text style={[styles.bannerPlaceholderText, { color: theme.colors.textTertiary }]}>
+                  Add Banner
+                </Text>
+              </View>
+            )}
+          </View>
         </TouchableOpacity>
 
         {/* Avatar */}
         <TouchableOpacity
-          style={[styles.avatarPicker, { borderColor: theme.colors.border }]}
+          activeOpacity={0.8}
+          style={styles.avatarContainer}
           onPress={() => pickImage('avatar')}
         >
-          {avatar ? (
-            <Image source={{ uri: avatar }} style={styles.avatarPreview} />
-          ) : (
-            <View style={styles.avatarPlaceholder}>
-              <Ionicons name="person-outline" size={32} color={theme.colors.textTertiary} />
-            </View>
-          )}
+          <View style={[styles.avatar, { backgroundColor: theme.colors.background }]}>
+            {avatar ? (
+              <Image source={{ uri: avatar }} style={styles.avatarImage} />
+            ) : (
+              <View style={styles.avatarPlaceholder}>
+                <Ionicons name="person-outline" size={32} color={theme.colors.textTertiary} />
+              </View>
+            )}
+          </View>
         </TouchableOpacity>
 
         {/* Name */}
@@ -426,53 +527,74 @@ export function EntityCreationModal({ visible, onClose, onComplete }: EntityCrea
 
         {/* Social Links */}
         <View style={styles.inputGroup}>
-          <Text style={[styles.label, { color: theme.colors.text }]}>Social Links</Text>
+          <View style={styles.socialLinksHeader}>
+            <Text style={[styles.label, { color: theme.colors.text }]}>Social Links</Text>
+            <TouchableOpacity
+              style={[styles.addSocialLinkIconButton, { backgroundColor: theme.colors.surfaceVariant, borderColor: theme.colors.border }]}
+              onPress={() => {
+                setSocialLinks([...socialLinks, { type: 'twitter', url: '' }]);
+              }}
+            >
+              <Ionicons name="add" size={20} color={theme.colors.primary} />
+            </TouchableOpacity>
+          </View>
           {socialLinks.map((link, index) => {
             const icon = SOCIAL_ICONS.find((s) => s.type === link.type);
+            const isDropdownOpen = showSocialDropdown === index;
             return (
-              <View key={index} style={[styles.socialLinkItem, { backgroundColor: theme.colors.surfaceVariant, borderColor: theme.colors.border }]}>
-                <Ionicons name={icon?.name as any} size={20} color={theme.colors.text} />
-                <Text style={[styles.socialLinkUrl, { color: theme.colors.text }]}>{link.url}</Text>
-                <TouchableOpacity onPress={() => setSocialLinks(socialLinks.filter((_, i) => i !== index))}>
-                  <Ionicons name="close-circle" size={20} color={theme.colors.error} />
-                </TouchableOpacity>
+              <View key={index} style={styles.socialLinkRow}>
+                <View style={[styles.socialLinkItem, { backgroundColor: theme.colors.surfaceVariant, borderColor: theme.colors.border }]}>
+                  <TouchableOpacity
+                    style={styles.socialIconButton}
+                    onPress={() => setShowSocialDropdown(isDropdownOpen ? null : index)}
+                  >
+                    <Ionicons name={icon?.name as any} size={20} color={theme.colors.text} />
+                    <Ionicons name="chevron-down" size={16} color={theme.colors.textTertiary} />
+                  </TouchableOpacity>
+                  <TextInput
+                    style={[styles.socialLinkInput, { color: theme.colors.text }]}
+                    value={link.url}
+                    onChangeText={(url) => {
+                      const updated = [...socialLinks];
+                      updated[index] = { ...updated[index], url };
+                      setSocialLinks(updated);
+                    }}
+                    placeholder="Enter URL"
+                    placeholderTextColor={theme.colors.textTertiary}
+                    keyboardType="url"
+                    autoCapitalize="none"
+                  />
+                  <TouchableOpacity onPress={() => setSocialLinks(socialLinks.filter((_, i) => i !== index))}>
+                    <Ionicons name="close-circle" size={20} color={theme.colors.error} />
+                  </TouchableOpacity>
+                </View>
+                {isDropdownOpen && (
+                  <View style={[styles.socialDropdown, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}>
+                    {SOCIAL_ICONS.map((social) => (
+                      <TouchableOpacity
+                        key={social.type}
+                        style={[
+                          styles.socialDropdownItem,
+                          { backgroundColor: link.type === social.type ? theme.colors.surfaceVariant : 'transparent' },
+                        ]}
+                        onPress={() => {
+                          const updated = [...socialLinks];
+                          updated[index] = { ...updated[index], type: social.type };
+                          setSocialLinks(updated);
+                          setShowSocialDropdown(null);
+                        }}
+                      >
+                        <Ionicons name={social.name as any} size={20} color={theme.colors.text} />
+                        <Text style={[styles.socialDropdownText, { color: theme.colors.text }]}>
+                          {social.type.charAt(0).toUpperCase() + social.type.slice(1)}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                )}
               </View>
             );
           })}
-          <View style={[styles.addSocialLinkContainer, { backgroundColor: theme.colors.surfaceVariant, borderColor: theme.colors.border }]}>
-            <TouchableOpacity
-              style={styles.addSocialLinkButton}
-              onPress={() => {
-                const types = ['twitter', 'linkedin', 'github', 'instagram', 'website', 'email'];
-                const currentIndex = types.indexOf(newSocialLink.type);
-                const nextType = types[(currentIndex + 1) % types.length];
-                setNewSocialLink({ ...newSocialLink, type: nextType });
-              }}
-            >
-              <Ionicons name={getSocialIcon(newSocialLink.type) as any} size={20} color={theme.colors.text} />
-              <Ionicons name="add" size={16} color={theme.colors.primary} />
-            </TouchableOpacity>
-            <TextInput
-              style={[styles.socialLinkInput, { color: theme.colors.text }]}
-              value={newSocialLink.url}
-              onChangeText={(url) => setNewSocialLink({ ...newSocialLink, url })}
-              placeholder="Enter URL"
-              placeholderTextColor={theme.colors.textTertiary}
-              keyboardType="url"
-              autoCapitalize="none"
-            />
-            <TouchableOpacity
-              style={[styles.addButton, { backgroundColor: theme.colors.primary }]}
-              onPress={() => {
-                if (newSocialLink.url.trim()) {
-                  setSocialLinks([...socialLinks, newSocialLink]);
-                  setNewSocialLink({ type: 'twitter', url: '' });
-                }
-              }}
-            >
-              <Ionicons name="checkmark" size={16} color={theme.colors.background} />
-            </TouchableOpacity>
-          </View>
         </View>
       </ScrollView>
     );
@@ -494,14 +616,27 @@ export function EntityCreationModal({ visible, onClose, onComplete }: EntityCrea
         </Text>
 
         {ACCORDION_ITEMS.map((item) => {
-          const isExpanded = expandedItems.has(item);
+          const isExpanded = expandedItems.has(item.key);
+          const isCompleted = completedItems.has(item.key);
           return (
-            <View key={item} style={[styles.accordionItem, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}>
+            <View key={item.key} style={[styles.accordionItem, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}>
               <TouchableOpacity
                 style={styles.accordionHeader}
-                onPress={() => toggleAccordionItem(item)}
+                onPress={() => toggleAccordionItem(item.key)}
               >
-                <Text style={[styles.accordionTitle, { color: theme.colors.text }]}>{item}</Text>
+                <View style={styles.accordionHeaderLeft}>
+                  {isCompleted && (
+                    <Ionicons name="checkmark-circle" size={20} color={theme.colors.success || '#10b981'} style={styles.completedIcon} />
+                  )}
+                  <View style={styles.accordionHeaderText}>
+                    <Text style={[styles.accordionTitle, { color: theme.colors.text }]}>{item.key}</Text>
+                    {!isExpanded && (
+                      <Text style={[styles.accordionDescription, { color: theme.colors.textSecondary }]} numberOfLines={1}>
+                        {item.description}
+                      </Text>
+                    )}
+                  </View>
+                </View>
                 <Ionicons
                   name={isExpanded ? 'chevron-up' : 'chevron-down'}
                   size={20}
@@ -510,14 +645,36 @@ export function EntityCreationModal({ visible, onClose, onComplete }: EntityCrea
               </TouchableOpacity>
               {isExpanded && (
                 <View style={styles.accordionContent}>
+                  <Text style={[styles.accordionDescriptionFull, { color: theme.colors.textSecondary, marginBottom: 12 }]}>
+                    {item.description}
+                  </Text>
                   <TextInput
                     style={[styles.input, { backgroundColor: theme.colors.surfaceVariant, borderColor: theme.colors.border, color: theme.colors.text }]}
-                    placeholder={`Enter ${item.toLowerCase()} information`}
+                    placeholder={`Enter ${item.key.toLowerCase()} information`}
                     placeholderTextColor={theme.colors.textTertiary}
-                    value={step2Data[item] || ''}
-                    onChangeText={(value) => setStep2Data({ ...step2Data, [item]: value })}
+                    value={step2Data[item.key] || ''}
+                    onChangeText={(value) => setStep2Data({ ...step2Data, [item.key]: value })}
                     multiline
                   />
+                  <TouchableOpacity
+                    style={[
+                      styles.completeButton,
+                      {
+                        backgroundColor: isCompleted ? theme.colors.success || '#10b981' : theme.colors.primary,
+                        marginTop: 12,
+                      },
+                    ]}
+                    onPress={() => toggleCompletedItem(item.key)}
+                  >
+                    <Ionicons
+                      name={isCompleted ? 'checkmark-circle' : 'checkmark-circle-outline'}
+                      size={20}
+                      color={theme.colors.background}
+                    />
+                    <Text style={[styles.completeButtonText, { color: theme.colors.background }]}>
+                      {isCompleted ? 'Completed' : 'Mark as Complete'}
+                    </Text>
+                  </TouchableOpacity>
                 </View>
               )}
             </View>
@@ -682,8 +839,7 @@ export function EntityCreationModal({ visible, onClose, onComplete }: EntityCrea
             styles.modalContent,
             {
               backgroundColor: theme.colors.surface,
-              minHeight: 200,
-              maxHeight: 650,
+              minHeight: 500 + insets.bottom * 2,
             },
           ]}
         >
@@ -741,19 +897,35 @@ export function EntityCreationModal({ visible, onClose, onComplete }: EntityCrea
             </TouchableOpacity>
           </View>
 
-          {/* Step Indicator */}
-          <View style={styles.stepIndicator}>
-            {[1, 2, 3].map((step) => (
-              <View
-                key={step}
-                style={[
-                  styles.stepDot,
-                  {
-                    backgroundColor: step <= currentStep ? theme.colors.primary : theme.colors.border,
-                  },
-                ]}
-              />
-            ))}
+          {/* Step Indicator with Minimized Title */}
+          <View style={styles.stepIndicatorContainer}>
+            <Animated.View
+              style={[
+                styles.minimizedTitleContainer,
+                {
+                  opacity: minimizedTitleOpacity,
+                  transform: [{ translateY: minimizedTitleTranslateY }],
+                },
+              ]}
+              pointerEvents="none"
+            >
+              <Text style={[styles.minimizedTitle, { color: theme.colors.text }]}>
+                {currentStep === 1 ? 'Profile' : currentStep === 2 ? 'Configuration' : 'Invite People'}
+              </Text>
+            </Animated.View>
+            <View style={styles.stepIndicator}>
+              {[1, 2, 3].map((step) => (
+                <View
+                  key={step}
+                  style={[
+                    styles.stepDot,
+                    {
+                      backgroundColor: step <= currentStep ? theme.colors.primary : theme.colors.border,
+                    },
+                  ]}
+                />
+              ))}
+            </View>
           </View>
 
           {/* Step Content */}
@@ -802,16 +974,26 @@ export function EntityCreationModal({ visible, onClose, onComplete }: EntityCrea
           )}
 
           {/* Complete Button for Step 3 */}
-          {currentStep === 3 && selectedContacts.length === 0 && (
+          {currentStep === 3 && (
             <View style={[styles.navigationButtons, { borderTopColor: theme.colors.border, paddingBottom: insets.bottom }]}>
-              <TouchableOpacity
-                style={[styles.completeButton, { backgroundColor: theme.colors.primary }]}
-                onPress={handleComplete}
-              >
-                <Text style={[styles.completeButtonText, { color: theme.colors.background }]}>
-                  Complete
-                </Text>
-              </TouchableOpacity>
+              {selectedContacts.length === 0 && (
+                <TouchableOpacity
+                  style={[styles.completeButton, { backgroundColor: theme.colors.primary }]}
+                  onPress={handleComplete}
+                >
+                  <Text style={[styles.completeButtonText, { color: theme.colors.background }]}>
+                    Complete
+                  </Text>
+                </TouchableOpacity>
+              )}
+              {selectedContacts.length > 0 && (
+                <TouchableOpacity
+                  style={[styles.backButton, { borderColor: theme.colors.border }]}
+                  onPress={() => setCurrentStep(currentStep - 1)}
+                >
+                  <Text style={[styles.backButtonText, { color: theme.colors.text }]}>Back</Text>
+                </TouchableOpacity>
+              )}
             </View>
           )}
         </View>
@@ -824,7 +1006,7 @@ const styles = StyleSheet.create({
   modalContent: {
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
-    minHeight: 200,
+    minHeight: 500,
     maxHeight: 650,
     width: '100%',
     overflow: 'hidden',
@@ -879,14 +1061,34 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     zIndex: 10,
   },
+  stepIndicatorContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: 'rgba(0, 0, 0, 0.1)',
+    position: 'relative',
+  },
+  minimizedTitleContainer: {
+    position: 'absolute',
+    left: 16,
+    top: 0,
+    bottom: 0,
+    justifyContent: 'center',
+  },
+  minimizedTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    lineHeight: 20,
+  },
   stepIndicator: {
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
     gap: 8,
-    paddingVertical: 12,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: 'rgba(0, 0, 0, 0.1)',
+    flex: 1,
   },
   stepDot: {
     width: 8,
@@ -909,47 +1111,48 @@ const styles = StyleSheet.create({
     fontSize: 14,
     marginBottom: 24,
   },
-  imagePicker: {
+  banner: {
     width: '100%',
     height: 150,
-    borderRadius: 12,
-    borderWidth: 2,
-    borderStyle: 'dashed',
-    marginBottom: 16,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
     overflow: 'hidden',
+    marginBottom: -50,
   },
-  imagePreview: {
+  bannerImage: {
     width: '100%',
     height: '100%',
   },
-  imagePlaceholder: {
+  bannerPlaceholder: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
+    backgroundColor: 'rgba(0, 0, 0, 0.05)',
   },
-  imagePlaceholderText: {
+  bannerPlaceholderText: {
     marginTop: 8,
     fontSize: 14,
   },
-  avatarPicker: {
+  avatarContainer: {
+    alignSelf: 'center',
+    marginBottom: 24,
+  },
+  avatar: {
     width: 100,
     height: 100,
     borderRadius: 50,
-    borderWidth: 2,
-    borderStyle: 'dashed',
-    marginBottom: 24,
-    alignSelf: 'center',
     overflow: 'hidden',
+    borderWidth: 4,
   },
-  avatarPreview: {
+  avatarImage: {
     width: '100%',
     height: '100%',
-    borderRadius: 50,
   },
   avatarPlaceholder: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
+    backgroundColor: 'rgba(0, 0, 0, 0.05)',
   },
   inputGroup: {
     marginBottom: 24,
@@ -978,42 +1181,59 @@ const styles = StyleSheet.create({
     marginTop: 4,
     fontStyle: 'italic',
   },
+  socialLinksHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 12,
+  },
+  addSocialLinkIconButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  socialLinkRow: {
+    marginBottom: 12,
+  },
   socialLinkItem: {
     flexDirection: 'row',
     alignItems: 'center',
     padding: 12,
     borderRadius: 8,
     borderWidth: 1,
-    marginBottom: 8,
     gap: 12,
   },
-  socialLinkUrl: {
-    flex: 1,
-    fontSize: 14,
-  },
-  addSocialLinkContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 12,
-    borderRadius: 8,
-    borderWidth: 1,
-    gap: 12,
-  },
-  addSocialLinkButton: {
+  socialIconButton: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
   },
   socialLinkInput: {
     flex: 1,
-    fontSize: 14,
+    fontSize: 16,
   },
-  addButton: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+  socialDropdown: {
+    marginTop: 4,
+    borderRadius: 8,
+    borderWidth: 1,
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  socialDropdownItem: {
+    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
+    padding: 12,
+    gap: 12,
+  },
+  socialDropdownText: {
+    fontSize: 16,
   },
   accordionItem: {
     borderRadius: 8,
@@ -1027,13 +1247,44 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 16,
   },
+  accordionHeaderLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+    gap: 12,
+  },
+  completedIcon: {
+    marginRight: 4,
+  },
+  accordionHeaderText: {
+    flex: 1,
+  },
   accordionTitle: {
     fontSize: 16,
     fontWeight: '600',
   },
+  accordionDescription: {
+    fontSize: 12,
+    marginTop: 2,
+  },
+  accordionDescriptionFull: {
+    fontSize: 14,
+  },
   accordionContent: {
     padding: 16,
     paddingTop: 0,
+  },
+  completeButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 12,
+    borderRadius: 8,
+    gap: 8,
+  },
+  completeButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
   },
   inviteSourceButtons: {
     gap: 12,
@@ -1192,14 +1443,14 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
   },
-  completeButton: {
+  stepCompleteButton: {
     flex: 1,
     padding: 16,
     borderRadius: 8,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  completeButtonText: {
+  stepCompleteButtonText: {
     fontSize: 16,
     fontWeight: '600',
   },

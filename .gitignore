@@ -42,3 +42,6 @@ yarn-error.*
 backend/node_modules/
 backend/dist/
 .env
+backend/push-vars.sh
+backend/push-all-vars.sh
+backend/set-railway-vars.sh

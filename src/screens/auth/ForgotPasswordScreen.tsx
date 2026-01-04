@@ -9,10 +9,12 @@ import {
   Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useSignIn } from '@clerk/clerk-expo';
 import { useTheme } from '../../context/ThemeContext';
 import { Logo } from '../../components/Logo';
 import { TextInput } from '../../components/TextInput';
 import { Button } from '../../components/Button';
+import { OTPModal } from '../../components/OTPModal';
 
 interface ForgotPasswordScreenProps {
   navigation: any;
@@ -20,10 +22,15 @@ interface ForgotPasswordScreenProps {
 
 export function ForgotPasswordScreen({ navigation }: ForgotPasswordScreenProps) {
   const { theme } = useTheme();
+  const { signIn, setActive, isLoaded } = useSignIn();
   const [email, setEmail] = useState('');
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState<{ email?: string }>({});
   const [sent, setSent] = useState(false);
+  const [showOTPModal, setShowOTPModal] = useState(false);
+  const [otpLoading, setOtpLoading] = useState(false);
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
 
   function validate() {
     const newErrors: { email?: string } = {};
@@ -39,28 +46,90 @@ export function ForgotPasswordScreen({ navigation }: ForgotPasswordScreenProps) 
   }
 
   async function handleResetPassword() {
-    if (!validate()) {
+    if (!validate() || !isLoaded) {
       return;
     }
 
     setLoading(true);
     try {
-      // In production, call API service here
-      // await apiService.forgotPassword(email);
-      
-      // For now, just simulate API call
-      await new Promise((resolve) => setTimeout(resolve, 1500));
-      
+      // Initiate password reset
+      await signIn.create({
+        identifier: email,
+      });
+
+      // Prepare password reset
+      await signIn.prepareFirstFactor({
+        strategy: 'email_code',
+      });
+
       setSent(true);
-      Alert.alert('Email Sent', 'Check your email for password reset instructions.');
-    } catch (error) {
-      Alert.alert('Error', error instanceof Error ? error.message : 'Failed to send reset email');
+      setShowOTPModal(true);
+    } catch (error: any) {
+      const errorMessage =
+        error?.errors?.[0]?.message ||
+        error?.message ||
+        'Failed to send reset email. Please try again.';
+      Alert.alert('Error', errorMessage);
     } finally {
       setLoading(false);
     }
   }
 
-  if (sent) {
+  async function handleVerifyOTP(code: string) {
+    if (!signIn || !isLoaded) return;
+
+    setOtpLoading(true);
+    try {
+      // Verify the code
+      const result = await signIn.attemptFirstFactor({
+        strategy: 'email_code',
+        code,
+      });
+
+      if (result.status === 'needs_new_password') {
+        // Code verified, now show password reset form
+        setShowOTPModal(false);
+        // The user will need to set a new password
+        // This is handled by Clerk's flow
+        Alert.alert(
+          'Code Verified',
+          'Please set your new password.',
+          [
+            {
+              text: 'OK',
+              onPress: async () => {
+                // Clerk will handle the password reset flow
+                // User needs to complete it via the signIn object
+              },
+            },
+          ]
+        );
+      }
+    } catch (error: any) {
+      const errorMessage =
+        error?.errors?.[0]?.message || error?.message || 'Verification failed. Please try again.';
+      Alert.alert('Error', errorMessage);
+    } finally {
+      setOtpLoading(false);
+    }
+  }
+
+  async function handleResendOTP() {
+    if (!signIn || !isLoaded) return;
+
+    try {
+      await signIn.prepareFirstFactor({
+        strategy: 'email_code',
+      });
+    } catch (error: any) {
+      const errorMessage =
+        error?.errors?.[0]?.message || error?.message || 'Failed to resend code. Please try again.';
+      Alert.alert('Error', errorMessage);
+      throw error;
+    }
+  }
+
+  if (sent && !showOTPModal) {
     return (
       <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]}>
         <View style={styles.centerContent}>
@@ -128,6 +197,18 @@ export function ForgotPasswordScreen({ navigation }: ForgotPasswordScreenProps) 
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
+
+      <OTPModal
+        visible={showOTPModal}
+        onClose={() => {
+          setShowOTPModal(false);
+          setSent(false);
+        }}
+        email={email}
+        onResend={handleResendOTP}
+        onVerify={handleVerifyOTP}
+        loading={otpLoading}
+      />
     </SafeAreaView>
   );
 }

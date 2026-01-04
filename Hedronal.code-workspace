@@ -1,0 +1,243 @@
+{
+	"folders": [
+		{
+			"name": "Hedronal (Root)",
+			"path": "."
+		},
+		{
+			"name": "Backend",
+			"path": "./backend"
+		}
+	],
+	"settings": {
+		"files.exclude": {
+			"**/.git": true,
+			"**/.DS_Store": true,
+			"**/node_modules": true,
+			"**/.expo": true,
+			"**/dist": true,
+			"**/build": true,
+			"**/ios/Pods": true,
+			"**/android/.gradle": true,
+			"**/android/app/build": true,
+			"**/android/build": true,
+			"**/.metro-health-check*": true
+		},
+		"files.watcherExclude": {
+			"**/.git/objects/**": true,
+			"**/.git/subtree-cache/**": true,
+			"**/node_modules/**": true,
+			"**/.expo/**": true,
+			"**/ios/Pods/**": true,
+			"**/android/.gradle/**": true,
+			"**/android/app/build/**": true,
+			"**/android/build/**": true,
+			"**/dist/**": true,
+			"**/build/**": true
+		},
+		"search.exclude": {
+			"**/node_modules": true,
+			"**/ios/Pods": true,
+			"**/android/.gradle": true,
+			"**/android/app/build": true,
+			"**/android/build": true,
+			"**/.expo": true,
+			"**/dist": true,
+			"**/build": true,
+			"**/package-lock.json": true,
+			"**/yarn.lock": true
+		},
+		"typescript.tsdk": "node_modules/typescript/lib",
+		"typescript.enablePromptUseWorkspaceTsdk": true,
+		"editor.formatOnSave": true,
+		"editor.defaultFormatter": "esbenp.prettier-vscode",
+		"editor.codeActionsOnSave": {
+			"source.fixAll.eslint": "explicit"
+		},
+		"[typescript]": {
+			"editor.defaultFormatter": "esbenp.prettier-vscode",
+			"editor.formatOnSave": true
+		},
+		"[typescriptreact]": {
+			"editor.defaultFormatter": "esbenp.prettier-vscode",
+			"editor.formatOnSave": true
+		},
+		"[javascript]": {
+			"editor.defaultFormatter": "esbenp.prettier-vscode",
+			"editor.formatOnSave": true
+		},
+		"[javascriptreact]": {
+			"editor.defaultFormatter": "esbenp.prettier-vscode",
+			"editor.formatOnSave": true
+		},
+		"[json]": {
+			"editor.defaultFormatter": "esbenp.prettier-vscode",
+			"editor.formatOnSave": true
+		},
+		"files.associations": {
+			"*.tsx": "typescriptreact",
+			"*.ts": "typescript"
+		},
+		"emmet.includeLanguages": {
+			"typescript": "html",
+			"typescriptreact": "html"
+		},
+		"files.trimTrailingWhitespace": true,
+		"files.insertFinalNewline": true,
+		"files.trimFinalNewlines": true
+	},
+	"tasks": {
+		"version": "2.0.0",
+		"tasks": [
+			{
+				"label": "Expo: Start",
+				"type": "shell",
+				"command": "npm start",
+				"problemMatcher": [],
+				"presentation": {
+					"reveal": "always",
+					"panel": "new"
+				},
+				"group": {
+					"kind": "build",
+					"isDefault": true
+				}
+			},
+			{
+				"label": "Expo: Start (iOS)",
+				"type": "shell",
+				"command": "npm run ios",
+				"problemMatcher": [],
+				"presentation": {
+					"reveal": "always",
+					"panel": "new"
+				}
+			},
+			{
+				"label": "Expo: Start (Android)",
+				"type": "shell",
+				"command": "npm run android",
+				"problemMatcher": [],
+				"presentation": {
+					"reveal": "always",
+					"panel": "new"
+				}
+			},
+			{
+				"label": "Expo: Start (Web)",
+				"type": "shell",
+				"command": "npm run web",
+				"problemMatcher": [],
+				"presentation": {
+					"reveal": "always",
+					"panel": "new"
+				}
+			},
+			{
+				"label": "TypeScript: Type Check",
+				"type": "shell",
+				"command": "npm run type-check",
+				"problemMatcher": "$tsc",
+				"presentation": {
+					"reveal": "always",
+					"panel": "shared"
+				}
+			},
+			{
+				"label": "Backend: Install Dependencies",
+				"type": "shell",
+				"command": "npm install",
+				"options": {
+					"cwd": "${workspaceFolder}/backend"
+				},
+				"problemMatcher": [],
+				"presentation": {
+					"reveal": "always",
+					"panel": "new"
+				}
+			},
+			{
+				"label": "Backend: Start",
+				"type": "shell",
+				"command": "npm start",
+				"options": {
+					"cwd": "${workspaceFolder}/backend"
+				},
+				"problemMatcher": [],
+				"presentation": {
+					"reveal": "always",
+					"panel": "new"
+				}
+			},
+			{
+				"label": "EAS: Build Info",
+				"type": "shell",
+				"command": "eas project:info",
+				"problemMatcher": [],
+				"presentation": {
+					"reveal": "always",
+					"panel": "shared"
+				}
+			},
+			{
+				"label": "Supabase: Status",
+				"type": "shell",
+				"command": "supabase status",
+				"problemMatcher": [],
+				"presentation": {
+					"reveal": "always",
+					"panel": "shared"
+				}
+			},
+			{
+				"label": "ESLint: Lint",
+				"type": "shell",
+				"command": "npm run lint",
+				"problemMatcher": "$eslint-stylish",
+				"presentation": {
+					"reveal": "always",
+					"panel": "shared"
+				}
+			},
+			{
+				"label": "ESLint: Fix",
+				"type": "shell",
+				"command": "npm run lint:fix",
+				"problemMatcher": "$eslint-stylish",
+				"presentation": {
+					"reveal": "always",
+					"panel": "shared"
+				}
+			},
+			{
+				"label": "Prettier: Format",
+				"type": "shell",
+				"command": "npm run format",
+				"problemMatcher": [],
+				"presentation": {
+					"reveal": "always",
+					"panel": "shared"
+				}
+			},
+			{
+				"label": "Prettier: Check",
+				"type": "shell",
+				"command": "npm run format:check",
+				"problemMatcher": [],
+				"presentation": {
+					"reveal": "always",
+					"panel": "shared"
+				}
+			}
+		]
+	},
+	"extensions": {
+		"recommendations": [
+			"dbaeumer.vscode-eslint",
+			"esbenp.prettier-vscode",
+			"ms-vscode.vscode-typescript-next",
+			"expo.vscode-expo-tools"
+		]
+	}
+}
+

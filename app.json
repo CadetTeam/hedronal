@@ -1,7 +1,7 @@
 {
   "expo": {
     "name": "Hedronal",
-    "slug": "Hedronal",
+    "slug": "hedronal",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/dark.png",
@@ -15,6 +15,9 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.responsenow.Hedronal",
+      "buildNumber": "1",
+      "version": "1.0.0",
+      "appleTeamId": "YOUR_TEAM_ID_HERE",
       "infoPlist": {
         "NSContactsUsageDescription": "This app needs access to your contacts to invite people to join your entities."
       }
@@ -33,6 +36,13 @@
     },
     "web": {
       "favicon": "./assets/dark.png"
+    },
+    "extra": {
+      "eas": {
+        "projectId": "32ab9729-528b-4cf9-8939-7c0a274b7b35"
+      },
+      "clerkPublishableKey": "pk_live_Y2xlcmsuaGVkcm9uYWwuY29tJA",
+      "clerkAppId": "app_37mSSJfGyIm0Kg4FEhWL7zqqpfc"
     }
   }
 }

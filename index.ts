@@ -1,3 +1,4 @@
+import 'react-native-get-random-values'; // Must be imported before any other imports that use crypto
 import { registerRootComponent } from 'expo';
 
 import App from './App';

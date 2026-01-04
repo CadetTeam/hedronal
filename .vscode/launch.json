@@ -1,0 +1,33 @@
+{
+	"version": "0.2.0",
+	"configurations": [
+		{
+			"name": "Debug Expo",
+			"type": "reactnative",
+			"request": "launch",
+			"cwd": "${workspaceFolder}",
+			"platform": "exponent"
+		},
+		{
+			"name": "Attach to Expo",
+			"type": "reactnative",
+			"request": "attach",
+			"cwd": "${workspaceFolder}"
+		},
+		{
+			"name": "Debug iOS",
+			"type": "reactnative",
+			"request": "launch",
+			"cwd": "${workspaceFolder}",
+			"platform": "ios"
+		},
+		{
+			"name": "Debug Android",
+			"type": "reactnative",
+			"request": "launch",
+			"cwd": "${workspaceFolder}",
+			"platform": "android"
+		}
+	]
+}
+

@@ -7,12 +7,17 @@ import {
   Platform,
   ScrollView,
   Alert,
+  TouchableOpacity,
+  Linking,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useSignUp } from '@clerk/clerk-expo';
 import { useTheme } from '../../context/ThemeContext';
 import { Logo } from '../../components/Logo';
 import { TextInput } from '../../components/TextInput';
 import { Button } from '../../components/Button';
+import { OTPModal } from '../../components/OTPModal';
+import { Ionicons } from '@expo/vector-icons';
 
 interface RegisterScreenProps {
   navigation: any;
@@ -20,17 +25,22 @@ interface RegisterScreenProps {
 
 export function RegisterScreen({ navigation }: RegisterScreenProps) {
   const { theme } = useTheme();
+  const { signUp, setActive, isLoaded } = useSignUp();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const [acceptedTerms, setAcceptedTerms] = useState(false);
   const [errors, setErrors] = useState<{
     name?: string;
     email?: string;
     password?: string;
     confirmPassword?: string;
+    terms?: string;
   }>({});
+  const [showOTPModal, setShowOTPModal] = useState(false);
+  const [otpLoading, setOtpLoading] = useState(false);
 
   function validate() {
     const newErrors: {
@@ -38,6 +48,7 @@ export function RegisterScreen({ navigation }: RegisterScreenProps) {
       email?: string;
       password?: string;
       confirmPassword?: string;
+      terms?: string;
     } = {};
 
     if (!name.trim()) {
@@ -64,34 +75,87 @@ export function RegisterScreen({ navigation }: RegisterScreenProps) {
       newErrors.confirmPassword = 'Passwords do not match';
     }
 
+    if (!acceptedTerms) {
+      newErrors.terms = 'You must accept the terms and conditions';
+    }
+
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   }
 
   async function handleRegister() {
-    if (!validate()) {
+    if (!validate() || !isLoaded) {
       return;
     }
 
     setLoading(true);
     try {
-      // In production, call API service here
-      // const response = await apiService.register(email, password, name);
-      
-      // For now, just simulate API call
-      await new Promise((resolve) => setTimeout(resolve, 1500));
-      
-      Alert.alert('Success', 'Account created successfully!', [
-        {
-          text: 'OK',
-          onPress: () => navigation.navigate('Login'),
-        },
-      ]);
-    } catch (error) {
-      Alert.alert('Error', error instanceof Error ? error.message : 'Registration failed');
+      const result = await signUp.create({
+        emailAddress: email,
+        password,
+        firstName: name.split(' ')[0],
+        lastName: name.split(' ').slice(1).join(' ') || '',
+      });
+
+      // Send email verification code
+      await signUp.prepareEmailAddressVerification({ strategy: 'email_code' });
+      setShowOTPModal(true);
+    } catch (error: any) {
+      const errorMessage =
+        error?.errors?.[0]?.message || error?.message || 'Registration failed. Please try again.';
+      Alert.alert('Error', errorMessage);
     } finally {
       setLoading(false);
     }
+  }
+
+  async function handleVerifyOTP(code: string) {
+    if (!signUp || !isLoaded) return;
+
+    setOtpLoading(true);
+    try {
+      const result = await signUp.attemptEmailAddressVerification({
+        code,
+      });
+
+      if (result.status === 'complete') {
+        await setActive({ session: result.createdSessionId });
+        setShowOTPModal(false);
+        Alert.alert('Success', 'Account created successfully!');
+        // Navigation will happen automatically via AppNavigator
+      } else {
+        Alert.alert('Error', 'Invalid verification code. Please try again.');
+      }
+    } catch (error: any) {
+      const errorMessage =
+        error?.errors?.[0]?.message || error?.message || 'Verification failed. Please try again.';
+      Alert.alert('Error', errorMessage);
+    } finally {
+      setOtpLoading(false);
+    }
+  }
+
+  async function handleResendOTP() {
+    if (!signUp || !isLoaded) return;
+
+    try {
+      await signUp.prepareEmailAddressVerification({ strategy: 'email_code' });
+    } catch (error: any) {
+      const errorMessage =
+        error?.errors?.[0]?.message || error?.message || 'Failed to resend code. Please try again.';
+      Alert.alert('Error', errorMessage);
+      throw error;
+    }
+  }
+
+  function handleOpenTerms() {
+    // Replace with your actual terms URL
+    Linking.openURL('https://hedronal.com/terms');
+  }
+
+  function handleOpenPrivacy() {
+    // Replace with your actual privacy policy URL
+    Linking.openURL('https://hedronal.com/privacy');
   }
 
   return (
@@ -155,6 +219,47 @@ export function RegisterScreen({ navigation }: RegisterScreenProps) {
               error={errors.confirmPassword}
             />
 
+            <TouchableOpacity
+              style={styles.termsContainer}
+              onPress={() => setAcceptedTerms(!acceptedTerms)}
+              activeOpacity={0.7}
+            >
+              <View
+                style={[
+                  styles.checkbox,
+                  {
+                    backgroundColor: acceptedTerms ? theme.colors.primary : 'transparent',
+                    borderColor: acceptedTerms ? theme.colors.primary : theme.colors.border,
+                  },
+                ]}
+              >
+                {acceptedTerms && (
+                  <Ionicons name="checkmark" size={16} color={theme.colors.background} />
+                )}
+              </View>
+              <Text style={[styles.termsText, { color: theme.colors.textSecondary }]}>
+                I agree to the{' '}
+                <Text
+                  style={[styles.termsLink, { color: theme.colors.primary }]}
+                  onPress={handleOpenTerms}
+                >
+                  Terms and Conditions
+                </Text>{' '}
+                and{' '}
+                <Text
+                  style={[styles.termsLink, { color: theme.colors.primary }]}
+                  onPress={handleOpenPrivacy}
+                >
+                  Privacy Policy
+                </Text>
+              </Text>
+            </TouchableOpacity>
+            {errors.terms && (
+              <Text style={[styles.errorText, { color: theme.colors.error }]}>
+                {errors.terms}
+              </Text>
+            )}
+
             <Button
               title="Sign Up"
               onPress={handleRegister}
@@ -176,6 +281,19 @@ export function RegisterScreen({ navigation }: RegisterScreenProps) {
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
+
+      <OTPModal
+        visible={showOTPModal}
+        onClose={() => {
+          setShowOTPModal(false);
+          // Reset sign up if user closes modal
+          signUp?.reset();
+        }}
+        email={email}
+        onResend={handleResendOTP}
+        onVerify={handleVerifyOTP}
+        loading={otpLoading}
+      />
     </SafeAreaView>
   );
 }
@@ -209,6 +327,37 @@ const styles = StyleSheet.create({
   },
   form: {
     width: '100%',
+  },
+  termsContainer: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    marginBottom: 16,
+    marginTop: 8,
+  },
+  checkbox: {
+    width: 20,
+    height: 20,
+    borderRadius: 4,
+    borderWidth: 2,
+    marginRight: 12,
+    marginTop: 2,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  termsText: {
+    flex: 1,
+    fontSize: 14,
+    lineHeight: 20,
+  },
+  termsLink: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  errorText: {
+    fontSize: 12,
+    marginTop: -12,
+    marginBottom: 8,
+    marginLeft: 32,
   },
   button: {
     marginTop: 8,

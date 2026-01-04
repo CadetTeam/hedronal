@@ -7,6 +7,7 @@ import Animated, {
   useSharedValue,
   withSpring,
   withTiming,
+  withDelay,
   Easing,
 } from 'react-native-reanimated';
 import { BottomTabBarProps } from '@react-navigation/bottom-tabs';
@@ -37,30 +38,55 @@ const ACTIVE_TAB_ICONS: (keyof typeof Ionicons.glyphMap)[] = [
   'person',
 ];
 
-function animateBubbles(bubbleAnimations: any[]) {
-  bubbleAnimations.forEach((anim) => {
-    anim.translateY.value = 100;
-    anim.scale.value = 0.8;
+function animateBubbles(
+  bubbleAnimations: Array<{
+    translateY: ReturnType<typeof useSharedValue<number>>;
+    opacity: ReturnType<typeof useSharedValue<number>>;
+  }>,
+  baseDelay: number = 0
+) {
+  bubbleAnimations.forEach((anim, index) => {
+    // Start from bottom (off-screen)
+    anim.translateY.value = 200;
     anim.opacity.value = 0;
 
-    anim.translateY.value = withSpring(
-      0,
-      {
-        damping: 15,
-        stiffness: 150,
-        mass: 0.8,
-      },
-      () => {
-        // Bounce effect
-        anim.scale.value = withSpring(1.1, { damping: 8 }, () => {
-          anim.scale.value = withSpring(1, { damping: 10 });
-        });
-      }
+    // Calculate delay for each bubble (left to right)
+    const bubbleDelay = baseDelay + index * 80; // 80ms delay between each bubble
+
+    // Slide up from bottom, then fall down with bounce
+    anim.translateY.value = withDelay(
+      bubbleDelay,
+      withTiming(
+        -10, // Slightly above final position
+        {
+          duration: 400,
+          easing: Easing.out(Easing.cubic),
+        },
+        (finished) => {
+          'worklet';
+          if (finished) {
+            // Fall down into place with bounce
+            anim.translateY.value = withSpring(
+              0,
+              {
+                damping: 12,
+                stiffness: 200,
+                mass: 0.8,
+              }
+            );
+          }
+        }
+      )
     );
-    anim.opacity.value = withTiming(1, {
-      duration: 300,
-      easing: Easing.out(Easing.ease),
-    });
+
+    // Fade in
+    anim.opacity.value = withDelay(
+      bubbleDelay,
+      withTiming(1, {
+        duration: 300,
+        easing: Easing.out(Easing.ease),
+      })
+    );
   });
 }
 
@@ -68,20 +94,19 @@ export function FloatingTabBar({ state, descriptors, navigation }: BottomTabBarP
   const { theme, isDark } = useTheme();
   const { refreshKey } = useTabBar();
   const bubbleAnimations = TAB_ICONS.map(() => ({
-    translateY: useSharedValue(100),
-    scale: useSharedValue(0.8),
+    translateY: useSharedValue(200),
     opacity: useSharedValue(0),
   }));
 
   useEffect(() => {
-    // Animate bubbles in from bottom on mount
-    animateBubbles(bubbleAnimations);
+    // Animate bubbles in from bottom on mount (left to right, sequential)
+    animateBubbles(bubbleAnimations, 0);
   }, []);
 
   useEffect(() => {
     // Re-animate bubbles when refreshKey changes (triggered by pull-to-refresh)
     if (refreshKey > 0) {
-      animateBubbles(bubbleAnimations);
+      animateBubbles(bubbleAnimations, 0);
     }
   }, [refreshKey]);
 
@@ -118,15 +143,14 @@ export function FloatingTabBar({ state, descriptors, navigation }: BottomTabBarP
               : TAB_ICONS[index].name;
             const iconColor = getIconColor(isFocused, isDark);
 
-            const animatedStyle = useAnimatedStyle(() => {
-              return {
-                transform: [
-                  { translateY: bubbleAnimations[index].translateY.value },
-                  { scale: bubbleAnimations[index].scale.value },
-                ],
-                opacity: bubbleAnimations[index].opacity.value,
-              };
-            });
+              const animatedStyle = useAnimatedStyle(() => {
+                return {
+                  transform: [
+                    { translateY: bubbleAnimations[index].translateY.value },
+                  ],
+                  opacity: bubbleAnimations[index].opacity.value,
+                };
+              });
 
             return (
               <Animated.View key={route.key} style={animatedStyle}>

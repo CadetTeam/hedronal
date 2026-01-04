@@ -16,6 +16,7 @@ import { Header } from '../../components/Header';
 import { EmptyState } from '../../components/EmptyState';
 import { SkeletonCard } from '../../components/Skeleton';
 import { Button } from '../../components/Button';
+import { EntityCreationModal } from '../../components/EntityCreationModal';
 
 export function PeopleScreen() {
   const { theme } = useTheme();
@@ -26,6 +27,7 @@ export function PeopleScreen() {
   const [showFilters, setShowFilters] = useState(false);
   const [selectedPerson, setSelectedPerson] = useState<any | null>(null);
   const [showPersonMenu, setShowPersonMenu] = useState(false);
+  const [showEntityModal, setShowEntityModal] = useState(false);
 
   async function onRefresh() {
     setRefreshing(true);
@@ -35,7 +37,13 @@ export function PeopleScreen() {
   }
 
   function handleAddPerson() {
-    // Navigate to invite screen/modal
+    setShowEntityModal(true);
+  }
+
+  function handleEntityComplete(entity: any) {
+    // Entity created - could add to people list if needed
+    console.log('Entity created:', entity);
+    setShowEntityModal(false);
   }
 
   function handleFilter() {
@@ -280,6 +288,13 @@ export function PeopleScreen() {
           </View>
         </TouchableOpacity>
       </Modal>
+
+      {/* Entity Creation Modal */}
+      <EntityCreationModal
+        visible={showEntityModal}
+        onClose={() => setShowEntityModal(false)}
+        onComplete={handleEntityComplete}
+      />
     </SafeAreaView>
   );
 }

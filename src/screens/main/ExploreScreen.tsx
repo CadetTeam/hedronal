@@ -415,9 +415,10 @@ export function ExploreScreen() {
     );
   }
 
-  function renderArticle({ item, index }: { item: any; index: number }) {
+  function renderArticle({ item, index, key }: { item: any; index: number; key?: string }) {
     return (
       <TouchableOpacity
+        key={key}
         style={[
           styles.articleCard,
           {
@@ -482,7 +483,11 @@ export function ExploreScreen() {
             showsHorizontalScrollIndicator={false}
             contentContainerStyle={styles.topicsScrollContent}
           >
-            {TOPICS.slice(0, 15).map((topic) => renderTopic(topic, false))}
+            {TOPICS.slice(0, 15).map((topic) => (
+              <React.Fragment key={topic}>
+                {renderTopic(topic, false)}
+              </React.Fragment>
+            ))}
             <TouchableOpacity
               style={[
                 styles.topicChip,
@@ -562,7 +567,7 @@ export function ExploreScreen() {
           ) : (
             <View style={styles.masonryContainer}>
               {filteredAndSortedArticles.map((article, index) =>
-                renderArticle({ item: article, index })
+                renderArticle({ item: article, index, key: article.id })
               )}
             </View>
           )}
@@ -659,7 +664,11 @@ export function ExploreScreen() {
               showsVerticalScrollIndicator={false}
             >
               <View style={styles.masonryTopicsContainer}>
-                {TOPICS.map((topic) => renderTopic(topic, true))}
+                {TOPICS.map((topic) => (
+                  <React.Fragment key={topic}>
+                    {renderTopic(topic, true)}
+                  </React.Fragment>
+                ))}
               </View>
             </ScrollView>
           </View>

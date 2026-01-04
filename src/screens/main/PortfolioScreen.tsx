@@ -37,6 +37,8 @@ export function PortfolioScreen() {
   const [showFilters, setShowFilters] = useState(false);
   const [filterType, setFilterType] = useState<string | null>(null);
   const [showEntityModal, setShowEntityModal] = useState(false);
+  const [showProfileModal, setShowProfileModal] = useState(false);
+  const [selectedEntity, setSelectedEntity] = useState<any>(null);
 
   async function onRefresh() {
     setRefreshing(true);
@@ -85,6 +87,10 @@ export function PortfolioScreen() {
           },
         ]}
         activeOpacity={0.7}
+        onPress={() => {
+          setSelectedEntity(item);
+          setShowProfileModal(true);
+        }}
       >
         {item.banner && (
           <Image
@@ -292,6 +298,22 @@ export function PortfolioScreen() {
         onClose={() => setShowEntityModal(false)}
         onComplete={handleEntityComplete}
       />
+
+      {/* Entity Profile Modal */}
+      {selectedEntity && (
+        <EntityProfileModal
+          visible={showProfileModal}
+          onClose={() => {
+            setShowProfileModal(false);
+            setSelectedEntity(null);
+          }}
+          entity={selectedEntity}
+          onUpdate={(updatedEntity) => {
+            setEntities(entities.map((e) => (e.id === updatedEntity.id ? updatedEntity : e)));
+            setSelectedEntity(updatedEntity);
+          }}
+        />
+      )}
     </SafeAreaView>
   );
 }

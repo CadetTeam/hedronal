@@ -1,0 +1,36 @@
+# Dependencies
+node_modules/
+package-lock.json
+yarn.lock
+
+# Build outputs
+.expo/
+dist/
+build/
+web-build/
+
+# Native
+ios/
+android/
+*.pbxproj
+*.xcworkspace
+
+# Generated files
+*.log
+*.tsbuildinfo
+expo-env.d.ts
+
+# Assets
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.svg
+*.ico
+*.webp
+
+# Lock files
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+

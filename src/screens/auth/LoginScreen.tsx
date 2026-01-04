@@ -9,12 +9,14 @@ import {
   Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useSignIn } from '@clerk/clerk-expo';
 import { useTheme } from '../../context/ThemeContext';
 import { useDemoMode } from '../../context/DemoModeContext';
 import { Logo } from '../../components/Logo';
 import { TextInput } from '../../components/TextInput';
 import { Button } from '../../components/Button';
 import { LoadingSpinner } from '../../components/LoadingSpinner';
+import { OTPModal } from '../../components/OTPModal';
 
 interface LoginScreenProps {
   navigation: any;
@@ -23,17 +25,17 @@ interface LoginScreenProps {
 export function LoginScreen({ navigation }: LoginScreenProps) {
   const { theme } = useTheme();
   const { enableDemoMode, isDemoMode } = useDemoMode();
+  const { signIn, setActive, isLoaded } = useSignIn();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState<{ email?: string; password?: string }>({});
+  const [showOTPModal, setShowOTPModal] = useState(false);
+  const [otpLoading, setOtpLoading] = useState(false);
+
   function handleLongPressStart() {
     enableDemoMode();
     Alert.alert('Demo Mode', 'Demo mode has been enabled!');
-  }
-
-  function handleLongPressEnd() {
-    // Called when press is released (optional)
   }
 
   function validate() {
@@ -47,8 +49,6 @@ export function LoginScreen({ navigation }: LoginScreenProps) {
 
     if (!password) {
       newErrors.password = 'Password is required';
-    } else if (password.length < 8) {
-      newErrors.password = 'Password must be at least 8 characters';
     }
 
     setErrors(newErrors);
@@ -56,24 +56,72 @@ export function LoginScreen({ navigation }: LoginScreenProps) {
   }
 
   async function handleLogin() {
-    if (!validate()) {
+    if (!validate() || !isLoaded) {
       return;
     }
 
     setLoading(true);
     try {
-      // In production, call API service here
-      // const response = await apiService.login(email, password);
-      
-      // For now, just simulate API call
-      await new Promise((resolve) => setTimeout(resolve, 1500));
-      
-      // Navigate to main app (placeholder for now)
-      Alert.alert('Success', 'Login successful!');
-    } catch (error) {
-      Alert.alert('Error', error instanceof Error ? error.message : 'Login failed');
+      const result = await signIn.create({
+        identifier: email,
+        password,
+      });
+
+      if (result.status === 'complete') {
+        await setActive({ session: result.createdSessionId });
+        // Navigation will happen automatically via AppNavigator
+      } else if (result.status === 'needs_second_factor') {
+        // Show OTP modal for 2FA
+        setShowOTPModal(true);
+      } else {
+        Alert.alert('Error', 'Unable to sign in. Please try again.');
+      }
+    } catch (error: any) {
+      const errorMessage =
+        error?.errors?.[0]?.message || error?.message || 'Login failed. Please try again.';
+      Alert.alert('Error', errorMessage);
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function handleVerifyOTP(code: string) {
+    if (!signIn || !isLoaded) return;
+
+    setOtpLoading(true);
+    try {
+      const result = await signIn.attemptSecondFactor({
+        strategy: 'totp',
+        code,
+      });
+
+      if (result.status === 'complete') {
+        await setActive({ session: result.createdSessionId });
+        setShowOTPModal(false);
+      } else {
+        Alert.alert('Error', 'Invalid verification code. Please try again.');
+      }
+    } catch (error: any) {
+      const errorMessage =
+        error?.errors?.[0]?.message || error?.message || 'Verification failed. Please try again.';
+      Alert.alert('Error', errorMessage);
+    } finally {
+      setOtpLoading(false);
+    }
+  }
+
+  async function handleResendOTP() {
+    if (!signIn || !isLoaded) return;
+
+    try {
+      await signIn.prepareSecondFactor({
+        strategy: 'totp',
+      });
+    } catch (error: any) {
+      const errorMessage =
+        error?.errors?.[0]?.message || error?.message || 'Failed to resend code. Please try again.';
+      Alert.alert('Error', errorMessage);
+      throw error;
     }
   }
 
@@ -89,7 +137,7 @@ export function LoginScreen({ navigation }: LoginScreenProps) {
           showsVerticalScrollIndicator={false}
         >
           <View style={styles.logoContainer}>
-            <Logo size={100} onLongPressStart={handleLongPressStart} onLongPressEnd={handleLongPressEnd} />
+            <Logo size={100} onLongPressStart={handleLongPressStart} onLongPressEnd={() => {}} />
             {isDemoMode && (
               <Text style={[styles.demoBadge, { color: theme.colors.accent }]}>DEMO MODE</Text>
             )}
@@ -150,6 +198,15 @@ export function LoginScreen({ navigation }: LoginScreenProps) {
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
+
+      <OTPModal
+        visible={showOTPModal}
+        onClose={() => setShowOTPModal(false)}
+        email={email}
+        onResend={handleResendOTP}
+        onVerify={handleVerifyOTP}
+        loading={otpLoading}
+      />
     </SafeAreaView>
   );
 }

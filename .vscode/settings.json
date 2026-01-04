@@ -1,0 +1,62 @@
+{
+	"// Workspace-specific settings": "These settings are specific to this workspace",
+	"files.exclude": {
+		"**/.expo": true,
+		"**/node_modules": false
+	},
+	"search.exclude": {
+		"**/node_modules": true,
+		"**/ios/Pods": true,
+		"**/android/.gradle": true,
+		"**/android/app/build": true,
+		"**/android/build": true,
+		"**/.expo": true,
+		"**/dist": true,
+		"**/build": true
+	},
+	"typescript.preferences.importModuleSpecifier": "relative",
+	"typescript.suggest.autoImports": true,
+	"editor.tabSize": 2,
+	"editor.insertSpaces": true,
+	"editor.detectIndentation": false,
+	"editor.formatOnSave": true,
+	"editor.defaultFormatter": "esbenp.prettier-vscode",
+	"editor.codeActionsOnSave": {
+		"source.fixAll.eslint": "explicit"
+	},
+	"eslint.enable": true,
+	"eslint.validate": [
+		"javascript",
+		"javascriptreact",
+		"typescript",
+		"typescriptreact"
+	],
+	"prettier.enable": true,
+	"prettier.requireConfig": true,
+	"[typescript]": {
+		"editor.tabSize": 2,
+		"editor.defaultFormatter": "esbenp.prettier-vscode",
+		"editor.formatOnSave": true
+	},
+	"[typescriptreact]": {
+		"editor.tabSize": 2,
+		"editor.defaultFormatter": "esbenp.prettier-vscode",
+		"editor.formatOnSave": true
+	},
+	"[javascript]": {
+		"editor.tabSize": 2,
+		"editor.defaultFormatter": "esbenp.prettier-vscode",
+		"editor.formatOnSave": true
+	},
+	"[javascriptreact]": {
+		"editor.tabSize": 2,
+		"editor.defaultFormatter": "esbenp.prettier-vscode",
+		"editor.formatOnSave": true
+	},
+	"[json]": {
+		"editor.tabSize": 2,
+		"editor.defaultFormatter": "esbenp.prettier-vscode",
+		"editor.formatOnSave": true
+	}
+}
+
