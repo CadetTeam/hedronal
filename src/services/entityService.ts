@@ -3,7 +3,7 @@ import { useOrganization, useOrganizationList } from '@clerk/clerk-expo';
 import { useClerkContext } from '../context/ClerkContext';
 import { useAuth } from '@clerk/clerk-expo';
 
-const API_BASE_URL = __DEV__ ? 'http://localhost:3000/api' : 'https://api.hedronal.com/api';
+const API_BASE_URL = __DEV__ ? 'http://localhost:3000/api' : 'https://hedronal-production.up.railway.app/api';
 
 export interface EntityData {
   name: string;

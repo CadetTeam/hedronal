@@ -1,6 +1,6 @@
 import { AuthResponse, ApiError } from '../types';
 
-const API_BASE_URL = __DEV__ ? 'http://localhost:3000/api' : 'https://api.hedronal.com/api';
+const API_BASE_URL = __DEV__ ? 'http://localhost:3000/api' : 'https://hedronal-production.up.railway.app/api';
 
 class ApiService {
   private baseUrl: string;
