@@ -13,6 +13,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   Keyboard,
+  Alert,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -25,6 +26,10 @@ import { LoadingSpinner } from '../../components/LoadingSpinner';
 import { BlurredModalOverlay } from '../../components/BlurredModalOverlay';
 import { LinearGradient } from 'expo-linear-gradient';
 import { NotificationsModal } from '../../components/NotificationsModal';
+import { WalletModal } from '../../components/WalletModal';
+import { fetchArticles, toggleArticleLike, Article } from '../../services/articleService';
+import { useAuth } from '@clerk/clerk-expo';
+import { useClerkContext } from '../../context/ClerkContext';
 
 const TOPICS = [
   'Private Equity',
@@ -290,13 +295,15 @@ export function ExploreScreen() {
   const { theme, isDark } = useTheme();
   const { triggerRefresh } = useTabBar();
   const insets = useSafeAreaInsets();
+  const { getToken } = useAuth();
+  const { userId } = useClerkContext();
   const [refreshing, setRefreshing] = useState(false);
   const [loading, setLoading] = useState(false);
   const [selectedTopic, setSelectedTopic] = useState<string | null>(null);
-  const [articles, setArticles] = useState<any[]>(MOCK_ARTICLES);
+  const [articles, setArticles] = useState<Article[]>([]);
   const [showTopicsModal, setShowTopicsModal] = useState(false);
   const [showArticleModal, setShowArticleModal] = useState(false);
-  const [selectedArticle, setSelectedArticle] = useState<any | null>(null);
+  const [selectedArticle, setSelectedArticle] = useState<Article | null>(null);
   const [sortBy, setSortBy] = useState<'date' | 'title' | 'readTime'>('date');
   const [filterTopic, setFilterTopic] = useState<string | null>(null);
   const [showSearch, setShowSearch] = useState(false);
@@ -304,6 +311,64 @@ export function ExploreScreen() {
   const [keyboardVisible, setKeyboardVisible] = useState(false);
   const [keyboardHeight, setKeyboardHeight] = useState(0);
   const [showNotificationsModal, setShowNotificationsModal] = useState(false);
+  const [showWalletModal, setShowWalletModal] = useState(false);
+
+  // Load articles from backend API
+  async function loadArticles(topicFilter?: string | null) {
+    setLoading(true);
+    try {
+      const token = await getToken();
+      const fetchedArticles = await fetchArticles(topicFilter || undefined, 50, 0, token || undefined);
+      setArticles(fetchedArticles);
+    } catch (error) {
+      console.error('Error loading articles:', error);
+      Alert.alert('Error', 'Failed to load articles. Please try again.');
+      setArticles([]);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  // Load articles on mount
+  useEffect(() => {
+    loadArticles(filterTopic);
+  }, [filterTopic, userId]);
+
+  // Handle article like toggle
+  async function handleLikeToggle(articleId: string, currentLikedStatus: boolean) {
+    if (!userId) {
+      Alert.alert('Login Required', 'Please log in to like articles.');
+      return;
+    }
+    try {
+      const token = await getToken();
+      const result = await toggleArticleLike(articleId, token || undefined);
+      if (result) {
+        // Update the article's like status in the local state
+        setArticles((prevArticles) =>
+          prevArticles.map((article) =>
+            article.id === articleId
+              ? {
+                  ...article,
+                  isLiked: result.liked,
+                  likes_count: result.likes_count,
+                }
+              : article
+          )
+        );
+        if (selectedArticle?.id === articleId) {
+          setSelectedArticle({
+            ...selectedArticle,
+            isLiked: result.liked,
+            likes_count: result.likes_count,
+          });
+        }
+      }
+    } catch (error) {
+      console.error('Error toggling like:', error);
+      Alert.alert('Error', 'Failed to update like status. Please try again.');
+    }
+  }
 
   useEffect(() => {
     const keyboardWillShow = Keyboard.addListener(
@@ -357,7 +422,7 @@ export function ExploreScreen() {
         case 'title':
           return a.title.localeCompare(b.title);
         case 'readTime':
-          return parseInt(a.readTime) - parseInt(b.readTime);
+          return parseInt(a.read_time) - parseInt(b.read_time);
         default:
           return 0;
       }
@@ -369,7 +434,7 @@ export function ExploreScreen() {
   async function onRefresh() {
     setRefreshing(true);
     triggerRefresh();
-    await new Promise((resolve) => setTimeout(resolve, 1500));
+    await loadArticles(filterTopic);
     setRefreshing(false);
   }
 
@@ -446,7 +511,7 @@ export function ExploreScreen() {
             {item.topic}
           </Text>
           <Text style={[styles.articleReadTime, { color: theme.colors.textTertiary }]}>
-            {item.readTime}
+            {item.read_time}
           </Text>
         </View>
       </TouchableOpacity>
@@ -460,6 +525,10 @@ export function ExploreScreen() {
       >
         <Header
           title="Explore"
+          leftAction={{
+            icon: 'wallet-outline',
+            onPress: () => setShowWalletModal(true),
+          }}
           rightSideAction={{
             icon: 'notifications-outline',
             onPress: () => setShowNotificationsModal(true),
@@ -735,7 +804,7 @@ export function ExploreScreen() {
                       By {selectedArticle.author}
                     </Text>
                     <Text style={[styles.articleModalDate, { color: theme.colors.textTertiary }]}>
-                      {new Date(selectedArticle.date).toLocaleDateString()} • {selectedArticle.readTime}
+                      {new Date(selectedArticle.date).toLocaleDateString()} • {selectedArticle.read_time}
                     </Text>
                   </View>
                   <View
@@ -757,6 +826,12 @@ export function ExploreScreen() {
           </View>
         </BlurredModalOverlay>
       </Modal>
+
+      {/* Wallet Modal */}
+      <WalletModal
+        visible={showWalletModal}
+        onClose={() => setShowWalletModal(false)}
+      />
 
       {/* Notifications Modal */}
       <NotificationsModal

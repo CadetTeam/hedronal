@@ -110,7 +110,7 @@ export function LoginScreen({ navigation }: LoginScreenProps) {
       {/* Video Background */}
       <Video
         ref={videoRef}
-        source={require('../../../assets/hedronal.mp4')}
+        source={require('../../../assets/Hedronali.mp4')}
         style={styles.video}
         resizeMode={ResizeMode.COVER}
         shouldPlay
@@ -125,7 +125,7 @@ export function LoginScreen({ navigation }: LoginScreenProps) {
         }}
       />
 
-      {/* Dark overlay for readability */}
+      {/* Light overlay for readability with dark text */}
       <View style={styles.overlay} />
 
       <SafeAreaView style={styles.safeArea}>
@@ -140,7 +140,7 @@ export function LoginScreen({ navigation }: LoginScreenProps) {
           >
             <View style={styles.logoContainer}>
               <Image
-                source={require('../../../assets/light.png')}
+                source={require('../../../assets/dark.png')}
                 style={[styles.logo, { width: 100, height: 100 }]}
                 resizeMode="contain"
               />
@@ -269,7 +269,7 @@ const styles = StyleSheet.create({
     left: 0,
     bottom: 0,
     right: 0,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    backgroundColor: 'rgba(255, 255, 255, 0.01)', // Light overlay for dark brown text
   },
   safeArea: {
     flex: 1,
@@ -296,23 +296,23 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '600',
     letterSpacing: 1,
-    color: '#FFFFFF',
-    textShadowColor: 'rgba(0, 0, 0, 0.75)',
+    color: '#3E2723',
+    textShadowColor: 'rgba(255, 255, 255, 0.5)',
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 3,
   },
   footerText: {
     fontSize: 14,
-    color: '#FFFFFF',
-    textShadowColor: 'rgba(0, 0, 0, 0.75)',
+    color: '#3E2723',
+    textShadowColor: 'rgba(255, 255, 255, 0.5)',
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 3,
   },
   footerLink: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#FFFFFF',
-    textShadowColor: 'rgba(0, 0, 0, 0.75)',
+    color: '#3E2723',
+    textShadowColor: 'rgba(255, 255, 255, 0.5)',
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 3,
   },

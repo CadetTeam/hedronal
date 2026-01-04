@@ -105,9 +105,19 @@ export async function createEntity(
       stack: error?.stack,
       name: error?.name,
     });
+
+    // Handle specific React Native fetch errors
+    let errorMessage = error?.message || 'Failed to create entity';
+    if (
+      error?.message?.includes('failed to respond') ||
+      error?.message?.includes('Network request failed')
+    ) {
+      errorMessage = 'Backend service is unavailable. Please check your connection and try again.';
+    }
+
     return {
       success: false,
-      error: error?.message || 'Failed to create entity',
+      error: errorMessage,
     };
   }
 }

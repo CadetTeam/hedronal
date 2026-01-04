@@ -45,7 +45,7 @@ export function AuthTextInput({
               },
               style,
             ]}
-            placeholderTextColor="rgba(255, 255, 255, 0.6)"
+            placeholderTextColor="rgba(62, 39, 35, 0.6)"
             secureTextEntry={actualSecureTextEntry}
             {...props}
           />
@@ -58,7 +58,7 @@ export function AuthTextInput({
               <Ionicons
                 name={isPasswordVisible ? 'eye-off-outline' : 'eye-outline'}
                 size={20}
-                color="rgba(255, 255, 255, 0.8)"
+                color="rgba(62, 39, 35, 0.8)"
               />
             </TouchableOpacity>
           )}
@@ -77,8 +77,8 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '500',
     marginBottom: 8,
-    color: '#FFFFFF',
-    textShadowColor: 'rgba(0, 0, 0, 0.75)',
+    color: '#3E2723',
+    textShadowColor: 'rgba(255, 255, 255, 0.5)',
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 3,
   },
@@ -100,7 +100,7 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     fontSize: 16,
     minHeight: 48,
-    color: '#FFFFFF',
+    color: '#3E2723',
     backgroundColor: 'transparent',
   },
   eyeIcon: {

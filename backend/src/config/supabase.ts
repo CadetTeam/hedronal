@@ -1,7 +1,13 @@
 import { createClient } from '@supabase/supabase-js';
 import dotenv from 'dotenv';
+import path from 'path';
 
-dotenv.config();
+// Load .env from project root (when running from backend directory)
+// Try root .env first, then backend/.env
+const rootEnvPath = path.resolve(process.cwd(), '..', '.env');
+const backendEnvPath = path.resolve(process.cwd(), '.env');
+dotenv.config({ path: rootEnvPath });
+dotenv.config({ path: backendEnvPath, override: false });
 
 const SUPABASE_URL = process.env.SUPABASE_URL || process.env.EXPO_PUBLIC_SUPABASE_URL || '';
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || '';

@@ -5,6 +5,7 @@ import { authRouter } from './routes/auth';
 import { entityRouter } from './routes/entity';
 import { webhookRouter } from './routes/webhook';
 import { imageRouter } from './routes/image';
+import { articleRouter } from './routes/article';
 
 dotenv.config();
 
@@ -26,6 +27,7 @@ app.use('/api/auth', authRouter);
 app.use('/api/entities', entityRouter);
 app.use('/api/webhooks', webhookRouter);
 app.use('/api/images', imageRouter);
+app.use('/api/articles', articleRouter);
 
 // Error handling middleware
 app.use((err: Error, req: express.Request, res: express.Response, next: express.NextFunction) => {

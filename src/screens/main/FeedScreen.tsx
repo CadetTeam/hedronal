@@ -14,6 +14,7 @@ import { EmptyState } from '../../components/EmptyState';
 import { SkeletonCard } from '../../components/Skeleton';
 import { LoadingSpinner } from '../../components/LoadingSpinner';
 import { NotificationsModal } from '../../components/NotificationsModal';
+import { WalletModal } from '../../components/WalletModal';
 
 const MOCK_POSTS = [
   {
@@ -160,6 +161,7 @@ export function FeedScreen() {
   const [loading, setLoading] = useState(false);
   const [posts, setPosts] = useState<any[]>(MOCK_POSTS);
   const [showNotificationsModal, setShowNotificationsModal] = useState(false);
+  const [showWalletModal, setShowWalletModal] = useState(false);
 
   async function onRefresh() {
     setRefreshing(true);
@@ -253,6 +255,10 @@ export function FeedScreen() {
     >
       <Header
         title="Feed"
+        leftAction={{
+          icon: 'wallet-outline',
+          onPress: () => setShowWalletModal(true),
+        }}
         rightSideAction={{
           icon: 'notifications-outline',
           onPress: () => setShowNotificationsModal(true),
@@ -275,6 +281,16 @@ export function FeedScreen() {
           />
         }
         showsVerticalScrollIndicator={false}
+      />
+
+      <WalletModal
+        visible={showWalletModal}
+        onClose={() => setShowWalletModal(false)}
+      />
+
+      <NotificationsModal
+        visible={showNotificationsModal}
+        onClose={() => setShowNotificationsModal(false)}
       />
     </SafeAreaView>
   );

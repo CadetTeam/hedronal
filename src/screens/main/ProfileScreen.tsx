@@ -23,6 +23,7 @@ import { EmptyState } from '../../components/EmptyState';
 import { Button } from '../../components/Button';
 import { BlurredModalOverlay } from '../../components/BlurredModalOverlay';
 import { Logo } from '../../components/Logo';
+import { SocialLinksModal } from '../../components/SocialLinksModal';
 
 const SOCIAL_ICONS = [
   { name: 'logo-twitter', label: 'Twitter' },
@@ -73,7 +74,6 @@ export function ProfileScreen() {
   const [editingName, setEditingName] = useState(profileData.name);
   const [editingUsername, setEditingUsername] = useState(profileData.username);
   const [editingSocialLinks, setEditingSocialLinks] = useState(profileData.socialLinks);
-  const [newSocialLink, setNewSocialLink] = useState({ type: 'website', url: '' });
 
   async function onRefresh() {
     setRefreshing(true);
@@ -142,22 +142,8 @@ export function ProfileScreen() {
     setShowUsernameModal(false);
   }
 
-  function addSocialLink() {
-    if (!newSocialLink.url.trim()) {
-      Alert.alert('Error', 'Please enter a URL');
-      return;
-    }
-    setEditingSocialLinks([...editingSocialLinks, { ...newSocialLink }]);
-    setNewSocialLink({ type: 'website', url: '' });
-  }
-
-  function removeSocialLink(index: number) {
-    setEditingSocialLinks(editingSocialLinks.filter((_, i) => i !== index));
-  }
-
-  function saveSocialLinks() {
-    setProfileData({ ...profileData, socialLinks: editingSocialLinks });
-    setShowSocialLinksModal(false);
+  function handleSaveSocialLinks(socialLinks: Array<{ type: string; url: string }>) {
+    setProfileData({ ...profileData, socialLinks });
   }
 
   function renderActivityItem({ item }: { item: any }) {
@@ -316,26 +302,24 @@ export function ProfileScreen() {
           </TouchableOpacity>
 
           {/* Social Links */}
-          <TouchableOpacity
-            activeOpacity={0.8}
-            onPress={() => {
-              setEditingSocialLinks([...profileData.socialLinks]);
-              setShowSocialLinksModal(true);
-            }}
-          >
-            <View style={styles.socialLinks}>
-              {profileData.socialLinks.map((link, index) => (
-                link.url ? (
-                  <TouchableOpacity key={index} style={styles.socialLink}>
-                    <Ionicons name={getSocialIcon(link.type) as any} size={20} color={theme.colors.text} />
-                  </TouchableOpacity>
-                ) : null
-              ))}
-              <TouchableOpacity style={styles.socialLink}>
-                <Ionicons name="add" size={20} color={theme.colors.text} />
-              </TouchableOpacity>
-            </View>
-          </TouchableOpacity>
+          <View style={styles.socialLinks}>
+            {profileData.socialLinks.map((link, index) => (
+              link.url ? (
+                <TouchableOpacity key={index} style={styles.socialLink}>
+                  <Ionicons name={getSocialIcon(link.type) as any} size={20} color={theme.colors.text} />
+                </TouchableOpacity>
+              ) : null
+            ))}
+            <TouchableOpacity
+              style={styles.socialLink}
+              onPress={() => {
+                setEditingSocialLinks([...profileData.socialLinks]);
+                setShowSocialLinksModal(true);
+              }}
+            >
+              <Ionicons name="add" size={20} color={theme.colors.text} />
+            </TouchableOpacity>
+          </View>
 
           {/* Stats */}
           <View style={styles.stats}>
@@ -823,153 +807,12 @@ export function ProfileScreen() {
       </Modal>
 
       {/* Social Links Modal */}
-      <Modal
+      <SocialLinksModal
         visible={showSocialLinksModal}
-        animationType="slide"
-        transparent
-        onRequestClose={() => setShowSocialLinksModal(false)}
-      >
-        <BlurredModalOverlay
-          visible={showSocialLinksModal}
-          onClose={() => setShowSocialLinksModal(false)}
-        >
-          <View
-            style={[
-              styles.modalContent,
-              styles.socialLinksModalContent,
-              {
-                backgroundColor: theme.colors.surface,
-                minHeight: 200 + insets.bottom * 2,
-              },
-            ]}
-          >
-            <View style={styles.modalHeader}>
-              <LinearGradient
-                colors={
-                  isDark
-                    ? ['rgba(30, 30, 30, 1)', 'rgba(30, 30, 30, 0)']
-                    : ['rgba(245, 245, 220, 1)', 'rgba(245, 245, 220, 0)']
-                }
-                style={styles.modalHeaderGradient}
-                pointerEvents="none"
-              />
-              <Text style={[styles.modalTitle, { color: theme.colors.text }]}>Edit Social Links</Text>
-              <TouchableOpacity onPress={() => setShowSocialLinksModal(false)}>
-                <Ionicons name="close" size={24} color={theme.colors.text} />
-              </TouchableOpacity>
-            </View>
-            <ScrollView
-              style={styles.modalBody}
-              contentContainerStyle={[
-                styles.modalBodyContent,
-                { paddingBottom: insets.bottom * 2 },
-              ]}
-              showsVerticalScrollIndicator={false}
-            >
-              {editingSocialLinks.map((link, index) => (
-                <View
-                  key={index}
-                  style={[
-                    styles.socialLinkItem,
-                    {
-                      backgroundColor: theme.colors.surfaceVariant,
-                      borderColor: theme.colors.border,
-                    },
-                  ]}
-                >
-                  <Ionicons
-                    name={getSocialIcon(link.type) as any}
-                    size={24}
-                    color={theme.colors.text}
-                  />
-                  <TextInput
-                    style={[
-                      styles.socialLinkInput,
-                      { color: theme.colors.text },
-                    ]}
-                    value={link.url}
-                    onChangeText={(url) => {
-                      const updated = [...editingSocialLinks];
-                      updated[index].url = url;
-                      setEditingSocialLinks(updated);
-                    }}
-                    placeholder="Enter URL"
-                    placeholderTextColor={theme.colors.textTertiary}
-                    keyboardType="url"
-                    autoCapitalize="none"
-                  />
-                  <TouchableOpacity onPress={() => removeSocialLink(index)}>
-                    <Ionicons name="trash-outline" size={20} color={theme.colors.error} />
-                  </TouchableOpacity>
-                </View>
-              ))}
-              <View
-                style={[
-                  styles.addSocialLinkContainer,
-                  {
-                    backgroundColor: theme.colors.surfaceVariant,
-                    borderColor: theme.colors.border,
-                  },
-                ]}
-              >
-                <TouchableOpacity
-                  style={styles.addSocialLinkButton}
-                  onPress={() => {
-                    const types = ['twitter', 'linkedin', 'github', 'instagram', 'website', 'email'];
-                    const currentType = newSocialLink.type;
-                    const currentIndex = types.indexOf(currentType);
-                    const nextType = types[(currentIndex + 1) % types.length];
-                    setNewSocialLink({ ...newSocialLink, type: nextType });
-                  }}
-                >
-                  <Ionicons
-                    name={getSocialIcon(newSocialLink.type) as any}
-                    size={24}
-                    color={theme.colors.text}
-                  />
-                  <Ionicons name="add" size={20} color={theme.colors.primary} />
-                </TouchableOpacity>
-                <TextInput
-                  style={[
-                    styles.socialLinkInput,
-                    { color: theme.colors.text },
-                  ]}
-                  value={newSocialLink.url}
-                  onChangeText={(url) => setNewSocialLink({ ...newSocialLink, url })}
-                  placeholder="Enter URL"
-                  placeholderTextColor={theme.colors.textTertiary}
-                  keyboardType="url"
-                  autoCapitalize="none"
-                />
-                <TouchableOpacity
-                  style={[
-                    styles.addButton,
-                    { backgroundColor: theme.colors.primary },
-                  ]}
-                  onPress={addSocialLink}
-                >
-                  <Ionicons name="add" size={20} color={theme.colors.background} />
-                </TouchableOpacity>
-              </View>
-            </ScrollView>
-            <View
-              style={[
-                styles.floatingSaveButton,
-                { backgroundColor: theme.colors.primary },
-              ]}
-            >
-              <TouchableOpacity
-                style={styles.floatingSaveButtonInner}
-                onPress={saveSocialLinks}
-              >
-                <Text style={[styles.floatingSaveButtonText, { color: theme.colors.background }]}>
-                  Save
-                </Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </BlurredModalOverlay>
-      </Modal>
+        onClose={() => setShowSocialLinksModal(false)}
+        socialLinks={editingSocialLinks}
+        onSave={handleSaveSocialLinks}
+      />
 
       {/* Wallet Modal */}
       <Modal

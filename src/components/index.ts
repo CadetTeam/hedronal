@@ -8,4 +8,5 @@ export { BlurredModalOverlay } from './BlurredModalOverlay';
 export { Header } from './Header';
 export { WalletModal } from './WalletModal';
 export { NotificationsModal } from './NotificationsModal';
+export { SocialLinksModal } from './SocialLinksModal';
 export { InvitePeopleModal } from './InvitePeopleModal';
