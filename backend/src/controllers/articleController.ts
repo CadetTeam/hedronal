@@ -27,7 +27,7 @@ export const articleController = {
           *,
           article_likes(count)
         `)
-        .order('date', { ascending: false, nullsLast: true })
+        .order('date', { ascending: false, nullsFirst: false })
         .order('created_at', { ascending: false })
         .range(offsetNum, offsetNum + limitNum - 1);
 
