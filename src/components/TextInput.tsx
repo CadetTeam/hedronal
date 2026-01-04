@@ -1,5 +1,6 @@
-import React from 'react';
-import { TextInput as RNTextInput, StyleSheet, View, Text, ViewStyle, TextInputProps } from 'react-native';
+import React, { useState } from 'react';
+import { TextInput as RNTextInput, StyleSheet, View, Text, ViewStyle, TextInputProps, TouchableOpacity } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../context/ThemeContext';
 
 interface CustomTextInputProps extends TextInputProps {
@@ -8,27 +9,48 @@ interface CustomTextInputProps extends TextInputProps {
   containerStyle?: ViewStyle;
 }
 
-export function TextInput({ label, error, containerStyle, style, ...props }: CustomTextInputProps) {
+export function TextInput({ label, error, containerStyle, style, secureTextEntry, ...props }: CustomTextInputProps) {
   const { theme } = useTheme();
+  const [isPasswordVisible, setIsPasswordVisible] = useState(false);
+
+  const showPasswordToggle = secureTextEntry === true;
+  const actualSecureTextEntry = showPasswordToggle ? !isPasswordVisible : secureTextEntry;
 
   return (
     <View style={[styles.container, containerStyle]}>
       {label && (
         <Text style={[styles.label, { color: theme.colors.text }]}>{label}</Text>
       )}
-      <RNTextInput
-        style={[
-          styles.input,
-          {
-            backgroundColor: theme.colors.surface,
-            borderColor: error ? theme.colors.error : theme.colors.border,
-            color: theme.colors.text,
-          },
-          style,
-        ]}
-        placeholderTextColor={theme.colors.textTertiary}
-        {...props}
-      />
+      <View style={styles.inputWrapper}>
+        <RNTextInput
+          style={[
+            styles.input,
+            {
+              backgroundColor: theme.colors.surface,
+              borderColor: error ? theme.colors.error : theme.colors.border,
+              color: theme.colors.text,
+              paddingRight: showPasswordToggle ? 48 : 16,
+            },
+            style,
+          ]}
+          placeholderTextColor={theme.colors.textTertiary}
+          secureTextEntry={actualSecureTextEntry}
+          {...props}
+        />
+        {showPasswordToggle && (
+          <TouchableOpacity
+            style={styles.eyeIcon}
+            onPress={() => setIsPasswordVisible(!isPasswordVisible)}
+            activeOpacity={0.7}
+          >
+            <Ionicons
+              name={isPasswordVisible ? 'eye-off-outline' : 'eye-outline'}
+              size={20}
+              color={theme.colors.textTertiary}
+            />
+          </TouchableOpacity>
+        )}
+      </View>
       {error && (
         <Text style={[styles.error, { color: theme.colors.error }]}>{error}</Text>
       )}
@@ -45,6 +67,9 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     marginBottom: 8,
   },
+  inputWrapper: {
+    position: 'relative',
+  },
   input: {
     borderWidth: 1,
     borderRadius: 8,
@@ -52,6 +77,12 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     fontSize: 16,
     minHeight: 48,
+  },
+  eyeIcon: {
+    position: 'absolute',
+    right: 12,
+    top: 14,
+    padding: 4,
   },
   error: {
     fontSize: 12,

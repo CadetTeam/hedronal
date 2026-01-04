@@ -60,68 +60,46 @@ export function LoginScreen({ navigation }: LoginScreenProps) {
       return;
     }
 
+    if (!signIn) {
+      Alert.alert('Error', 'Sign in service is not ready. Please try again.');
+      return;
+    }
+
     setLoading(true);
     try {
+      console.log('[LoginScreen] Attempting sign in...');
       const result = await signIn.create({
         identifier: email,
         password,
       });
 
+      console.log('[LoginScreen] Sign in result status:', result.status);
+
       if (result.status === 'complete') {
-        await setActive({ session: result.createdSessionId });
-        // Navigation will happen automatically via AppNavigator
+        if (result.createdSessionId) {
+          console.log('[LoginScreen] Setting active session...');
+          await setActive({ session: result.createdSessionId });
+          console.log('[LoginScreen] Sign in successful');
+          // Navigation will happen automatically via AppNavigator
+        } else {
+          console.error('[LoginScreen] No session ID in result');
+          Alert.alert('Error', 'Sign in completed but no session was created. Please try again.');
+        }
       } else if (result.status === 'needs_second_factor') {
-        // Show OTP modal for 2FA
+        // 2FA is optional - show OTP modal but allow user to skip
+        console.log('[LoginScreen] 2FA required, showing OTP modal (optional)');
         setShowOTPModal(true);
       } else {
+        console.warn('[LoginScreen] Sign in status:', result.status);
         Alert.alert('Error', 'Unable to sign in. Please try again.');
       }
     } catch (error: any) {
+      console.error('[LoginScreen] Sign in error:', error);
       const errorMessage =
         error?.errors?.[0]?.message || error?.message || 'Login failed. Please try again.';
       Alert.alert('Error', errorMessage);
     } finally {
       setLoading(false);
-    }
-  }
-
-  async function handleVerifyOTP(code: string) {
-    if (!signIn || !isLoaded) return;
-
-    setOtpLoading(true);
-    try {
-      const result = await signIn.attemptSecondFactor({
-        strategy: 'totp',
-        code,
-      });
-
-      if (result.status === 'complete') {
-        await setActive({ session: result.createdSessionId });
-        setShowOTPModal(false);
-      } else {
-        Alert.alert('Error', 'Invalid verification code. Please try again.');
-      }
-    } catch (error: any) {
-      const errorMessage =
-        error?.errors?.[0]?.message || error?.message || 'Verification failed. Please try again.';
-      Alert.alert('Error', errorMessage);
-    } finally {
-      setOtpLoading(false);
-    }
-  }
-
-  async function handleResendOTP() {
-    if (!signIn || !isLoaded) return;
-
-    try {
-      await signIn.prepareSecondFactor({
-        strategy: 'totp',
-      });
-    } catch (error: any) {
-      const errorMessage =
-        error?.errors?.[0]?.message || error?.message || 'Failed to resend code. Please try again.';
-      Alert.alert('Error', errorMessage);
-      throw error;
     }
   }
 
@@ -142,11 +120,6 @@ export function LoginScreen({ navigation }: LoginScreenProps) {
               <Text style={[styles.demoBadge, { color: theme.colors.accent }]}>DEMO MODE</Text>
             )}
           </View>
-
-          <Text style={[styles.title, { color: theme.colors.text }]}>Welcome Back</Text>
-          <Text style={[styles.subtitle, { color: theme.colors.textSecondary }]}>
-            Sign in to continue
-          </Text>
 
           <View style={styles.form}>
             <TextInput
@@ -170,12 +143,7 @@ export function LoginScreen({ navigation }: LoginScreenProps) {
               error={errors.password}
             />
 
-            <Button
-              title="Sign In"
-              onPress={handleLogin}
-              loading={loading}
-              style={styles.button}
-            />
+            <Button title="Sign In" onPress={handleLogin} loading={loading} style={styles.button} />
 
             <Button
               title="Forgot Password?"
@@ -201,10 +169,53 @@ export function LoginScreen({ navigation }: LoginScreenProps) {
 
       <OTPModal
         visible={showOTPModal}
-        onClose={() => setShowOTPModal(false)}
+        onClose={() => {
+          setShowOTPModal(false);
+          // Allow user to skip 2FA - they can try signing in again later
+        }}
         email={email}
-        onResend={handleResendOTP}
-        onVerify={handleVerifyOTP}
+        onResend={async () => {
+          if (!signIn || !isLoaded) return;
+          try {
+            await signIn.prepareSecondFactor({
+              strategy: 'totp',
+            });
+          } catch (error: any) {
+            const errorMessage =
+              error?.errors?.[0]?.message ||
+              error?.message ||
+              'Failed to resend code. Please try again.';
+            Alert.alert('Error', errorMessage);
+            throw error;
+          }
+        }}
+        onVerify={async (code: string) => {
+          if (!signIn || !isLoaded) return;
+
+          setOtpLoading(true);
+          try {
+            const result = await signIn.attemptSecondFactor({
+              strategy: 'totp',
+              code,
+            });
+
+            if (result.status === 'complete') {
+              await setActive({ session: result.createdSessionId });
+              setShowOTPModal(false);
+              console.log('[LoginScreen] Sign in successful with 2FA');
+            } else {
+              Alert.alert('Error', 'Invalid verification code. Please try again.');
+            }
+          } catch (error: any) {
+            const errorMessage =
+              error?.errors?.[0]?.message ||
+              error?.message ||
+              'Verification failed. Please try again.';
+            Alert.alert('Error', errorMessage);
+          } finally {
+            setOtpLoading(false);
+          }
+        }}
         loading={otpLoading}
       />
     </SafeAreaView>

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -17,6 +17,10 @@ import { EmptyState } from '../../components/EmptyState';
 import { SkeletonCard } from '../../components/Skeleton';
 import { Button } from '../../components/Button';
 import { EntityCreationModal } from '../../components/EntityCreationModal';
+import { EntityProfileModal } from '../../components/EntityProfileModal';
+import { fetchEntities, fetchEntityById } from '../../services/entityService';
+import { useClerkContext } from '../../context/ClerkContext';
+import { useAuth } from '@clerk/clerk-expo';
 
 const ENTITY_TYPES = [
   'Fund',
@@ -31,6 +35,8 @@ const ENTITY_TYPES = [
 export function PortfolioScreen() {
   const { theme } = useTheme();
   const { triggerRefresh } = useTabBar();
+  const { userId } = useClerkContext();
+  const { getToken } = useAuth();
   const [refreshing, setRefreshing] = useState(false);
   const [loading, setLoading] = useState(false);
   const [entities, setEntities] = useState<any[]>([]);
@@ -40,10 +46,63 @@ export function PortfolioScreen() {
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [selectedEntity, setSelectedEntity] = useState<any>(null);
 
+  // Fetch entities from backend
+  async function loadEntities() {
+    if (!userId) return;
+    
+    setLoading(true);
+    try {
+      const token = await getToken();
+      const fetchedEntities = await fetchEntities(token || undefined);
+      
+      // Transform entities to match the expected format
+      const transformedEntities = fetchedEntities.map((entity: any) => {
+        // Transform entity_configurations array to object
+        const step2Data: { [key: string]: any } = {};
+        if (entity.entity_configurations && Array.isArray(entity.entity_configurations)) {
+          entity.entity_configurations.forEach((config: any) => {
+            step2Data[config.config_type] = config.config_data;
+          });
+        }
+        
+        // Get completed items from configurations
+        const completedItems = entity.entity_configurations
+          ?.filter((config: any) => config.is_completed)
+          .map((config: any) => config.config_type) || [];
+
+        return {
+          id: entity.id,
+          name: entity.name,
+          handle: entity.handle,
+          type: entity.type || 'Entity',
+          banner: entity.banner_url,
+          avatar: entity.avatar_url,
+          brief: entity.brief,
+          clerkOrgId: entity.clerk_organization_id,
+          createdAt: entity.created_at,
+          step2Data,
+          completedItems,
+          socialLinks: entity.entity_social_links || [],
+        };
+      });
+      
+      setEntities(transformedEntities);
+    } catch (error) {
+      console.error('Error loading entities:', error);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  // Load entities on mount
+  useEffect(() => {
+    loadEntities();
+  }, [userId]);
+
   async function onRefresh() {
     setRefreshing(true);
     triggerRefresh(); // Trigger bubble animation reload
-    await new Promise((resolve) => setTimeout(resolve, 1500));
+    await loadEntities();
     setRefreshing(false);
   }
 
@@ -51,21 +110,59 @@ export function PortfolioScreen() {
     setShowEntityModal(true);
   }
 
-  function handleEntityComplete(entity: any) {
-    // Add the new entity to the list
-    const newEntity = {
-      id: `entity-${Date.now()}`,
-      name: entity.name,
-      handle: entity.handle,
-      type: 'Entity', // You can customize this based on entity data
-      banner: entity.banner,
-      avatar: entity.avatar,
-      brief: entity.brief,
-      createdAt: new Date().toISOString(),
-      ...entity,
-    };
-    setEntities([newEntity, ...entities]);
+  async function handleEntityComplete(entity: any) {
+    // Refresh entities list to get the newly created entity from backend
+    await loadEntities();
     setShowEntityModal(false);
+  }
+
+  async function handleEntityPress(entity: any) {
+    // Fetch full entity data from backend if needed
+    try {
+      const token = await getToken();
+      const fullEntity = await fetchEntityById(entity.id, token || undefined);
+      if (fullEntity) {
+        // Transform entity_configurations array to object
+        const step2Data: { [key: string]: any } = {};
+        if (fullEntity.entity_configurations && Array.isArray(fullEntity.entity_configurations)) {
+          fullEntity.entity_configurations.forEach((config: any) => {
+            step2Data[config.config_type] = config.config_data;
+          });
+        }
+        
+        // Get completed items from configurations
+        const completedItems = fullEntity.entity_configurations
+          ?.filter((config: any) => config.is_completed)
+          .map((config: any) => config.config_type) || [];
+
+        // Transform to match expected format
+        const transformedEntity = {
+          id: fullEntity.id,
+          name: fullEntity.name,
+          handle: fullEntity.handle,
+          type: fullEntity.type || 'Entity',
+          banner: fullEntity.banner_url,
+          avatar: fullEntity.avatar_url,
+          brief: fullEntity.brief,
+          clerkOrgId: fullEntity.clerk_organization_id,
+          createdAt: fullEntity.created_at,
+          step2Data,
+          completedItems,
+          socialLinks: fullEntity.entity_social_links || [],
+        };
+        setSelectedEntity(transformedEntity);
+        setShowProfileModal(true);
+      } else {
+        // Fallback to entity from list
+        setSelectedEntity(entity);
+        setShowProfileModal(true);
+      }
+    } catch (error) {
+      console.error('Error fetching entity:', error);
+      // Fallback to entity from list
+      setSelectedEntity(entity);
+      setShowProfileModal(true);
+    }
   }
 
   function handleFilter() {
@@ -87,10 +184,7 @@ export function PortfolioScreen() {
           },
         ]}
         activeOpacity={0.7}
-        onPress={() => {
-          setSelectedEntity(item);
-          setShowProfileModal(true);
-        }}
+        onPress={() => handleEntityPress(item)}
       >
         {item.banner && (
           <Image

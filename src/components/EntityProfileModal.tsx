@@ -127,14 +127,14 @@ export function EntityProfileModal({ visible, onClose, entity, onUpdate }: Entit
                 <View
                   style={[
                     styles.banner,
-                    { backgroundColor: theme.colors.background },
+                    { backgroundColor: entity.banner ? theme.colors.background : theme.colors.primary },
                   ]}
                 >
                   {entity.banner ? (
                     <Image source={{ uri: entity.banner }} style={styles.bannerImage} />
                   ) : (
                     <View style={styles.bannerPlaceholder}>
-                      <Ionicons name="image-outline" size={32} color={theme.colors.textTertiary} />
+                      <Ionicons name="image-outline" size={32} color={theme.colors.background} />
                     </View>
                   )}
                 </View>
@@ -393,6 +393,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     width: '100%',
+    height: '100%',
   },
   profileSection: {
     alignItems: 'center',

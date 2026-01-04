@@ -3,7 +3,9 @@ import { useOrganization, useOrganizationList } from '@clerk/clerk-expo';
 import { useClerkContext } from '../context/ClerkContext';
 import { useAuth } from '@clerk/clerk-expo';
 
-const API_BASE_URL = __DEV__ ? 'http://localhost:3000/api' : 'https://hedronal-production.up.railway.app/api';
+const API_BASE_URL = __DEV__
+  ? 'http://localhost:3000/api'
+  : 'https://hedronal-production.up.railway.app/api';
 
 export interface EntityData {
   name: string;
@@ -78,54 +80,125 @@ export async function createEntity(
 }
 
 /**
+ * Fetches entities from the backend API
+ */
+export async function fetchEntities(clerkToken?: string): Promise<any[]> {
+  try {
+    const response = await fetch(`${API_BASE_URL}/entities`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(clerkToken && { Authorization: `Bearer ${clerkToken}` }),
+      },
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      console.error('Error fetching entities:', error);
+      return [];
+    }
+
+    const result = await response.json();
+    return result.entities || [];
+  } catch (error: any) {
+    console.error('Error fetching entities:', error);
+    return [];
+  }
+}
+
+/**
+ * Fetches a single entity by ID from the backend API
+ */
+export async function fetchEntityById(entityId: string, clerkToken?: string): Promise<any | null> {
+  try {
+    const response = await fetch(`${API_BASE_URL}/entities/${entityId}`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(clerkToken && { Authorization: `Bearer ${clerkToken}` }),
+      },
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      console.error('Error fetching entity:', error);
+      return null;
+    }
+
+    const result = await response.json();
+    return result.entity || null;
+  } catch (error: any) {
+    console.error('Error fetching entity:', error);
+    return null;
+  }
+}
+
+/**
  * Hook to use entity creation with Clerk organizations
  * Use this hook in components that need to create entities
  */
 export function useEntityCreation() {
   const { userId, user } = useClerkContext();
   const { getToken } = useAuth();
-  const { createOrganization } = useOrganization();
-  const { organizationList } = useOrganizationList();
+  const { createOrganization, isLoaded: orgListLoaded } = useOrganizationList();
 
   const createEntityWithOrganization = async (entityData: EntityData) => {
     if (!userId) {
       throw new Error('User must be authenticated');
     }
 
+    if (!orgListLoaded) {
+      throw new Error('Organization list is still loading. Please wait and try again.');
+    }
+
+    if (!createOrganization) {
+      throw new Error('Organization creation is not available. Please ensure you are signed in.');
+    }
+
     try {
+      console.log('[useEntityCreation] Creating Clerk organization:', {
+        name: entityData.name,
+        slug: entityData.handle,
+      });
+
       // Get Clerk session token for backend authentication
       const token = await getToken();
 
-      // Create Clerk organization
+      // Create Clerk organization using useOrganizationList().createOrganization
       const org = await createOrganization({
         name: entityData.name,
         slug: entityData.handle,
       });
 
+      console.log('[useEntityCreation] Clerk organization created:', org?.id);
+
+      if (!org || !org.id) {
+        throw new Error('Failed to create Clerk organization - no organization ID returned');
+      }
+
+      console.log('[useEntityCreation] Creating entity via backend API with org ID:', org.id);
+
       // Create entity via backend API with organization ID
-      const result = await createEntity(
-        entityData,
-        userId,
-        org.id,
-        token || undefined
-      );
+      const result = await createEntity(entityData, userId, org.id, token || undefined);
 
       if (!result.success) {
+        console.error('[useEntityCreation] Backend entity creation failed:', result.error);
         throw new Error(result.error || 'Failed to create entity');
       }
+
+      console.log('[useEntityCreation] Entity created successfully:', result.entityId);
 
       return {
         ...result,
         clerkOrgId: org.id,
       };
     } catch (error: any) {
+      console.error('[useEntityCreation] Error creating entity with organization:', error);
       throw new Error(error?.message || 'Failed to create entity with organization');
     }
   };
 
   return {
     createEntityWithOrganization,
-    organizationList,
   };
 }
-

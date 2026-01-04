@@ -24,23 +24,23 @@ PROJECT STRUCTURE
 
 Hedronal/
 ├── src/
-│   ├── components/          Reusable UI components
-│   ├── screens/             Screen components
-│   │   └── auth/           Authentication screens
-│   ├── navigation/          Navigation configuration
-│   ├── services/           API services
-│   ├── context/            React Context providers
-│   ├── constants/          Constants and theme
-│   ├── types/              TypeScript types
-│   └── utils/              Utility functions
-├── backend/                Node.js backend server
-│   └── src/
-│       ├── routes/         API routes
-│       ├── controllers/    Route controllers
-│       ├── middleware/     Express middleware
-│       └── config/         Configuration files
-├── supabase/              Supabase schema and setup
-└── assets/                Images and static assets
+│ ├── components/ Reusable UI components
+│ ├── screens/ Screen components
+│ │ └── auth/ Authentication screens
+│ ├── navigation/ Navigation configuration
+│ ├── services/ API services
+│ ├── context/ React Context providers
+│ ├── constants/ Constants and theme
+│ ├── types/ TypeScript types
+│ └── utils/ Utility functions
+├── backend/ Node.js backend server
+│ └── src/
+│ ├── routes/ API routes
+│ ├── controllers/ Route controllers
+│ ├── middleware/ Express middleware
+│ └── config/ Configuration files
+├── supabase/ Supabase schema and setup
+└── assets/ Images and static assets
 
 PREREQUISITES
 
@@ -126,6 +126,7 @@ npm start
 DEMO MODE
 
 To enable demo mode:
+
 1. Navigate to the Login screen
 2. Long-press the Hedronal logo (H) for 6 seconds
 3. Demo mode will be activated and persisted
@@ -206,16 +207,16 @@ Initial Data
 Run this SQL to insert initial article topics:
 
 INSERT INTO article_topics (name, description) VALUES
-  ('Private Equity', 'Private equity fund structures and investments'),
-  ('Family Offices', 'Family office management and structures'),
-  ('Non-Profits', 'Non-profit organization management'),
-  ('Tax Mitigation', 'Tax planning and mitigation strategies'),
-  ('Acquisitions', 'M&A and acquisition strategies'),
-  ('Fund Formations', 'Fund formation and structuring'),
-  ('SPVs', 'Special Purpose Vehicle structures'),
-  ('Trusts', 'Trust structures and management'),
-  ('Donor Advised Funds', 'DAF management and strategies'),
-  ('Estate Planning', 'Estate planning and wealth transfer');
+('Private Equity', 'Private equity fund structures and investments'),
+('Family Offices', 'Family office management and structures'),
+('Non-Profits', 'Non-profit organization management'),
+('Tax Mitigation', 'Tax planning and mitigation strategies'),
+('Acquisitions', 'M&A and acquisition strategies'),
+('Fund Formations', 'Fund formation and structuring'),
+('SPVs', 'Special Purpose Vehicle structures'),
+('Trusts', 'Trust structures and management'),
+('Donor Advised Funds', 'DAF management and strategies'),
+('Estate Planning', 'Estate planning and wealth transfer');
 
 CLERK AUTHENTICATION SETUP
 
@@ -223,24 +224,36 @@ Configure Clerk Application
 
 1. Create a new Clerk application at https://dashboard.clerk.com
 2. Copy your Publishable Key from the Clerk dashboard
-3. Add it to your environment variables or app.json
+
+Configure Session Lifetime
+
+To keep users logged in for 7 days, configure the session lifetime in the Clerk Dashboard:
+
+1. Go to https://dashboard.clerk.com
+2. Select your application
+3. Navigate to Settings → Sessions
+4. Find the "Session lifetime" setting
+5. Set it to 7 days (604800 seconds)
+6. Save changes
+
+This will keep users authenticated for 7 days before requiring re-authentication. The session will automatically refresh as long as the user is active within the 7-day period. 3. Add it to your environment variables or app.json
 
 Environment Configuration
 
 Option A: Using .env file (recommended for development)
 
 Create a .env file in the root directory with:
-EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_test_...
+EXPO*PUBLIC_CLERK_PUBLISHABLE_KEY=pk_test*...
 
 Option B: Using app.json
 
 Add to app.json under extra:
 {
-  "expo": {
-    "extra": {
-      "clerkPublishableKey": "pk_test_..."
-    }
-  }
+"expo": {
+"extra": {
+"clerkPublishableKey": "pk*test*..."
+}
+}
 }
 
 CLERK WEBHOOK SETUP
@@ -278,7 +291,7 @@ organizationMembership.deleted
 Step 3: Get Webhook Secret
 
 1. After creating the webhook, you'll see a Signing Secret
-2. It will look like: whsec_...
+2. It will look like: whsec\_...
 3. Copy this secret
 
 Step 4: Add Secret to Railway
@@ -337,16 +350,16 @@ Railway will auto-detect the build, but you can verify:
 The railway.json file specifies Railpack as the builder:
 
 {
-  "$schema": "https://railway.app/railway.schema.json",
-  "build": {
-    "builder": "RAILPACK",
-    "buildCommand": "npm install && npm run build"
-  },
-  "deploy": {
-    "startCommand": "npm start",
-    "restartPolicyType": "ON_FAILURE",
-    "restartPolicyMaxRetries": 10
-  }
+"$schema": "https://railway.app/railway.schema.json",
+"build": {
+"builder": "RAILPACK",
+"buildCommand": "npm install && npm run build"
+},
+"deploy": {
+"startCommand": "npm start",
+"restartPolicyType": "ON_FAILURE",
+"restartPolicyMaxRetries": 10
+}
 }
 
 Step 3: Set Environment Variables
@@ -430,14 +443,14 @@ Step 8: Update Frontend API URL
 Update your frontend to use the Railway URL:
 
 Update src/services/api.ts:
-const API_BASE_URL = __DEV__ 
-  ? 'http://localhost:3000/api' 
-  : 'https://your-app.up.railway.app/api';
+const API_BASE_URL = **DEV**
+? 'http://localhost:3000/api'
+: 'https://your-app.up.railway.app/api';
 
 Update src/services/entityService.ts:
-const API_BASE_URL = __DEV__ 
-  ? 'http://localhost:3000/api' 
-  : 'https://your-app.up.railway.app/api';
+const API_BASE_URL = **DEV**
+? 'http://localhost:3000/api'
+: 'https://your-app.up.railway.app/api';
 
 EAS DEPLOYMENT
 
@@ -482,15 +495,15 @@ Update app.json for Production
 Make sure your app.json has production-ready settings:
 
 {
-  "expo": {
-    "name": "Hedronal",
-    "version": "1.0.0",
-    "ios": {
-      "bundleIdentifier": "com.responsenow.Hedronal",
-      "buildNumber": "1",
-      "supportsTablet": true
-    }
-  }
+"expo": {
+"name": "Hedronal",
+"version": "1.0.0",
+"ios": {
+"bundleIdentifier": "com.responsenow.Hedronal",
+"buildNumber": "1",
+"supportsTablet": true
+}
+}
 }
 
 Set Up Environment Variables
@@ -545,7 +558,7 @@ Once you see your Team ID in Xcode (it's a 10-character string like ABC123DEFG):
 1. Copy the Team ID from Xcode
 2. Update app.json:
    "ios": {
-     "appleTeamId": "YOUR_ACTUAL_TEAM_ID"
+   "appleTeamId": "YOUR_ACTUAL_TEAM_ID"
    }
 
 Step 4: Configure App Store Connect
@@ -575,6 +588,7 @@ Step 5: Build for App Store
 Update Version and Build Number
 
 In Xcode:
+
 1. Select the Hedronal target
 2. Go to General tab
 3. Set:
@@ -583,8 +597,8 @@ In Xcode:
 
 Or update in app.json:
 "ios": {
-  "buildNumber": "1",
-  "version": "1.0.0"
+"buildNumber": "1",
+"version": "1.0.0"
 }
 
 Configure Build Settings
@@ -635,9 +649,9 @@ In App Store Connect:
 
 4. Version Information:
    Screenshots: Required sizes:
-     6.7" iPhone (1290 x 2796 pixels) - iPhone 14 Pro Max
-     6.5" iPhone (1242 x 2688 pixels) - iPhone 11 Pro Max
-     5.5" iPhone (1242 x 2208 pixels) - iPhone 8 Plus
+   6.7" iPhone (1290 x 2796 pixels) - iPhone 14 Pro Max
+   6.5" iPhone (1242 x 2688 pixels) - iPhone 11 Pro Max
+   5.5" iPhone (1242 x 2208 pixels) - iPhone 8 Plus
    App Preview: (optional) Video preview
    Description: App description
    Keywords: Search keywords (100 characters max)

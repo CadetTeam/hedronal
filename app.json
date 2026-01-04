@@ -17,7 +17,7 @@
       "bundleIdentifier": "com.responsenow.Hedronal",
       "buildNumber": "1",
       "version": "1.0.0",
-      "appleTeamId": "YOUR_TEAM_ID_HERE",
+      "appleTeamId": "SE9G4ZSFVEV",
       "infoPlist": {
         "NSContactsUsageDescription": "This app needs access to your contacts to invite people to join your entities."
       }
@@ -43,6 +43,9 @@
       },
       "clerkPublishableKey": "pk_live_Y2xlcmsuaGVkcm9uYWwuY29tJA",
       "clerkAppId": "app_37mSSJfGyIm0Kg4FEhWL7zqqpfc"
-    }
+    },
+    "plugins": [
+      "expo-web-browser"
+    ]
   }
 }

@@ -23,13 +23,31 @@ function AppContent() {
 }
 
 export default function App() {
+  React.useEffect(() => {
+    console.log('[App] Clerk publishable key:', CLERK_PUBLISHABLE_KEY ? 'SET' : 'MISSING');
+    if (CLERK_PUBLISHABLE_KEY) {
+      console.log('[App] Key starts with:', CLERK_PUBLISHABLE_KEY.substring(0, 10));
+    }
+  }, []);
+
   if (!CLERK_PUBLISHABLE_KEY) {
-    console.error('CLERK_PUBLISHABLE_KEY is missing. Please configure it in app.json or environment variables.');
+    console.error(
+      'CLERK_PUBLISHABLE_KEY is missing. Please configure it in app.json or environment variables.'
+    );
   }
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
+        {/* 
+          Clerk session lifetime is configured in the Clerk Dashboard:
+          1. Go to https://dashboard.clerk.com
+          2. Navigate to Settings → Sessions
+          3. Set "Session lifetime" to 7 days (604800 seconds)
+          4. Save changes
+          
+          This will keep users logged in for 7 days before requiring re-authentication.
+        */}
         <ClerkProvider publishableKey={CLERK_PUBLISHABLE_KEY}>
           <ThemeProvider>
             <DemoModeProvider>

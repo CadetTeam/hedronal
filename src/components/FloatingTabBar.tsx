@@ -113,7 +113,7 @@ export function FloatingTabBar({ state, descriptors, navigation }: BottomTabBarP
   // Determine icon color based on background
   const getIconColor = (isFocused: boolean, isDarkMode: boolean) => {
     if (isFocused) {
-      return isDarkMode ? theme.colors.accent : theme.colors.primaryDark;
+      return theme.colors.primary; // Same color as auth buttons
     }
     return isDarkMode ? theme.colors.textSecondary : theme.colors.textTertiary;
   };

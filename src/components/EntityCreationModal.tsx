@@ -122,6 +122,48 @@ export function EntityCreationModal({ visible, onClose, onComplete }: EntityCrea
     }
   }, [visible]);
 
+  // Reset minimized title when step changes
+  useEffect(() => {
+    setShowMinimizedTitle(false);
+    minimizedTitleOpacity.setValue(0);
+    minimizedTitleTranslateY.setValue(20);
+  }, [currentStep]);
+
+  // Auto-load contacts when step 3 loads if permission already granted
+  useEffect(() => {
+    if (currentStep === 3 && inviteSource === null) {
+      checkAndLoadContacts();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentStep]);
+
+  async function checkAndLoadContacts() {
+    try {
+      // Check if permission is already granted
+      const { status } = await Contacts.getPermissionsAsync();
+      if (status === 'granted') {
+        // Permission already granted, load contacts automatically
+        const { data } = await Contacts.getContactsAsync({
+          fields: [Contacts.Fields.Name, Contacts.Fields.PhoneNumbers, Contacts.Fields.Emails],
+        });
+        if (data && data.length > 0) {
+          setContacts(
+            data.map((contact) => ({
+              id: contact.id,
+              name: contact.name || 'Unknown',
+              phone: contact.phoneNumbers?.[0]?.number,
+              email: contact.emails?.[0]?.email,
+            }))
+          );
+          setInviteSource('contacts');
+        }
+      }
+    } catch (error) {
+      // Silently fail - user can still manually import
+      console.log('[EntityCreationModal] Could not auto-load contacts:', error);
+    }
+  }
+
   useEffect(() => {
     const keyboardWillShow = Keyboard.addListener(
       Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow',
@@ -457,17 +499,14 @@ export function EntityCreationModal({ visible, onClose, onComplete }: EntityCrea
           <View
             style={[
               styles.banner,
-              { backgroundColor: theme.colors.background },
+              { backgroundColor: banner ? theme.colors.background : theme.colors.primary },
             ]}
           >
             {banner ? (
               <Image source={{ uri: banner }} style={styles.bannerImage} />
             ) : (
               <View style={styles.bannerPlaceholder}>
-                <Ionicons name="image-outline" size={32} color={theme.colors.textTertiary} />
-                <Text style={[styles.bannerPlaceholderText, { color: theme.colors.textTertiary }]}>
-                  Add Banner
-                </Text>
+                <Ionicons name="image-outline" size={32} color={theme.colors.background} />
               </View>
             )}
           </View>
@@ -693,6 +732,8 @@ export function EntityCreationModal({ visible, onClose, onComplete }: EntityCrea
           style={styles.stepContent}
           contentContainerStyle={[styles.stepContentContainer, { paddingBottom: insets.bottom * 2 + (selectedContacts.length > 0 ? 80 : 0) + (showInviteMessage ? 200 : 0) }]}
           showsVerticalScrollIndicator={false}
+          onScroll={handleScroll}
+          scrollEventThrottle={16}
         >
           <Text style={[styles.stepTitle, { color: theme.colors.text }]}>Invite People</Text>
           <Text style={[styles.stepDescription, { color: theme.colors.textSecondary }]}>
@@ -850,9 +891,15 @@ export function EntityCreationModal({ visible, onClose, onComplete }: EntityCrea
               pointerEvents="none"
             />
             <View style={styles.headerLeft}>
-              <TouchableOpacity onPress={() => setShowMenu(!showMenu)}>
-                <Ionicons name="ellipsis-horizontal" size={24} color={theme.colors.text} />
-              </TouchableOpacity>
+              {currentStep === 3 ? (
+                <TouchableOpacity onPress={() => setCurrentStep(2)}>
+                  <Ionicons name="arrow-back" size={24} color={theme.colors.text} />
+                </TouchableOpacity>
+              ) : (
+                <TouchableOpacity onPress={() => setShowMenu(!showMenu)}>
+                  <Ionicons name="ellipsis-horizontal" size={24} color={theme.colors.text} />
+                </TouchableOpacity>
+              )}
               {showMenu && (
                 <View style={[styles.menu, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}>
                   <TouchableOpacity
@@ -1127,7 +1174,8 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: 'rgba(0, 0, 0, 0.05)',
+    width: '100%',
+    height: '100%',
   },
   bannerPlaceholderText: {
     marginTop: 8,

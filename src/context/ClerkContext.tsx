@@ -13,12 +13,38 @@ interface ClerkContextType {
 const ClerkContext = createContext<ClerkContextType | undefined>(undefined);
 
 export function ClerkProvider({ children }: { children: ReactNode }) {
-  const { isSignedIn, userId } = useAuth();
+  const { isSignedIn, userId, isLoaded: authLoaded } = useAuth();
   const { user, isLoaded: userLoaded } = useUser();
   const { organization } = useOrganization();
   const { organizationList, isLoaded: orgListLoaded } = useOrganizationList();
 
-  const isLoaded = userLoaded && orgListLoaded;
+  // Only require auth to be loaded - org list can load later
+  // Add timeout fallback - if Clerk takes too long, show auth screen anyway
+  const [hasTimedOut, setHasTimedOut] = React.useState(false);
+  
+  React.useEffect(() => {
+    const timer = setTimeout(() => {
+      if (!authLoaded || !userLoaded) {
+        console.warn('[ClerkContext] Clerk loading timeout - proceeding anyway');
+        setHasTimedOut(true);
+      }
+    }, 5000); // 5 second timeout
+    
+    return () => clearTimeout(timer);
+  }, [authLoaded, userLoaded]);
+  
+  const isLoaded = authLoaded && userLoaded || hasTimedOut;
+
+  // Debug logging
+  React.useEffect(() => {
+    console.log('[ClerkContext] Loading states:', {
+      authLoaded,
+      userLoaded,
+      orgListLoaded,
+      isLoaded,
+      isSignedIn,
+    });
+  }, [authLoaded, userLoaded, orgListLoaded, isLoaded, isSignedIn]);
 
   return (
     <ClerkContext.Provider

@@ -235,17 +235,15 @@ export function ProfileScreen() {
           <View
             style={[
               styles.banner,
-              { backgroundColor: theme.colors.background },
+              { backgroundColor: profileData.banner ? theme.colors.background : theme.colors.primary },
             ]}
           >
             {profileData.banner ? (
               <Image source={{ uri: profileData.banner }} style={styles.bannerImage} />
             ) : (
-              <Image
-                source={isDark ? require('../../../assets/light.png') : require('../../../assets/dark.png')}
-                style={styles.bannerLogo}
-                resizeMode="contain"
-              />
+              <View style={styles.bannerPlaceholder}>
+                <Ionicons name="image-outline" size={32} color={theme.colors.background} />
+              </View>
             )}
           </View>
         </TouchableOpacity>
@@ -1333,6 +1331,13 @@ const styles = StyleSheet.create({
   bannerLogo: {
     width: 120,
     height: 120,
+  },
+  bannerPlaceholder: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: '100%',
+    height: '100%',
   },
   profileSection: {
     alignItems: 'center',

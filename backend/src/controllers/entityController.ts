@@ -9,12 +9,26 @@ const createEntitySchema = z.object({
   brief: z.string().min(1),
   banner_url: z.string().optional(),
   avatar_url: z.string().optional(),
-  type: z.enum(['Fund', 'SPV', 'Software Company', 'Service Org', 'NonProfit', 'Trust', 'Donor Advised Fund']).optional(),
+  type: z
+    .enum([
+      'Fund',
+      'SPV',
+      'Software Company',
+      'Service Org',
+      'NonProfit',
+      'Trust',
+      'Donor Advised Fund',
+    ])
+    .optional(),
   clerk_organization_id: z.string().optional(),
-  socialLinks: z.array(z.object({
-    type: z.string(),
-    url: z.string(),
-  })).optional(),
+  socialLinks: z
+    .array(
+      z.object({
+        type: z.string(),
+        url: z.string(),
+      })
+    )
+    .optional(),
   step2Data: z.record(z.any()).optional(),
   completedItems: z.array(z.string()).optional(),
 });
@@ -26,25 +40,44 @@ export const entityController = {
         return res.status(401).json({ error: 'Unauthorized' });
       }
 
+      console.log('[entityController] Creating entity for user:', req.userId);
+      console.log('[entityController] Request body:', JSON.stringify(req.body, null, 2));
+
       const validatedData = createEntitySchema.parse(req.body);
-      
+
       // Get or create profile
       let profile = await getProfileByClerkId(req.userId);
       if (!profile) {
+        console.log('[entityController] Profile not found, creating new profile');
         // Create profile if it doesn't exist
-        const { data: newProfile } = await supabase
+        const { data: newProfile, error: profileError } = await supabase
           .from('profiles')
           .insert({
             clerk_user_id: req.userId,
           })
           .select()
           .single();
+
+        if (profileError) {
+          console.error('[entityController] Error creating profile:', profileError);
+          return res
+            .status(500)
+            .json({ error: `Failed to create profile: ${profileError.message}` });
+        }
+
         profile = newProfile;
       }
 
       if (!profile) {
+        console.error('[entityController] Profile is still null after creation attempt');
         return res.status(500).json({ error: 'Failed to get or create profile' });
       }
+
+      console.log('[entityController] Profile found/created:', profile.id);
+      console.log(
+        '[entityController] Creating entity with clerk_organization_id:',
+        validatedData.clerk_organization_id
+      );
 
       // Create entity
       const { data: entity, error: entityError } = await supabase
@@ -63,30 +96,41 @@ export const entityController = {
         .single();
 
       if (entityError || !entity) {
+        console.error('[entityController] Error creating entity:', entityError);
         return res.status(400).json({ error: entityError?.message || 'Failed to create entity' });
       }
 
+      console.log('[entityController] Entity created successfully:', entity.id);
+
       // Add creator as owner
-      await supabase
-        .from('entity_members')
-        .insert({
-          entity_id: entity.id,
-          profile_id: profile.id,
-          role: 'owner',
-          joined_at: new Date().toISOString(),
-        });
+      const { error: memberError } = await supabase.from('entity_members').insert({
+        entity_id: entity.id,
+        profile_id: profile.id,
+        role: 'owner',
+        joined_at: new Date().toISOString(),
+      });
+
+      if (memberError) {
+        console.error('[entityController] Error adding entity member:', memberError);
+      } else {
+        console.log('[entityController] Entity member added successfully');
+      }
 
       // Add social links if provided
       if (validatedData.socialLinks && validatedData.socialLinks.length > 0) {
-        await supabase
-          .from('entity_social_links')
-          .insert(
-            validatedData.socialLinks.map((link) => ({
-              entity_id: entity.id,
-              type: link.type.toLowerCase(),
-              url: link.url,
-            }))
-          );
+        const { error: socialLinksError } = await supabase.from('entity_social_links').insert(
+          validatedData.socialLinks.map(link => ({
+            entity_id: entity.id,
+            type: link.type.toLowerCase(),
+            url: link.url,
+          }))
+        );
+
+        if (socialLinksError) {
+          console.error('[entityController] Error adding social links:', socialLinksError);
+        } else {
+          console.log('[entityController] Social links added successfully');
+        }
       }
 
       // Add configuration data if provided
@@ -98,9 +142,15 @@ export const entityController = {
           is_completed: validatedData.completedItems?.includes(key) || false,
         }));
 
-        await supabase
+        const { error: configError } = await supabase
           .from('entity_configurations')
           .insert(configEntries);
+
+        if (configError) {
+          console.error('[entityController] Error adding configurations:', configError);
+        } else {
+          console.log('[entityController] Configurations added successfully');
+        }
       }
 
       return res.status(201).json({
@@ -124,7 +174,8 @@ export const entityController = {
 
       const { data: entity, error } = await supabase
         .from('entities')
-        .select(`
+        .select(
+          `
           *,
           entity_social_links (*),
           entity_configurations (*),
@@ -133,7 +184,8 @@ export const entityController = {
             role,
             profiles (*)
           )
-        `)
+        `
+        )
         .eq('id', id)
         .single();
 
@@ -153,7 +205,8 @@ export const entityController = {
 
       const { data: entity, error } = await supabase
         .from('entities')
-        .select(`
+        .select(
+          `
           *,
           entity_social_links (*),
           entity_configurations (*),
@@ -162,7 +215,8 @@ export const entityController = {
             role,
             profiles (*)
           )
-        `)
+        `
+        )
         .eq('clerk_organization_id', clerkOrgId)
         .single();
 
@@ -182,7 +236,13 @@ export const entityController = {
 
       const { data: entities, error } = await supabase
         .from('entities')
-        .select('*')
+        .select(
+          `
+          *,
+          entity_social_links (*),
+          entity_configurations (*)
+        `
+        )
         .order('created_at', { ascending: false })
         .range(Number(offset), Number(offset) + Number(limit) - 1);
 
@@ -190,7 +250,7 @@ export const entityController = {
         return res.status(400).json({ error: error.message });
       }
 
-      return res.json({ entities });
+      return res.json({ entities: entities || [] });
     } catch (error: any) {
       return res.status(500).json({ error: error.message });
     }
@@ -252,4 +312,3 @@ export const entityController = {
     }
   },
 };
-

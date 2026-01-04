@@ -97,10 +97,38 @@ export function RegisterScreen({ navigation }: RegisterScreenProps) {
         lastName: name.split(' ').slice(1).join(' ') || '',
       });
 
+      console.log('[RegisterScreen] User created, preparing email verification...');
+      
       // Send email verification code
-      await signUp.prepareEmailAddressVerification({ strategy: 'email_code' });
-      setShowOTPModal(true);
+      try {
+        await signUp.prepareEmailAddressVerification({ strategy: 'email_code' });
+        console.log('[RegisterScreen] Email verification code sent successfully');
+        setShowOTPModal(true);
+      } catch (emailError: any) {
+        console.error('[RegisterScreen] Failed to send verification email:', emailError);
+        const emailErrorMessage =
+          emailError?.errors?.[0]?.message ||
+          emailError?.message ||
+          'Failed to send verification email.';
+        
+        Alert.alert(
+          'Email Verification Error',
+          `${emailErrorMessage}\n\nPlease check:\n• Your Clerk email settings\n• Email provider configuration\n• Spam folder\n\nYou can try resending the code from the verification screen.`,
+          [
+            {
+              text: 'OK',
+              onPress: () => {
+                // Still show OTP modal in case email was sent but there's a different issue
+                setShowOTPModal(true);
+              },
+            },
+          ]
+        );
+        // Still show OTP modal - email might have been sent despite the error
+        setShowOTPModal(true);
+      }
     } catch (error: any) {
+      console.error('[RegisterScreen] Registration error:', error);
       const errorMessage =
         error?.errors?.[0]?.message || error?.message || 'Registration failed. Please try again.';
       Alert.alert('Error', errorMessage);
@@ -139,11 +167,18 @@ export function RegisterScreen({ navigation }: RegisterScreenProps) {
     if (!signUp || !isLoaded) return;
 
     try {
+      console.log('[RegisterScreen] Resending verification email...');
       await signUp.prepareEmailAddressVerification({ strategy: 'email_code' });
+      console.log('[RegisterScreen] Verification email resent successfully');
+      Alert.alert('Success', 'Verification code has been resent. Please check your email.');
     } catch (error: any) {
+      console.error('[RegisterScreen] Failed to resend verification email:', error);
       const errorMessage =
         error?.errors?.[0]?.message || error?.message || 'Failed to resend code. Please try again.';
-      Alert.alert('Error', errorMessage);
+      Alert.alert(
+        'Resend Failed',
+        `${errorMessage}\n\nPlease check your Clerk email configuration in the dashboard.`
+      );
       throw error;
     }
   }
@@ -172,11 +207,6 @@ export function RegisterScreen({ navigation }: RegisterScreenProps) {
           <View style={styles.logoContainer}>
             <Logo size={80} />
           </View>
-
-          <Text style={[styles.title, { color: theme.colors.text }]}>Create Account</Text>
-          <Text style={[styles.subtitle, { color: theme.colors.textSecondary }]}>
-            Sign up to get started
-          </Text>
 
           <View style={styles.form}>
             <TextInput
@@ -286,8 +316,8 @@ export function RegisterScreen({ navigation }: RegisterScreenProps) {
         visible={showOTPModal}
         onClose={() => {
           setShowOTPModal(false);
-          // Reset sign up if user closes modal
-          signUp?.reset();
+          // Note: Clerk's signUp object doesn't have a reset() method
+          // The sign-up state will be managed by Clerk automatically
         }}
         email={email}
         onResend={handleResendOTP}

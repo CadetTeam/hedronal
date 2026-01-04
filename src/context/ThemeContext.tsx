@@ -54,7 +54,12 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
   const theme = isDark ? darkTheme : lightTheme;
 
   if (!isLoaded) {
-    return null;
+    // Show a minimal loading state instead of null to prevent blank screen
+    return (
+      <ThemeContext.Provider value={{ theme: darkTheme, colorScheme: 'auto', setColorScheme, isDark: true }}>
+        {children}
+      </ThemeContext.Provider>
+    );
   }
 
   return (

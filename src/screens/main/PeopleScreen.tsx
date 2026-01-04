@@ -16,7 +16,7 @@ import { Header } from '../../components/Header';
 import { EmptyState } from '../../components/EmptyState';
 import { SkeletonCard } from '../../components/Skeleton';
 import { Button } from '../../components/Button';
-import { EntityCreationModal } from '../../components/EntityCreationModal';
+import { InvitePeopleModal } from '../../components/InvitePeopleModal';
 
 export function PeopleScreen() {
   const { theme } = useTheme();
@@ -27,7 +27,7 @@ export function PeopleScreen() {
   const [showFilters, setShowFilters] = useState(false);
   const [selectedPerson, setSelectedPerson] = useState<any | null>(null);
   const [showPersonMenu, setShowPersonMenu] = useState(false);
-  const [showEntityModal, setShowEntityModal] = useState(false);
+  const [showInviteModal, setShowInviteModal] = useState(false);
 
   async function onRefresh() {
     setRefreshing(true);
@@ -37,13 +37,13 @@ export function PeopleScreen() {
   }
 
   function handleAddPerson() {
-    setShowEntityModal(true);
+    setShowInviteModal(true);
   }
 
-  function handleEntityComplete(entity: any) {
-    // Entity created - could add to people list if needed
-    console.log('Entity created:', entity);
-    setShowEntityModal(false);
+  function handleInviteComplete(invitedContacts: Array<{ id: string; name: string; phone?: string; email?: string }>) {
+    // Invites sent - could add to people list if needed
+    console.log('Invites sent to:', invitedContacts);
+    setShowInviteModal(false);
   }
 
   function handleFilter() {
@@ -289,11 +289,11 @@ export function PeopleScreen() {
         </TouchableOpacity>
       </Modal>
 
-      {/* Entity Creation Modal */}
-      <EntityCreationModal
-        visible={showEntityModal}
-        onClose={() => setShowEntityModal(false)}
-        onComplete={handleEntityComplete}
+      {/* Invite People Modal */}
+      <InvitePeopleModal
+        visible={showInviteModal}
+        onClose={() => setShowInviteModal(false)}
+        onComplete={handleInviteComplete}
       />
     </SafeAreaView>
   );
