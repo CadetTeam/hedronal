@@ -6,12 +6,13 @@ import {
   FlatList,
   TouchableOpacity,
   RefreshControl,
-  SafeAreaView,
   Modal,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../../context/ThemeContext';
 import { useTabBar } from '../../context/TabBarContext';
+import { Header } from '../../components/Header';
 import { EmptyState } from '../../components/EmptyState';
 import { SkeletonCard } from '../../components/Skeleton';
 import { Button } from '../../components/Button';
@@ -164,20 +165,16 @@ export function PeopleScreen() {
 
   return (
     <SafeAreaView
+      edges={[]}
       style={[styles.container, { backgroundColor: theme.colors.background }]}
     >
-      <View style={styles.header}>
-        <Text style={[styles.title, { color: theme.colors.text }]}>People</Text>
-        <TouchableOpacity
-          style={[
-            styles.addButton,
-            { backgroundColor: theme.colors.primary },
-          ]}
-          onPress={handleAddPerson}
-        >
-          <Ionicons name="add" size={24} color={theme.colors.background} />
-        </TouchableOpacity>
-      </View>
+      <Header
+        title="People"
+        rightAction={{
+          icon: 'add',
+          onPress: handleAddPerson,
+        }}
+      />
 
       <View style={styles.actionsBar}>
         <TouchableOpacity
@@ -213,7 +210,10 @@ export function PeopleScreen() {
         data={people}
         renderItem={renderPerson}
         keyExtractor={(item, index) => `person-${index}`}
-        contentContainerStyle={people.length === 0 ? styles.emptyContainer : styles.listContent}
+        contentContainerStyle={[
+          people.length === 0 ? styles.emptyContainer : styles.listContent,
+          { paddingBottom: 100 },
+        ]}
         ListEmptyComponent={renderEmpty}
         refreshControl={
           <RefreshControl
@@ -287,25 +287,6 @@ export function PeopleScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    paddingBottom: 100,
-  },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-  },
-  title: {
-    fontSize: 32,
-    fontWeight: '700',
-  },
-  addButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
   actionsBar: {
     flexDirection: 'row',

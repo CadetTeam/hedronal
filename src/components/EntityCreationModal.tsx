@@ -1,0 +1,1207 @@
+import React, { useState, useEffect, useRef } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  ScrollView,
+  TextInput,
+  Image,
+  Modal,
+  FlatList,
+  Keyboard,
+  Platform,
+  Alert,
+} from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
+import * as ImagePicker from 'expo-image-picker';
+import * as Contacts from 'expo-contacts';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useTheme } from '../context/ThemeContext';
+import { BlurredModalOverlay } from './BlurredModalOverlay';
+import { LinearGradient } from 'expo-linear-gradient';
+import { Button } from './Button';
+
+const ENTITY_DRAFT_KEY = '@entity_draft';
+
+interface EntityDraft {
+  step: number;
+  step1?: {
+    name: string;
+    handle: string;
+    banner?: string;
+    avatar?: string;
+    brief: string;
+    socialLinks: Array<{ type: string; url: string }>;
+  };
+  step2?: {
+    [key: string]: any;
+  };
+  step3?: {
+    selectedContacts: Array<{ id: string; name: string; phone?: string; email?: string }>;
+  };
+}
+
+interface EntityCreationModalProps {
+  visible: boolean;
+  onClose: () => void;
+  onComplete: (entity: any) => void;
+}
+
+const ACCORDION_ITEMS = [
+  'Domain',
+  'Workspace',
+  'Formation',
+  'Bank',
+  'Cap Table',
+  'CRM',
+  'Legal',
+  'Tax',
+  'Accounting',
+  'Invoicing',
+  'DUNS',
+  'Lender',
+];
+
+const SOCIAL_ICONS = [
+  { name: 'logo-twitter', label: 'Twitter', type: 'twitter' },
+  { name: 'logo-linkedin', label: 'LinkedIn', type: 'linkedin' },
+  { name: 'logo-github', label: 'GitHub', type: 'github' },
+  { name: 'logo-instagram', label: 'Instagram', type: 'instagram' },
+  { name: 'globe-outline', label: 'Website', type: 'website' },
+  { name: 'mail-outline', label: 'Email', type: 'email' },
+];
+
+export function EntityCreationModal({ visible, onClose, onComplete }: EntityCreationModalProps) {
+  const { theme, isDark } = useTheme();
+  const insets = useSafeAreaInsets();
+  const scrollViewRef = useRef<ScrollView>(null);
+  const [currentStep, setCurrentStep] = useState(1);
+  const [showMenu, setShowMenu] = useState(false);
+  const [keyboardVisible, setKeyboardVisible] = useState(false);
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
+
+  // Step 1 state
+  const [name, setName] = useState('');
+  const [handle, setHandle] = useState('');
+  const [banner, setBanner] = useState<string | undefined>();
+  const [avatar, setAvatar] = useState<string | undefined>();
+  const [brief, setBrief] = useState('');
+  const [socialLinks, setSocialLinks] = useState<Array<{ type: string; url: string }>>([]);
+  const [newSocialLink, setNewSocialLink] = useState({ type: 'twitter', url: '' });
+
+  // Step 2 state
+  const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set());
+  const [step2Data, setStep2Data] = useState<{ [key: string]: any }>({});
+  const [hasScrolledToBottom, setHasScrolledToBottom] = useState(false);
+
+  // Step 3 state
+  const [contacts, setContacts] = useState<Array<{ id: string; name: string; phone?: string; email?: string }>>([]);
+  const [people, setPeople] = useState<Array<{ id: string; name: string; phone?: string; email?: string }>>([]);
+  const [selectedContacts, setSelectedContacts] = useState<Array<{ id: string; name: string; phone?: string; email?: string }>>([]);
+  const [showInviteMessage, setShowInviteMessage] = useState(false);
+  const [inviteMessage, setInviteMessage] = useState('');
+  const [inviteSource, setInviteSource] = useState<'contacts' | 'people' | null>(null);
+
+  useEffect(() => {
+    if (visible) {
+      loadDraft();
+    }
+  }, [visible]);
+
+  useEffect(() => {
+    const keyboardWillShow = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow',
+      (e) => {
+        setKeyboardVisible(true);
+        setKeyboardHeight(e.endCoordinates.height);
+      }
+    );
+    const keyboardWillHide = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide',
+      () => {
+        setKeyboardVisible(false);
+        setKeyboardHeight(0);
+      }
+    );
+
+    return () => {
+      keyboardWillShow.remove();
+      keyboardWillHide.remove();
+    };
+  }, []);
+
+  useEffect(() => {
+    // Generate handle from name
+    if (name) {
+      const generatedHandle = name
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-+|-+$/g, '');
+      setHandle(generatedHandle);
+    }
+  }, [name]);
+
+  useEffect(() => {
+    // Generate invite message when contacts are selected
+    if (selectedContacts.length > 0 && !inviteMessage) {
+      const deepLink = 'https://apps.apple.com/app/hedronal'; // Replace with actual deep link
+      const message = `Hi! I'd like to invite you to join Hedronal, a platform for managing entities, portfolios, and connections. Download the app here: ${deepLink}`;
+      setInviteMessage(message);
+    }
+  }, [selectedContacts]);
+
+  async function loadDraft() {
+    try {
+      const draftJson = await AsyncStorage.getItem(ENTITY_DRAFT_KEY);
+      if (draftJson) {
+        const draft: EntityDraft = JSON.parse(draftJson);
+        setCurrentStep(draft.step || 1);
+        if (draft.step1) {
+          setName(draft.step1.name || '');
+          setHandle(draft.step1.handle || '');
+          setBanner(draft.step1.banner);
+          setAvatar(draft.step1.avatar);
+          setBrief(draft.step1.brief || '');
+          setSocialLinks(draft.step1.socialLinks || []);
+        }
+        if (draft.step2) {
+          setStep2Data(draft.step2);
+        }
+        if (draft.step3) {
+          setSelectedContacts(draft.step3.selectedContacts || []);
+        }
+      }
+    } catch (error) {
+      console.error('Error loading draft:', error);
+    }
+  }
+
+  async function saveDraft() {
+    try {
+      const draft: EntityDraft = {
+        step: currentStep,
+        step1: {
+          name,
+          handle,
+          banner,
+          avatar,
+          brief,
+          socialLinks,
+        },
+        step2: step2Data,
+        step3: {
+          selectedContacts,
+        },
+      };
+      await AsyncStorage.setItem(ENTITY_DRAFT_KEY, JSON.stringify(draft));
+    } catch (error) {
+      console.error('Error saving draft:', error);
+    }
+  }
+
+  async function clearDraft() {
+    try {
+      await AsyncStorage.removeItem(ENTITY_DRAFT_KEY);
+      resetForm();
+      Alert.alert('Draft Cleared', 'Your draft has been cleared.');
+    } catch (error) {
+      console.error('Error clearing draft:', error);
+    }
+  }
+
+  function resetForm() {
+    setCurrentStep(1);
+    setName('');
+    setHandle('');
+    setBanner(undefined);
+    setAvatar(undefined);
+    setBrief('');
+    setSocialLinks([]);
+    setStep2Data({});
+    setSelectedContacts([]);
+    setExpandedItems(new Set());
+    setHasScrolledToBottom(false);
+    setShowMenu(false);
+  }
+
+  async function handleClose() {
+    await saveDraft();
+    onClose();
+  }
+
+  async function pickImage(type: 'banner' | 'avatar') {
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      aspect: type === 'banner' ? [16, 9] : [1, 1],
+      quality: 0.8,
+    });
+
+    if (!result.canceled && result.assets[0]) {
+      if (type === 'banner') {
+        setBanner(result.assets[0].uri);
+      } else {
+        setAvatar(result.assets[0].uri);
+      }
+    }
+  }
+
+  function toggleAccordionItem(item: string) {
+    const newExpanded = new Set(expandedItems);
+    if (newExpanded.has(item)) {
+      newExpanded.delete(item);
+    } else {
+      newExpanded.add(item);
+    }
+    setExpandedItems(newExpanded);
+  }
+
+  function handleScroll(event: any) {
+    const { layoutMeasurement, contentOffset, contentSize } = event.nativeEvent;
+    const paddingToBottom = 20;
+    const isAtBottom = layoutMeasurement.height + contentOffset.y >= contentSize.height - paddingToBottom;
+    setHasScrolledToBottom(isAtBottom);
+  }
+
+  async function requestContactsPermission() {
+    const { status } = await Contacts.requestPermissionsAsync();
+    if (status === 'granted') {
+      const { data } = await Contacts.getContactsAsync({
+        fields: [Contacts.Fields.Name, Contacts.Fields.PhoneNumbers, Contacts.Fields.Emails],
+      });
+      setContacts(
+        data.map((contact) => ({
+          id: contact.id,
+          name: contact.name || 'Unknown',
+          phone: contact.phoneNumbers?.[0]?.number,
+          email: contact.emails?.[0]?.email,
+        }))
+      );
+      setInviteSource('contacts');
+    } else {
+      Alert.alert('Permission Denied', 'Please grant contacts permission to import contacts.');
+    }
+  }
+
+  function loadPeople() {
+    // TODO: Load people from People screen/context
+    // For now, this is a placeholder
+    setInviteSource('people');
+  }
+
+  function toggleContactSelection(contact: { id: string; name: string; phone?: string; email?: string }) {
+    const isSelected = selectedContacts.some((c) => c.id === contact.id);
+    if (isSelected) {
+      setSelectedContacts(selectedContacts.filter((c) => c.id !== contact.id));
+    } else {
+      setSelectedContacts([...selectedContacts, contact]);
+    }
+  }
+
+  function canProceedToStep2() {
+    return name.trim().length > 0 && brief.trim().length > 0;
+  }
+
+  function canProceedToStep3() {
+    return hasScrolledToBottom;
+  }
+
+  async function handleNext() {
+    await saveDraft();
+    if (currentStep === 1 && canProceedToStep2()) {
+      setCurrentStep(2);
+      setHasScrolledToBottom(false);
+    } else if (currentStep === 2 && canProceedToStep3()) {
+      setCurrentStep(3);
+      // Don't auto-load contacts, let user choose
+    }
+  }
+
+  async function handleComplete() {
+    const entity = {
+      name,
+      handle,
+      banner,
+      avatar,
+      brief,
+      socialLinks,
+      step2Data,
+      invitedContacts: selectedContacts,
+    };
+    await AsyncStorage.removeItem(ENTITY_DRAFT_KEY);
+    resetForm();
+    onComplete(entity);
+  }
+
+  async function handleSendInvites() {
+    setShowInviteMessage(true);
+  }
+
+  async function sendInvites() {
+    // In a real app, you would send the invites via SMS/Email
+    Alert.alert('Invites Sent', `${selectedContacts.length} invitation(s) sent successfully.`);
+    setShowInviteMessage(false);
+    await handleComplete();
+  }
+
+  function renderStep1() {
+    return (
+      <ScrollView
+        style={styles.stepContent}
+        contentContainerStyle={[styles.stepContentContainer, { paddingBottom: insets.bottom * 2 }]}
+        showsVerticalScrollIndicator={false}
+      >
+        <Text style={[styles.stepTitle, { color: theme.colors.text }]}>Profile</Text>
+        <Text style={[styles.stepDescription, { color: theme.colors.textSecondary }]}>
+          Set up your entity's profile information
+        </Text>
+
+        {/* Banner */}
+        <TouchableOpacity
+          style={[styles.imagePicker, { borderColor: theme.colors.border }]}
+          onPress={() => pickImage('banner')}
+        >
+          {banner ? (
+            <Image source={{ uri: banner }} style={styles.imagePreview} />
+          ) : (
+            <View style={styles.imagePlaceholder}>
+              <Ionicons name="image-outline" size={32} color={theme.colors.textTertiary} />
+              <Text style={[styles.imagePlaceholderText, { color: theme.colors.textTertiary }]}>
+                Add Banner
+              </Text>
+            </View>
+          )}
+        </TouchableOpacity>
+
+        {/* Avatar */}
+        <TouchableOpacity
+          style={[styles.avatarPicker, { borderColor: theme.colors.border }]}
+          onPress={() => pickImage('avatar')}
+        >
+          {avatar ? (
+            <Image source={{ uri: avatar }} style={styles.avatarPreview} />
+          ) : (
+            <View style={styles.avatarPlaceholder}>
+              <Ionicons name="person-outline" size={32} color={theme.colors.textTertiary} />
+            </View>
+          )}
+        </TouchableOpacity>
+
+        {/* Name */}
+        <View style={styles.inputGroup}>
+          <Text style={[styles.label, { color: theme.colors.text }]}>
+            Name <Text style={{ color: theme.colors.error }}>*</Text>
+          </Text>
+          <TextInput
+            style={[styles.input, { backgroundColor: theme.colors.surfaceVariant, borderColor: theme.colors.border, color: theme.colors.text }]}
+            value={name}
+            onChangeText={setName}
+            placeholder="Entity name"
+            placeholderTextColor={theme.colors.textTertiary}
+          />
+          {handle && (
+            <Text style={[styles.handlePreview, { color: theme.colors.textSecondary }]}>
+              Handle: @{handle}
+            </Text>
+          )}
+        </View>
+
+        {/* Brief */}
+        <View style={styles.inputGroup}>
+          <Text style={[styles.label, { color: theme.colors.text }]}>
+            Brief <Text style={{ color: theme.colors.error }}>*</Text>
+          </Text>
+          <TextInput
+            style={[styles.textArea, { backgroundColor: theme.colors.surfaceVariant, borderColor: theme.colors.border, color: theme.colors.text }]}
+            value={brief}
+            onChangeText={setBrief}
+            placeholder="Company bio"
+            placeholderTextColor={theme.colors.textTertiary}
+            multiline
+            numberOfLines={4}
+          />
+        </View>
+
+        {/* Social Links */}
+        <View style={styles.inputGroup}>
+          <Text style={[styles.label, { color: theme.colors.text }]}>Social Links</Text>
+          {socialLinks.map((link, index) => {
+            const icon = SOCIAL_ICONS.find((s) => s.type === link.type);
+            return (
+              <View key={index} style={[styles.socialLinkItem, { backgroundColor: theme.colors.surfaceVariant, borderColor: theme.colors.border }]}>
+                <Ionicons name={icon?.name as any} size={20} color={theme.colors.text} />
+                <Text style={[styles.socialLinkUrl, { color: theme.colors.text }]}>{link.url}</Text>
+                <TouchableOpacity onPress={() => setSocialLinks(socialLinks.filter((_, i) => i !== index))}>
+                  <Ionicons name="close-circle" size={20} color={theme.colors.error} />
+                </TouchableOpacity>
+              </View>
+            );
+          })}
+          <View style={[styles.addSocialLinkContainer, { backgroundColor: theme.colors.surfaceVariant, borderColor: theme.colors.border }]}>
+            <TouchableOpacity
+              style={styles.addSocialLinkButton}
+              onPress={() => {
+                const types = ['twitter', 'linkedin', 'github', 'instagram', 'website', 'email'];
+                const currentIndex = types.indexOf(newSocialLink.type);
+                const nextType = types[(currentIndex + 1) % types.length];
+                setNewSocialLink({ ...newSocialLink, type: nextType });
+              }}
+            >
+              <Ionicons name={getSocialIcon(newSocialLink.type) as any} size={20} color={theme.colors.text} />
+              <Ionicons name="add" size={16} color={theme.colors.primary} />
+            </TouchableOpacity>
+            <TextInput
+              style={[styles.socialLinkInput, { color: theme.colors.text }]}
+              value={newSocialLink.url}
+              onChangeText={(url) => setNewSocialLink({ ...newSocialLink, url })}
+              placeholder="Enter URL"
+              placeholderTextColor={theme.colors.textTertiary}
+              keyboardType="url"
+              autoCapitalize="none"
+            />
+            <TouchableOpacity
+              style={[styles.addButton, { backgroundColor: theme.colors.primary }]}
+              onPress={() => {
+                if (newSocialLink.url.trim()) {
+                  setSocialLinks([...socialLinks, newSocialLink]);
+                  setNewSocialLink({ type: 'twitter', url: '' });
+                }
+              }}
+            >
+              <Ionicons name="checkmark" size={16} color={theme.colors.background} />
+            </TouchableOpacity>
+          </View>
+        </View>
+      </ScrollView>
+    );
+  }
+
+  function renderStep2() {
+    return (
+      <ScrollView
+        ref={scrollViewRef}
+        style={styles.stepContent}
+        contentContainerStyle={[styles.stepContentContainer, { paddingBottom: insets.bottom * 2 + 80 }]}
+        showsVerticalScrollIndicator={false}
+        onScroll={handleScroll}
+        scrollEventThrottle={16}
+      >
+        <Text style={[styles.stepTitle, { color: theme.colors.text }]}>Configuration</Text>
+        <Text style={[styles.stepDescription, { color: theme.colors.textSecondary }]}>
+          Configure your entity settings. Scroll to the bottom to continue.
+        </Text>
+
+        {ACCORDION_ITEMS.map((item) => {
+          const isExpanded = expandedItems.has(item);
+          return (
+            <View key={item} style={[styles.accordionItem, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}>
+              <TouchableOpacity
+                style={styles.accordionHeader}
+                onPress={() => toggleAccordionItem(item)}
+              >
+                <Text style={[styles.accordionTitle, { color: theme.colors.text }]}>{item}</Text>
+                <Ionicons
+                  name={isExpanded ? 'chevron-up' : 'chevron-down'}
+                  size={20}
+                  color={theme.colors.text}
+                />
+              </TouchableOpacity>
+              {isExpanded && (
+                <View style={styles.accordionContent}>
+                  <TextInput
+                    style={[styles.input, { backgroundColor: theme.colors.surfaceVariant, borderColor: theme.colors.border, color: theme.colors.text }]}
+                    placeholder={`Enter ${item.toLowerCase()} information`}
+                    placeholderTextColor={theme.colors.textTertiary}
+                    value={step2Data[item] || ''}
+                    onChangeText={(value) => setStep2Data({ ...step2Data, [item]: value })}
+                    multiline
+                  />
+                </View>
+              )}
+            </View>
+          );
+        })}
+      </ScrollView>
+    );
+  }
+
+  function renderStep3() {
+    const displayList = inviteSource === 'contacts' ? contacts : inviteSource === 'people' ? people : [];
+
+    return (
+      <View style={styles.stepContent}>
+        <ScrollView
+          style={styles.stepContent}
+          contentContainerStyle={[styles.stepContentContainer, { paddingBottom: insets.bottom * 2 + (selectedContacts.length > 0 ? 80 : 0) + (showInviteMessage ? 200 : 0) }]}
+          showsVerticalScrollIndicator={false}
+        >
+          <Text style={[styles.stepTitle, { color: theme.colors.text }]}>Invite People</Text>
+          <Text style={[styles.stepDescription, { color: theme.colors.textSecondary }]}>
+            Invite people to join your entity (optional)
+          </Text>
+
+          {inviteSource === null ? (
+            <View style={styles.inviteSourceButtons}>
+              <TouchableOpacity
+                style={[styles.importButton, { backgroundColor: theme.colors.primary }]}
+                onPress={requestContactsPermission}
+              >
+                <Ionicons name="person-add-outline" size={20} color={theme.colors.background} />
+                <Text style={[styles.importButtonText, { color: theme.colors.background }]}>
+                  Import Contacts
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.importButton, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border, borderWidth: 1 }]}
+                onPress={loadPeople}
+              >
+                <Ionicons name="people-outline" size={20} color={theme.colors.text} />
+                <Text style={[styles.importButtonText, { color: theme.colors.text }]}>
+                  From People List
+                </Text>
+              </TouchableOpacity>
+            </View>
+          ) : displayList.length === 0 ? (
+            <View style={styles.emptyContacts}>
+              <Text style={[styles.emptyContactsText, { color: theme.colors.textSecondary }]}>
+                {inviteSource === 'contacts' ? 'No contacts found' : 'No people in your list'}
+              </Text>
+            </View>
+          ) : (
+            <FlatList
+              data={displayList}
+              keyExtractor={(item) => item.id}
+              renderItem={({ item }) => {
+                const isSelected = selectedContacts.some((c) => c.id === item.id);
+                return (
+                  <TouchableOpacity
+                    style={[styles.contactItem, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}
+                    onPress={() => toggleContactSelection(item)}
+                  >
+                    <View style={[styles.contactAvatar, { backgroundColor: isSelected ? theme.colors.primary : theme.colors.surfaceVariant }]}>
+                      <Text style={[styles.contactAvatarText, { color: isSelected ? theme.colors.background : theme.colors.text }]}>
+                        {item.name.charAt(0).toUpperCase()}
+                      </Text>
+                    </View>
+                    <View style={styles.contactInfo}>
+                      <Text style={[styles.contactName, { color: theme.colors.text }]}>{item.name}</Text>
+                      {item.phone && <Text style={[styles.contactDetail, { color: theme.colors.textSecondary }]}>{item.phone}</Text>}
+                      {item.email && <Text style={[styles.contactDetail, { color: theme.colors.textSecondary }]}>{item.email}</Text>}
+                    </View>
+                    {isSelected && (
+                      <Ionicons name="checkmark-circle" size={24} color={theme.colors.primary} />
+                    )}
+                  </TouchableOpacity>
+                );
+              }}
+              scrollEnabled={false}
+            />
+          )}
+        </ScrollView>
+
+        {/* Send Invite Button */}
+        {selectedContacts.length > 0 && (
+          <View
+            style={[
+              styles.sendInviteButtonContainer,
+              {
+                backgroundColor: theme.colors.surface,
+                borderTopColor: theme.colors.border,
+                bottom: keyboardVisible ? keyboardHeight : insets.bottom,
+              },
+            ]}
+          >
+            <TouchableOpacity
+              style={[styles.sendInviteButton, { backgroundColor: theme.colors.primary }]}
+              onPress={handleSendInvites}
+            >
+              <Text style={[styles.sendInviteButtonText, { color: theme.colors.background }]}>
+                Send Invite ({selectedContacts.length})
+              </Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
+        {/* Invite Message - Sticky to Keyboard */}
+        {showInviteMessage && (
+          <View
+            style={[
+              styles.inviteMessageContainer,
+              {
+                backgroundColor: theme.colors.surface,
+                borderTopColor: theme.colors.border,
+                bottom: keyboardVisible ? keyboardHeight : insets.bottom,
+              },
+            ]}
+          >
+            <View style={styles.inviteMessageHeader}>
+              <Text style={[styles.inviteMessageTitle, { color: theme.colors.text }]}>Invitation Message</Text>
+              <TouchableOpacity onPress={() => setShowInviteMessage(false)}>
+                <Ionicons name="close" size={24} color={theme.colors.text} />
+              </TouchableOpacity>
+            </View>
+            <View style={[styles.deepLinkContainer, { backgroundColor: theme.colors.surfaceVariant }]}>
+              <Text style={[styles.deepLinkText, { color: theme.colors.textSecondary }]} numberOfLines={1}>
+                https://apps.apple.com/app/hedronal
+              </Text>
+              <Ionicons name="lock-closed" size={16} color={theme.colors.textTertiary} />
+            </View>
+            <TextInput
+              style={[styles.inviteMessageInput, { backgroundColor: theme.colors.surfaceVariant, borderColor: theme.colors.border, color: theme.colors.text }]}
+              value={inviteMessage}
+              onChangeText={setInviteMessage}
+              placeholder="Edit your invitation message..."
+              placeholderTextColor={theme.colors.textTertiary}
+              multiline
+              autoFocus
+            />
+            <TouchableOpacity
+              style={[styles.sendButton, { backgroundColor: theme.colors.primary }]}
+              onPress={sendInvites}
+            >
+              <Text style={[styles.sendButtonText, { color: theme.colors.background }]}>Send</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+      </View>
+    );
+  }
+
+  function getSocialIcon(type: string) {
+    const icon = SOCIAL_ICONS.find((s) => s.type === type);
+    return icon?.name || 'globe-outline';
+  }
+
+  return (
+    <Modal visible={visible} animationType="slide" transparent onRequestClose={handleClose}>
+      <BlurredModalOverlay visible={visible} onClose={handleClose}>
+        <View
+          style={[
+            styles.modalContent,
+            {
+              backgroundColor: theme.colors.surface,
+              minHeight: 200,
+              maxHeight: 650,
+            },
+          ]}
+        >
+          <View style={styles.modalHeader}>
+            <LinearGradient
+              colors={isDark ? [theme.colors.surface, `${theme.colors.surface}00`] : [theme.colors.surface, `${theme.colors.surface}00`]}
+              style={styles.modalHeaderGradient}
+              pointerEvents="none"
+            />
+            <View style={styles.headerLeft}>
+              <TouchableOpacity onPress={() => setShowMenu(!showMenu)}>
+                <Ionicons name="ellipsis-horizontal" size={24} color={theme.colors.text} />
+              </TouchableOpacity>
+              {showMenu && (
+                <View style={[styles.menu, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}>
+                  <TouchableOpacity
+                    style={styles.menuItem}
+                    onPress={async () => {
+                      await clearDraft();
+                      setShowMenu(false);
+                    }}
+                  >
+                    <Ionicons name="trash-outline" size={20} color={theme.colors.error} />
+                    <Text style={[styles.menuItemText, { color: theme.colors.error }]}>Clear</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.menuItem}
+                    onPress={async () => {
+                      await saveDraft();
+                      setShowMenu(false);
+                      Alert.alert('Draft Saved', 'Your progress has been saved.');
+                    }}
+                  >
+                    <Ionicons name="save-outline" size={20} color={theme.colors.text} />
+                    <Text style={[styles.menuItemText, { color: theme.colors.text }]}>Save as Draft</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.menuItem}
+                    onPress={() => {
+                      setShowMenu(false);
+                      Alert.alert('Help', 'Need assistance? Contact support at help@hedronal.com');
+                    }}
+                  >
+                    <Ionicons name="help-circle-outline" size={20} color={theme.colors.text} />
+                    <Text style={[styles.menuItemText, { color: theme.colors.text }]}>Get Help</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+            </View>
+            <Text style={[styles.modalTitle, { color: theme.colors.text }]}>
+              Create Entity ({currentStep}/3)
+            </Text>
+            <TouchableOpacity onPress={handleClose}>
+              <Ionicons name="close" size={24} color={theme.colors.text} />
+            </TouchableOpacity>
+          </View>
+
+          {/* Step Indicator */}
+          <View style={styles.stepIndicator}>
+            {[1, 2, 3].map((step) => (
+              <View
+                key={step}
+                style={[
+                  styles.stepDot,
+                  {
+                    backgroundColor: step <= currentStep ? theme.colors.primary : theme.colors.border,
+                  },
+                ]}
+              />
+            ))}
+          </View>
+
+          {/* Step Content */}
+          {currentStep === 1 && renderStep1()}
+          {currentStep === 2 && renderStep2()}
+          {currentStep === 3 && renderStep3()}
+
+          {/* Navigation Buttons */}
+          {currentStep < 3 && (
+            <View style={[styles.navigationButtons, { borderTopColor: theme.colors.border, paddingBottom: insets.bottom }]}>
+              {currentStep > 1 && (
+                <TouchableOpacity
+                  style={[styles.backButton, { borderColor: theme.colors.border }]}
+                  onPress={() => setCurrentStep(currentStep - 1)}
+                >
+                  <Text style={[styles.backButtonText, { color: theme.colors.text }]}>Back</Text>
+                </TouchableOpacity>
+              )}
+              <TouchableOpacity
+                style={[
+                  styles.nextButton,
+                  {
+                    backgroundColor: (currentStep === 1 && !canProceedToStep2()) || (currentStep === 2 && !canProceedToStep3())
+                      ? theme.colors.border
+                      : theme.colors.primary,
+                  },
+                ]}
+                onPress={handleNext}
+                disabled={(currentStep === 1 && !canProceedToStep2()) || (currentStep === 2 && !canProceedToStep3())}
+              >
+                <Text
+                  style={[
+                    styles.nextButtonText,
+                    {
+                      color:
+                        (currentStep === 1 && !canProceedToStep2()) || (currentStep === 2 && !canProceedToStep3())
+                          ? theme.colors.textTertiary
+                          : theme.colors.background,
+                    },
+                  ]}
+                >
+                  Next
+                </Text>
+              </TouchableOpacity>
+            </View>
+          )}
+
+          {/* Complete Button for Step 3 */}
+          {currentStep === 3 && selectedContacts.length === 0 && (
+            <View style={[styles.navigationButtons, { borderTopColor: theme.colors.border, paddingBottom: insets.bottom }]}>
+              <TouchableOpacity
+                style={[styles.completeButton, { backgroundColor: theme.colors.primary }]}
+                onPress={handleComplete}
+              >
+                <Text style={[styles.completeButtonText, { color: theme.colors.background }]}>
+                  Complete
+                </Text>
+              </TouchableOpacity>
+            </View>
+          )}
+        </View>
+      </BlurredModalOverlay>
+    </Modal>
+  );
+}
+
+const styles = StyleSheet.create({
+  modalContent: {
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    minHeight: 200,
+    maxHeight: 650,
+    width: '100%',
+    overflow: 'hidden',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 16,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: 'rgba(0, 0, 0, 0.1)',
+    position: 'relative',
+    zIndex: 2,
+  },
+  modalHeaderGradient: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 80,
+    zIndex: 1,
+  },
+  headerLeft: {
+    position: 'relative',
+  },
+  menu: {
+    position: 'absolute',
+    top: 40,
+    left: 0,
+    minWidth: 180,
+    borderRadius: 8,
+    borderWidth: 1,
+    padding: 8,
+    zIndex: 1000,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 5,
+  },
+  menuItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 12,
+    gap: 12,
+  },
+  menuItemText: {
+    fontSize: 16,
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: '600',
+    zIndex: 10,
+  },
+  stepIndicator: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 8,
+    paddingVertical: 12,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: 'rgba(0, 0, 0, 0.1)',
+  },
+  stepDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+  stepContent: {
+    flex: 1,
+  },
+  stepContentContainer: {
+    padding: 16,
+    paddingTop: 16,
+  },
+  stepTitle: {
+    fontSize: 24,
+    fontWeight: '700',
+    marginBottom: 8,
+  },
+  stepDescription: {
+    fontSize: 14,
+    marginBottom: 24,
+  },
+  imagePicker: {
+    width: '100%',
+    height: 150,
+    borderRadius: 12,
+    borderWidth: 2,
+    borderStyle: 'dashed',
+    marginBottom: 16,
+    overflow: 'hidden',
+  },
+  imagePreview: {
+    width: '100%',
+    height: '100%',
+  },
+  imagePlaceholder: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  imagePlaceholderText: {
+    marginTop: 8,
+    fontSize: 14,
+  },
+  avatarPicker: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    borderWidth: 2,
+    borderStyle: 'dashed',
+    marginBottom: 24,
+    alignSelf: 'center',
+    overflow: 'hidden',
+  },
+  avatarPreview: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 50,
+  },
+  avatarPlaceholder: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  inputGroup: {
+    marginBottom: 24,
+  },
+  label: {
+    fontSize: 16,
+    fontWeight: '600',
+    marginBottom: 8,
+  },
+  input: {
+    borderWidth: 1,
+    borderRadius: 8,
+    padding: 12,
+    fontSize: 16,
+  },
+  textArea: {
+    borderWidth: 1,
+    borderRadius: 8,
+    padding: 12,
+    fontSize: 16,
+    minHeight: 100,
+    textAlignVertical: 'top',
+  },
+  handlePreview: {
+    fontSize: 12,
+    marginTop: 4,
+    fontStyle: 'italic',
+  },
+  socialLinkItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 12,
+    borderRadius: 8,
+    borderWidth: 1,
+    marginBottom: 8,
+    gap: 12,
+  },
+  socialLinkUrl: {
+    flex: 1,
+    fontSize: 14,
+  },
+  addSocialLinkContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 12,
+    borderRadius: 8,
+    borderWidth: 1,
+    gap: 12,
+  },
+  addSocialLinkButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  socialLinkInput: {
+    flex: 1,
+    fontSize: 14,
+  },
+  addButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  accordionItem: {
+    borderRadius: 8,
+    borderWidth: 1,
+    marginBottom: 12,
+    overflow: 'hidden',
+  },
+  accordionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 16,
+  },
+  accordionTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  accordionContent: {
+    padding: 16,
+    paddingTop: 0,
+  },
+  inviteSourceButtons: {
+    gap: 12,
+    marginTop: 24,
+  },
+  importButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 16,
+    borderRadius: 8,
+    gap: 8,
+  },
+  emptyContacts: {
+    padding: 24,
+    alignItems: 'center',
+  },
+  emptyContactsText: {
+    fontSize: 14,
+  },
+  importButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  contactItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 16,
+    borderRadius: 8,
+    borderWidth: 1,
+    marginBottom: 12,
+    gap: 12,
+  },
+  contactAvatar: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  contactAvatarText: {
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  contactInfo: {
+    flex: 1,
+  },
+  contactName: {
+    fontSize: 16,
+    fontWeight: '600',
+    marginBottom: 4,
+  },
+  contactDetail: {
+    fontSize: 12,
+  },
+  sendInviteButtonContainer: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    padding: 16,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 5,
+  },
+  sendInviteButton: {
+    padding: 16,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  sendInviteButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  inviteMessageContainer: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    padding: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 5,
+  },
+  inviteMessageHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  inviteMessageTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+  },
+  deepLinkContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: 12,
+    borderRadius: 8,
+    marginBottom: 12,
+    gap: 8,
+  },
+  deepLinkText: {
+    flex: 1,
+    fontSize: 12,
+  },
+  inviteMessageInput: {
+    borderWidth: 1,
+    borderRadius: 8,
+    padding: 12,
+    fontSize: 16,
+    minHeight: 100,
+    textAlignVertical: 'top',
+    marginBottom: 12,
+  },
+  sendButton: {
+    padding: 16,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  sendButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  navigationButtons: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    alignItems: 'center',
+    padding: 16,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    gap: 12,
+  },
+  backButton: {
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 8,
+    borderWidth: 1,
+  },
+  backButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  nextButton: {
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 8,
+  },
+  nextButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  completeButton: {
+    flex: 1,
+    padding: 16,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  completeButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+  },
+});
+

@@ -6,14 +6,17 @@ import {
   FlatList,
   TouchableOpacity,
   RefreshControl,
-  SafeAreaView,
+  Image,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../../context/ThemeContext';
 import { useTabBar } from '../../context/TabBarContext';
+import { Header } from '../../components/Header';
 import { EmptyState } from '../../components/EmptyState';
 import { SkeletonCard } from '../../components/Skeleton';
 import { Button } from '../../components/Button';
+import { EntityCreationModal } from '../../components/EntityCreationModal';
 
 const ENTITY_TYPES = [
   'Fund',
@@ -30,9 +33,10 @@ export function PortfolioScreen() {
   const { triggerRefresh } = useTabBar();
   const [refreshing, setRefreshing] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [entities, setEntities] = useState<any[]>([]); // Will be populated with dummy data
+  const [entities, setEntities] = useState<any[]>([]);
   const [showFilters, setShowFilters] = useState(false);
   const [filterType, setFilterType] = useState<string | null>(null);
+  const [showEntityModal, setShowEntityModal] = useState(false);
 
   async function onRefresh() {
     setRefreshing(true);
@@ -42,7 +46,24 @@ export function PortfolioScreen() {
   }
 
   function handleAddEntity() {
-    // Navigate to add entity screen/modal
+    setShowEntityModal(true);
+  }
+
+  function handleEntityComplete(entity: any) {
+    // Add the new entity to the list
+    const newEntity = {
+      id: `entity-${Date.now()}`,
+      name: entity.name,
+      handle: entity.handle,
+      type: 'Entity', // You can customize this based on entity data
+      banner: entity.banner,
+      avatar: entity.avatar,
+      brief: entity.brief,
+      createdAt: new Date().toISOString(),
+      ...entity,
+    };
+    setEntities([newEntity, ...entities]);
+    setShowEntityModal(false);
   }
 
   function handleFilter() {
@@ -55,7 +76,7 @@ export function PortfolioScreen() {
 
   function renderEntity({ item }: { item: any }) {
     return (
-      <View
+      <TouchableOpacity
         style={[
           styles.entityCard,
           {
@@ -63,27 +84,68 @@ export function PortfolioScreen() {
             borderColor: theme.colors.border,
           },
         ]}
+        activeOpacity={0.7}
       >
-        <View style={styles.entityHeader}>
-          <Text style={[styles.entityName, { color: theme.colors.text }]}>
-            {item.name}
-          </Text>
-          <Text style={[styles.entityType, { color: theme.colors.textSecondary }]}>
-            {item.type}
-          </Text>
+        {item.banner && (
+          <Image
+            source={{ uri: item.banner }}
+            style={styles.entityBanner}
+            resizeMode="cover"
+          />
+        )}
+        <View style={styles.entityCardContent}>
+          {item.avatar ? (
+            <Image
+              source={{ uri: item.avatar }}
+              style={styles.entityAvatar}
+            />
+          ) : (
+            <View
+              style={[
+                styles.entityAvatar,
+                styles.entityAvatarPlaceholder,
+                { backgroundColor: theme.colors.primary },
+              ]}
+            >
+              <Text
+                style={[
+                  styles.entityAvatarText,
+                  { color: theme.colors.background },
+                ]}
+              >
+                {item.name.charAt(0).toUpperCase()}
+              </Text>
+            </View>
+          )}
+          <View style={styles.entityInfo}>
+            <Text style={[styles.entityName, { color: theme.colors.text }]}>
+              {item.name}
+            </Text>
+            {item.handle && (
+              <Text
+                style={[styles.entityHandle, { color: theme.colors.textSecondary }]}
+              >
+                @{item.handle}
+              </Text>
+            )}
+            {item.brief && (
+              <Text
+                style={[styles.entityBrief, { color: theme.colors.textSecondary }]}
+                numberOfLines={2}
+              >
+                {item.brief}
+              </Text>
+            )}
+            {item.type && (
+              <Text
+                style={[styles.entityType, { color: theme.colors.textTertiary }]}
+              >
+                {item.type}
+              </Text>
+            )}
+          </View>
         </View>
-        <View style={styles.entityDetails}>
-          <Text style={[styles.entityDetail, { color: theme.colors.textTertiary }]}>
-            Owner: {item.owner}
-          </Text>
-          <Text style={[styles.entityDetail, { color: theme.colors.textTertiary }]}>
-            Location: {item.location}
-          </Text>
-          <Text style={[styles.entityDetail, { color: theme.colors.textTertiary }]}>
-            Created: {item.date}
-          </Text>
-        </View>
-      </View>
+      </TouchableOpacity>
     );
   }
 
@@ -106,20 +168,16 @@ export function PortfolioScreen() {
 
   return (
     <SafeAreaView
+      edges={[]}
       style={[styles.container, { backgroundColor: theme.colors.background }]}
     >
-      <View style={styles.header}>
-        <Text style={[styles.title, { color: theme.colors.text }]}>Portfolio</Text>
-        <TouchableOpacity
-          style={[
-            styles.addButton,
-            { backgroundColor: theme.colors.primary },
-          ]}
-          onPress={handleAddEntity}
-        >
-          <Ionicons name="add" size={24} color={theme.colors.background} />
-        </TouchableOpacity>
-      </View>
+      <Header
+        title="Portfolio"
+        rightAction={{
+          icon: 'add',
+          onPress: handleAddEntity,
+        }}
+      />
 
       <View style={styles.actionsBar}>
         <TouchableOpacity
@@ -212,8 +270,11 @@ export function PortfolioScreen() {
       <FlatList
         data={entities}
         renderItem={renderEntity}
-        keyExtractor={(item, index) => `entity-${index}`}
-        contentContainerStyle={entities.length === 0 ? styles.emptyContainer : styles.listContent}
+        keyExtractor={(item) => item.id || `entity-${item.name}`}
+        contentContainerStyle={[
+          entities.length === 0 ? styles.emptyContainer : styles.listContent,
+          { paddingBottom: 100 },
+        ]}
         ListEmptyComponent={renderEmpty}
         refreshControl={
           <RefreshControl
@@ -224,6 +285,13 @@ export function PortfolioScreen() {
         }
         showsVerticalScrollIndicator={false}
       />
+
+      {/* Entity Creation Modal */}
+      <EntityCreationModal
+        visible={showEntityModal}
+        onClose={() => setShowEntityModal(false)}
+        onComplete={handleEntityComplete}
+      />
     </SafeAreaView>
   );
 }
@@ -231,25 +299,6 @@ export function PortfolioScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    paddingBottom: 100,
-  },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-  },
-  title: {
-    fontSize: 32,
-    fontWeight: '700',
-  },
-  addButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
   actionsBar: {
     flexDirection: 'row',
@@ -306,26 +355,52 @@ const styles = StyleSheet.create({
     padding: 16,
   },
   entityCard: {
-    padding: 16,
     borderRadius: 12,
     borderWidth: 1,
     marginBottom: 16,
+    overflow: 'hidden',
   },
-  entityHeader: {
-    marginBottom: 12,
+  entityBanner: {
+    width: '100%',
+    height: 120,
+  },
+  entityCardContent: {
+    padding: 16,
+    flexDirection: 'row',
+  },
+  entityAvatar: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    marginRight: 12,
+  },
+  entityAvatarPlaceholder: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  entityAvatarText: {
+    fontSize: 24,
+    fontWeight: '700',
+  },
+  entityInfo: {
+    flex: 1,
   },
   entityName: {
     fontSize: 18,
-    fontWeight: '600',
+    fontWeight: '700',
     marginBottom: 4,
   },
-  entityType: {
+  entityHandle: {
     fontSize: 14,
+    marginBottom: 8,
   },
-  entityDetails: {
-    gap: 4,
+  entityBrief: {
+    fontSize: 14,
+    lineHeight: 20,
+    marginBottom: 8,
   },
-  entityDetail: {
+  entityType: {
     fontSize: 12,
+    fontWeight: '500',
   },
 });

@@ -1,5 +1,6 @@
 import React, { useEffect } from 'react';
 import { View, StyleSheet, TouchableOpacity, Platform } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { BlurView } from 'expo-blur';
 import Animated, {
   useAnimatedStyle,
@@ -93,20 +94,8 @@ export function FloatingTabBar({ state, descriptors, navigation }: BottomTabBarP
   };
 
   return (
-    <View style={styles.container} pointerEvents="box-none">
-      <AnimatedBlurView
-        intensity={Platform.OS === 'ios' ? 80 : 20}
-        tint={isDark ? 'dark' : 'light'}
-        style={[
-          styles.blurContainer,
-          {
-            backgroundColor: isDark
-              ? 'rgba(45, 45, 45, 0.7)'
-              : 'rgba(245, 245, 220, 0.7)',
-            shadowColor: theme.colors.text,
-          },
-        ]}
-      >
+    <SafeAreaView edges={['bottom']} style={styles.safeArea} pointerEvents="box-none">
+      <View style={styles.container} pointerEvents="box-none">
         <View style={styles.tabContainer}>
           {state.routes.map((route, index) => {
             const { options } = descriptors[route.key];
@@ -148,63 +137,107 @@ export function FloatingTabBar({ state, descriptors, navigation }: BottomTabBarP
                   onPress={onPress}
                   style={[
                     styles.tabButton,
-                    isFocused && {
-                      backgroundColor: isDark
-                        ? 'rgba(212, 175, 55, 0.2)'
-                        : 'rgba(139, 105, 20, 0.15)',
-                    },
+                    isFocused && styles.activeTabButton,
                   ]}
                 >
-                  <Ionicons name={iconName} size={24} color={iconColor} />
+                  <View
+                    style={[
+                      styles.circleContainer,
+                      {
+                        backgroundColor: 'transparent',
+                        shadowColor: theme.colors.text,
+                        shadowOffset: {
+                          width: 0,
+                          height: isFocused ? 2 : 1,
+                        },
+                        shadowOpacity: isFocused ? 0.2 : 0.1,
+                        shadowRadius: isFocused ? 4 : 2,
+                        elevation: isFocused ? 4 : 2,
+                      },
+                    ]}
+                  >
+                    {/* Background circle with opacity */}
+                    <View
+                      style={[
+                        styles.circleBackground,
+                        {
+                          opacity: isFocused ? 1.0 : 0.8,
+                        },
+                      ]}
+                    >
+                      <AnimatedBlurView
+                        intensity={Platform.OS === 'ios' ? (isFocused ? 40 : 20) : (isFocused ? 10 : 5)}
+                        tint={isDark ? 'dark' : 'light'}
+                        style={styles.activeTabBlur}
+                      />
+                    </View>
+                    {/* Icon - always fully visible */}
+                    <Ionicons name={iconName} size={24} color={iconColor} style={styles.icon} />
+                  </View>
                 </TouchableOpacity>
               </Animated.View>
             );
           })}
         </View>
-      </AnimatedBlurView>
-    </View>
+      </View>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
+  safeArea: {
     position: 'absolute',
     bottom: 0,
     left: 0,
     right: 0,
+  },
+  container: {
     alignItems: 'center',
     justifyContent: 'center',
-    paddingBottom: 20,
+    paddingBottom: 8,
     paddingHorizontal: 16,
-  },
-  blurContainer: {
-    flexDirection: 'row',
-    borderRadius: 30,
-    paddingHorizontal: 12,
-    paddingVertical: 12,
-    minHeight: 64,
-    alignItems: 'center',
-    justifyContent: 'space-around',
-    shadowOffset: {
-      width: 0,
-      height: -4,
-    },
-    shadowOpacity: 0.2,
-    shadowRadius: 12,
-    elevation: 8,
+    paddingTop: 8,
   },
   tabContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-around',
     width: '100%',
+    backgroundColor: 'transparent',
   },
   tabButton: {
+    width: 48,
+    height: 48,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginHorizontal: 4,
+  },
+  activeTabButton: {
+    // Additional styles for active tab if needed
+  },
+  circleContainer: {
     width: 48,
     height: 48,
     borderRadius: 24,
     alignItems: 'center',
     justifyContent: 'center',
-    marginHorizontal: 4,
+    position: 'relative',
+  },
+  circleBackground: {
+    position: 'absolute',
+    width: '100%',
+    height: '100%',
+    borderRadius: 24,
+    backgroundColor: 'transparent',
+    overflow: 'hidden',
+  },
+  activeTabBlur: {
+    position: 'absolute',
+    width: '100%',
+    height: '100%',
+    borderRadius: 24,
+  },
+  icon: {
+    zIndex: 1,
   },
 });

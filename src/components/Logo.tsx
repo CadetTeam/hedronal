@@ -1,5 +1,5 @@
 import React, { useRef } from 'react';
-import { View, Text, StyleSheet, Pressable } from 'react-native';
+import { View, Image, StyleSheet, Pressable, ImageSourcePropType } from 'react-native';
 import { useTheme } from '../context/ThemeContext';
 
 interface LogoProps {
@@ -8,8 +8,11 @@ interface LogoProps {
   onLongPressEnd?: () => void;
 }
 
+const darkLogo = require('../../assets/dark.png');
+const lightLogo = require('../../assets/light.png');
+
 export function Logo({ size = 80, onLongPressStart, onLongPressEnd }: LogoProps) {
-  const { theme } = useTheme();
+  const { theme, isDark } = useTheme();
   const timerRef = useRef<NodeJS.Timeout | null>(null);
 
   function handlePressIn() {
@@ -30,32 +33,21 @@ export function Logo({ size = 80, onLongPressStart, onLongPressEnd }: LogoProps)
     }
   }
 
+  // Use dark logo on light mode, light logo on dark mode
+  const logoSource: ImageSourcePropType = isDark ? lightLogo : darkLogo;
+
   const content = (
-    <View
+    <Image
+      source={logoSource}
       style={[
-        styles.container,
+        styles.logo,
         {
           width: size,
           height: size,
-          borderRadius: size / 2,
-          backgroundColor: theme.colors.primary,
-          borderWidth: 2,
-          borderColor: theme.colors.primaryDark,
         },
       ]}
-    >
-      <Text
-        style={[
-          styles.text,
-          {
-            fontSize: size * 0.4,
-            color: theme.colors.background,
-          },
-        ]}
-      >
-        H
-      </Text>
-    </View>
+      resizeMode="contain"
+    />
   );
 
   if (onLongPressStart) {
@@ -70,12 +62,9 @@ export function Logo({ size = 80, onLongPressStart, onLongPressEnd }: LogoProps)
 }
 
 const styles = StyleSheet.create({
-  container: {
+  logo: {
     justifyContent: 'center',
     alignItems: 'center',
-  },
-  text: {
-    fontWeight: '700',
   },
   pressable: {
     alignItems: 'center',
