@@ -6,7 +6,7 @@ interface ClerkContextType {
   userId: string | null | undefined;
   user: ReturnType<typeof useUser>['user'];
   organization: ReturnType<typeof useOrganization>['organization'];
-  organizationList: ReturnType<typeof useOrganizationList>['organizationList'];
+  organizationList: any[];
   isLoaded: boolean;
 }
 
@@ -16,12 +16,15 @@ export function ClerkProvider({ children }: { children: ReactNode }) {
   const { isSignedIn, userId, isLoaded: authLoaded } = useAuth();
   const { user, isLoaded: userLoaded } = useUser();
   const { organization } = useOrganization();
-  const { organizationList, isLoaded: orgListLoaded } = useOrganizationList();
+  const orgListData = useOrganizationList();
+  const organizationList =
+    (orgListData as any).organizationList || (orgListData as any).organizations || [];
+  const orgListLoaded = orgListData.isLoaded || false;
 
   // Only require auth to be loaded - org list can load later
   // Add timeout fallback - if Clerk takes too long, show auth screen anyway
   const [hasTimedOut, setHasTimedOut] = React.useState(false);
-  
+
   React.useEffect(() => {
     const timer = setTimeout(() => {
       if (!authLoaded || !userLoaded) {
@@ -29,11 +32,11 @@ export function ClerkProvider({ children }: { children: ReactNode }) {
         setHasTimedOut(true);
       }
     }, 5000); // 5 second timeout
-    
+
     return () => clearTimeout(timer);
   }, [authLoaded, userLoaded]);
-  
-  const isLoaded = authLoaded && userLoaded || hasTimedOut;
+
+  const isLoaded = (authLoaded && userLoaded) || hasTimedOut;
 
   // Debug logging
   React.useEffect(() => {
@@ -69,4 +72,3 @@ export function useClerkContext() {
   }
   return context;
 }
-

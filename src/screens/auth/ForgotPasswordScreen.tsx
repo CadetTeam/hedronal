@@ -60,7 +60,7 @@ export function ForgotPasswordScreen({ navigation }: ForgotPasswordScreenProps) 
       // Prepare password reset
       await signIn.prepareFirstFactor({
         strategy: 'email_code',
-      });
+      } as any);
 
       setSent(true);
       setShowOTPModal(true);
@@ -120,7 +120,7 @@ export function ForgotPasswordScreen({ navigation }: ForgotPasswordScreenProps) 
     try {
       await signIn.prepareFirstFactor({
         strategy: 'email_code',
-      });
+      } as any);
     } catch (error: any) {
       const errorMessage =
         error?.errors?.[0]?.message || error?.message || 'Failed to resend code. Please try again.';

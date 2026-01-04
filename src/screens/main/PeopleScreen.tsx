@@ -17,6 +17,8 @@ import { EmptyState } from '../../components/EmptyState';
 import { SkeletonCard } from '../../components/Skeleton';
 import { Button } from '../../components/Button';
 import { InvitePeopleModal } from '../../components/InvitePeopleModal';
+import { WalletModal } from '../../components/WalletModal';
+import { NotificationsModal } from '../../components/NotificationsModal';
 
 export function PeopleScreen() {
   const { theme } = useTheme();
@@ -28,6 +30,8 @@ export function PeopleScreen() {
   const [selectedPerson, setSelectedPerson] = useState<any | null>(null);
   const [showPersonMenu, setShowPersonMenu] = useState(false);
   const [showInviteModal, setShowInviteModal] = useState(false);
+  const [showWalletModal, setShowWalletModal] = useState(false);
+  const [showNotificationsModal, setShowNotificationsModal] = useState(false);
 
   async function onRefresh() {
     setRefreshing(true);
@@ -178,9 +182,17 @@ export function PeopleScreen() {
     >
       <Header
         title="People"
+        leftAction={{
+          icon: 'wallet-outline',
+          onPress: () => setShowWalletModal(true),
+        }}
         rightAction={{
           icon: 'add',
           onPress: handleAddPerson,
+        }}
+        rightSideAction={{
+          icon: 'notifications-outline',
+          onPress: () => setShowNotificationsModal(true),
         }}
       />
 
@@ -294,6 +306,18 @@ export function PeopleScreen() {
         visible={showInviteModal}
         onClose={() => setShowInviteModal(false)}
         onComplete={handleInviteComplete}
+      />
+
+      {/* Wallet Modal */}
+      <WalletModal
+        visible={showWalletModal}
+        onClose={() => setShowWalletModal(false)}
+      />
+
+      {/* Notifications Modal */}
+      <NotificationsModal
+        visible={showNotificationsModal}
+        onClose={() => setShowNotificationsModal(false)}
       />
     </SafeAreaView>
   );

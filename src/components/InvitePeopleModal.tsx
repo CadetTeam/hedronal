@@ -15,6 +15,7 @@ import { Modal } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Contacts from 'expo-contacts';
 import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useTheme } from '../context/ThemeContext';
 import { BlurredModalOverlay } from './BlurredModalOverlay';
 
@@ -27,7 +28,7 @@ interface InvitePeopleModalProps {
 }
 
 export function InvitePeopleModal({ visible, onClose, onComplete }: InvitePeopleModalProps) {
-  const { theme } = useTheme();
+  const { theme, isDark } = useTheme();
   const insets = useSafeAreaInsets();
   const [contacts, setContacts] = useState<
     Array<{ id: string; name: string; phone?: string; email?: string }>
@@ -85,8 +86,38 @@ export function InvitePeopleModal({ visible, onClose, onComplete }: InvitePeople
       setShowInviteMessage(false);
       setInviteMessage('');
       setInviteSource(null);
+    } else {
+      // Auto-load contacts when modal opens if permission already granted
+      checkAndLoadContacts();
     }
   }, [visible]);
+
+  async function checkAndLoadContacts() {
+    try {
+      // Check if permission is already granted
+      const { status } = await Contacts.getPermissionsAsync();
+      if (status === 'granted') {
+        // Permission already granted, load contacts automatically
+        const { data } = await Contacts.getContactsAsync({
+          fields: [Contacts.Fields.Name, Contacts.Fields.PhoneNumbers, Contacts.Fields.Emails],
+        });
+        if (data && data.length > 0) {
+          setContacts(
+            data.map(contact => ({
+              id: contact.id,
+              name: contact.name || 'Unknown',
+              phone: contact.phoneNumbers?.[0]?.number,
+              email: contact.emails?.[0]?.email,
+            }))
+          );
+          setInviteSource('contacts');
+        }
+      }
+    } catch (error) {
+      // Silently fail - user can still manually import
+      console.log('[InvitePeopleModal] Could not auto-load contacts:', error);
+    }
+  }
 
   async function requestContactsPermission() {
     const { status } = await Contacts.requestPermissionsAsync();
@@ -162,21 +193,39 @@ export function InvitePeopleModal({ visible, onClose, onComplete }: InvitePeople
       <BlurredModalOverlay visible={visible} onClose={handleClose}>
         <View
           style={[
-            styles.modalContainer,
+            styles.modalContent,
             {
               backgroundColor: theme.colors.surface,
-              maxHeight: '90%',
+              minHeight: 500 + insets.bottom * 2,
             },
           ]}
         >
-          {!showInviteMessage && (
-            <View style={styles.header}>
-              <Text style={[styles.title, { color: theme.colors.text }]}>Invite People</Text>
-              <TouchableOpacity onPress={handleClose} style={styles.closeButton}>
-                <Ionicons name="close" size={24} color={theme.colors.text} />
-              </TouchableOpacity>
+          <View style={styles.modalHeader}>
+            <LinearGradient
+              colors={
+                isDark
+                  ? [theme.colors.surface, `${theme.colors.surface}00`]
+                  : [theme.colors.surface, `${theme.colors.surface}00`]
+              }
+              style={styles.modalHeaderGradient}
+              pointerEvents="none"
+            />
+            <View style={styles.headerLeft}>
+              {showInviteMessage ? (
+                <TouchableOpacity onPress={() => setShowInviteMessage(false)}>
+                  <Ionicons name="arrow-back" size={24} color={theme.colors.text} />
+                </TouchableOpacity>
+              ) : (
+                <View style={{ width: 24 }} />
+              )}
             </View>
-          )}
+            <Text style={[styles.modalTitle, { color: theme.colors.text }]}>
+              {showInviteMessage ? 'Invitation Message' : 'Invite People'}
+            </Text>
+            <TouchableOpacity onPress={handleClose}>
+              <Ionicons name="close" size={24} color={theme.colors.text} />
+            </TouchableOpacity>
+          </View>
 
           <ScrollView
             style={styles.content}
@@ -389,25 +438,40 @@ export function InvitePeopleModal({ visible, onClose, onComplete }: InvitePeople
 }
 
 const styles = StyleSheet.create({
-  modalContainer: {
+  modalContent: {
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
-    paddingTop: 20,
-    paddingBottom: 0,
+    minHeight: 500,
+    maxHeight: 650,
+    width: '100%',
+    overflow: 'hidden',
   },
-  header: {
+  modalHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingBottom: 16,
+    padding: 16,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: 'rgba(0, 0, 0, 0.1)',
+    position: 'relative',
+    zIndex: 2,
   },
-  title: {
-    fontSize: 24,
-    fontWeight: '700',
+  modalHeaderGradient: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 80,
+    zIndex: 1,
   },
-  closeButton: {
-    padding: 4,
+  headerLeft: {
+    width: 24,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    flex: 1,
+    textAlign: 'center',
   },
   content: {
     flex: 1,

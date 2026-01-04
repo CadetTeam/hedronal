@@ -4,6 +4,7 @@ import dotenv from 'dotenv';
 import { authRouter } from './routes/auth';
 import { entityRouter } from './routes/entity';
 import { webhookRouter } from './routes/webhook';
+import { imageRouter } from './routes/image';
 
 dotenv.config();
 
@@ -17,13 +18,14 @@ app.get('/health', (req, res) => {
 
 // Middleware
 app.use(cors());
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+app.use(express.json({ limit: '10mb' })); // Increase limit for large entity data
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // Routes
 app.use('/api/auth', authRouter);
 app.use('/api/entities', entityRouter);
 app.use('/api/webhooks', webhookRouter);
+app.use('/api/images', imageRouter);
 
 // Error handling middleware
 app.use((err: Error, req: express.Request, res: express.Response, next: express.NextFunction) => {
@@ -31,6 +33,9 @@ app.use((err: Error, req: express.Request, res: express.Response, next: express.
   res.status(500).json({ error: 'Something went wrong!' });
 });
 
-app.listen(PORT, () => {
+app.listen(Number(PORT), '0.0.0.0', () => {
   console.log(`🚀 Hedronal backend server running on port ${PORT}`);
+  console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
+  console.log(`Supabase URL: ${process.env.SUPABASE_URL ? 'SET' : 'MISSING'}`);
+  console.log(`Clerk Secret Key: ${process.env.CLERK_SECRET_KEY ? 'SET' : 'MISSING'}`);
 });

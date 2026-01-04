@@ -18,6 +18,8 @@ import { SkeletonCard } from '../../components/Skeleton';
 import { Button } from '../../components/Button';
 import { EntityCreationModal } from '../../components/EntityCreationModal';
 import { EntityProfileModal } from '../../components/EntityProfileModal';
+import { WalletModal } from '../../components/WalletModal';
+import { NotificationsModal } from '../../components/NotificationsModal';
 import { fetchEntities, fetchEntityById } from '../../services/entityService';
 import { useClerkContext } from '../../context/ClerkContext';
 import { useAuth } from '@clerk/clerk-expo';
@@ -45,16 +47,18 @@ export function PortfolioScreen() {
   const [showEntityModal, setShowEntityModal] = useState(false);
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [selectedEntity, setSelectedEntity] = useState<any>(null);
+  const [showWalletModal, setShowWalletModal] = useState(false);
+  const [showNotificationsModal, setShowNotificationsModal] = useState(false);
 
   // Fetch entities from backend
   async function loadEntities() {
     if (!userId) return;
-    
+
     setLoading(true);
     try {
       const token = await getToken();
       const fetchedEntities = await fetchEntities(token || undefined);
-      
+
       // Transform entities to match the expected format
       const transformedEntities = fetchedEntities.map((entity: any) => {
         // Transform entity_configurations array to object
@@ -64,11 +68,12 @@ export function PortfolioScreen() {
             step2Data[config.config_type] = config.config_data;
           });
         }
-        
+
         // Get completed items from configurations
-        const completedItems = entity.entity_configurations
-          ?.filter((config: any) => config.is_completed)
-          .map((config: any) => config.config_type) || [];
+        const completedItems =
+          entity.entity_configurations
+            ?.filter((config: any) => config.is_completed)
+            .map((config: any) => config.config_type) || [];
 
         return {
           id: entity.id,
@@ -85,7 +90,7 @@ export function PortfolioScreen() {
           socialLinks: entity.entity_social_links || [],
         };
       });
-      
+
       setEntities(transformedEntities);
     } catch (error) {
       console.error('Error loading entities:', error);
@@ -129,11 +134,12 @@ export function PortfolioScreen() {
             step2Data[config.config_type] = config.config_data;
           });
         }
-        
+
         // Get completed items from configurations
-        const completedItems = fullEntity.entity_configurations
-          ?.filter((config: any) => config.is_completed)
-          .map((config: any) => config.config_type) || [];
+        const completedItems =
+          fullEntity.entity_configurations
+            ?.filter((config: any) => config.is_completed)
+            .map((config: any) => config.config_type) || [];
 
         // Transform to match expected format
         const transformedEntity = {
@@ -187,18 +193,11 @@ export function PortfolioScreen() {
         onPress={() => handleEntityPress(item)}
       >
         {item.banner && (
-          <Image
-            source={{ uri: item.banner }}
-            style={styles.entityBanner}
-            resizeMode="cover"
-          />
+          <Image source={{ uri: item.banner }} style={styles.entityBanner} resizeMode="cover" />
         )}
         <View style={styles.entityCardContent}>
           {item.avatar ? (
-            <Image
-              source={{ uri: item.avatar }}
-              style={styles.entityAvatar}
-            />
+            <Image source={{ uri: item.avatar }} style={styles.entityAvatar} />
           ) : (
             <View
               style={[
@@ -207,24 +206,15 @@ export function PortfolioScreen() {
                 { backgroundColor: theme.colors.primary },
               ]}
             >
-              <Text
-                style={[
-                  styles.entityAvatarText,
-                  { color: theme.colors.background },
-                ]}
-              >
+              <Text style={[styles.entityAvatarText, { color: theme.colors.background }]}>
                 {item.name.charAt(0).toUpperCase()}
               </Text>
             </View>
           )}
           <View style={styles.entityInfo}>
-            <Text style={[styles.entityName, { color: theme.colors.text }]}>
-              {item.name}
-            </Text>
+            <Text style={[styles.entityName, { color: theme.colors.text }]}>{item.name}</Text>
             {item.handle && (
-              <Text
-                style={[styles.entityHandle, { color: theme.colors.textSecondary }]}
-              >
+              <Text style={[styles.entityHandle, { color: theme.colors.textSecondary }]}>
                 @{item.handle}
               </Text>
             )}
@@ -237,9 +227,7 @@ export function PortfolioScreen() {
               </Text>
             )}
             {item.type && (
-              <Text
-                style={[styles.entityType, { color: theme.colors.textTertiary }]}
-              >
+              <Text style={[styles.entityType, { color: theme.colors.textTertiary }]}>
                 {item.type}
               </Text>
             )}
@@ -259,10 +247,7 @@ export function PortfolioScreen() {
       );
     }
     return (
-      <EmptyState
-        title="No entities yet"
-        message="Tap the + button to add your first entity"
-      />
+      <EmptyState title="No entities yet" message="Tap the + button to add your first entity" />
     );
   }
 
@@ -273,9 +258,17 @@ export function PortfolioScreen() {
     >
       <Header
         title="Portfolio"
+        leftAction={{
+          icon: 'wallet-outline',
+          onPress: () => setShowWalletModal(true),
+        }}
         rightAction={{
           icon: 'add',
           onPress: handleAddEntity,
+        }}
+        rightSideAction={{
+          icon: 'notifications-outline',
+          onPress: () => setShowNotificationsModal(true),
         }}
       />
 
@@ -290,14 +283,8 @@ export function PortfolioScreen() {
           ]}
           onPress={handleFilter}
         >
-          <Ionicons
-            name="filter"
-            size={20}
-            color={theme.colors.text}
-          />
-          <Text style={[styles.actionText, { color: theme.colors.text }]}>
-            Filter
-          </Text>
+          <Ionicons name="filter" size={20} color={theme.colors.text} />
+          <Text style={[styles.actionText, { color: theme.colors.text }]}>Filter</Text>
         </TouchableOpacity>
 
         <TouchableOpacity
@@ -310,14 +297,8 @@ export function PortfolioScreen() {
           ]}
           onPress={handleSort}
         >
-          <Ionicons
-            name="swap-vertical"
-            size={20}
-            color={theme.colors.text}
-          />
-          <Text style={[styles.actionText, { color: theme.colors.text }]}>
-            Sort
-          </Text>
+          <Ionicons name="swap-vertical" size={20} color={theme.colors.text} />
+          <Text style={[styles.actionText, { color: theme.colors.text }]}>Sort</Text>
         </TouchableOpacity>
       </View>
 
@@ -331,11 +312,9 @@ export function PortfolioScreen() {
             },
           ]}
         >
-          <Text style={[styles.filterLabel, { color: theme.colors.text }]}>
-            Filter by Type:
-          </Text>
+          <Text style={[styles.filterLabel, { color: theme.colors.text }]}>Filter by Type:</Text>
           <View style={styles.filterChips}>
-            {ENTITY_TYPES.map((type) => (
+            {ENTITY_TYPES.map(type => (
               <TouchableOpacity
                 key={type}
                 style={[
@@ -352,10 +331,7 @@ export function PortfolioScreen() {
                   style={[
                     styles.filterChipText,
                     {
-                      color:
-                        filterType === type
-                          ? theme.colors.background
-                          : theme.colors.text,
+                      color: filterType === type ? theme.colors.background : theme.colors.text,
                     },
                   ]}
                 >
@@ -370,7 +346,7 @@ export function PortfolioScreen() {
       <FlatList
         data={entities}
         renderItem={renderEntity}
-        keyExtractor={(item) => item.id || `entity-${item.name}`}
+        keyExtractor={item => item.id || `entity-${item.name}`}
         contentContainerStyle={[
           entities.length === 0 ? styles.emptyContainer : styles.listContent,
           { paddingBottom: 100 },
@@ -402,12 +378,21 @@ export function PortfolioScreen() {
             setSelectedEntity(null);
           }}
           entity={selectedEntity}
-          onUpdate={(updatedEntity) => {
-            setEntities(entities.map((e) => (e.id === updatedEntity.id ? updatedEntity : e)));
+          onUpdate={updatedEntity => {
+            setEntities(entities.map(e => (e.id === updatedEntity.id ? updatedEntity : e)));
             setSelectedEntity(updatedEntity);
           }}
         />
       )}
+
+      {/* Wallet Modal */}
+      <WalletModal visible={showWalletModal} onClose={() => setShowWalletModal(false)} />
+
+      {/* Notifications Modal */}
+      <NotificationsModal
+        visible={showNotificationsModal}
+        onClose={() => setShowNotificationsModal(false)}
+      />
     </SafeAreaView>
   );
 }

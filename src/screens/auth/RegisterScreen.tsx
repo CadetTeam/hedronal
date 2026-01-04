@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import {
   View,
   Text,
@@ -9,12 +9,13 @@ import {
   Alert,
   TouchableOpacity,
   Linking,
+  Image,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { Video, ResizeMode, AVPlaybackStatus } from 'expo-av';
 import { useSignUp } from '@clerk/clerk-expo';
 import { useTheme } from '../../context/ThemeContext';
-import { Logo } from '../../components/Logo';
-import { TextInput } from '../../components/TextInput';
+import { AuthTextInput } from '../../components/AuthTextInput';
 import { Button } from '../../components/Button';
 import { OTPModal } from '../../components/OTPModal';
 import { Ionicons } from '@expo/vector-icons';
@@ -41,6 +42,7 @@ export function RegisterScreen({ navigation }: RegisterScreenProps) {
   }>({});
   const [showOTPModal, setShowOTPModal] = useState(false);
   const [otpLoading, setOtpLoading] = useState(false);
+  const videoRef = useRef<Video>(null);
 
   function validate() {
     const newErrors: {
@@ -194,7 +196,30 @@ export function RegisterScreen({ navigation }: RegisterScreenProps) {
   }
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]}>
+    <View style={styles.container}>
+      {/* Video Background */}
+      <Video
+        ref={videoRef}
+        source={require('../../../assets/hedronal.mp4')}
+        style={styles.video}
+        resizeMode={ResizeMode.COVER}
+        shouldPlay
+        isLooping
+        isMuted
+        volume={0}
+        useNativeControls={false}
+        onPlaybackStatusUpdate={(status: AVPlaybackStatus) => {
+          if (!status.isLoaded) {
+            // Handle error
+          }
+        }}
+      />
+      
+      {/* Dark overlay for readability */}
+      <View style={styles.overlay} />
+      
+      <SafeAreaView style={styles.safeArea}>
+      
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={styles.keyboardView}
@@ -205,11 +230,15 @@ export function RegisterScreen({ navigation }: RegisterScreenProps) {
           showsVerticalScrollIndicator={false}
         >
           <View style={styles.logoContainer}>
-            <Logo size={80} />
+            <Image
+              source={require('../../../assets/light.png')}
+              style={[styles.logo, { width: 80, height: 80 }]}
+              resizeMode="contain"
+            />
           </View>
 
           <View style={styles.form}>
-            <TextInput
+            <AuthTextInput
               label="Full Name"
               value={name}
               onChangeText={setName}
@@ -218,7 +247,7 @@ export function RegisterScreen({ navigation }: RegisterScreenProps) {
               error={errors.name}
             />
 
-            <TextInput
+            <AuthTextInput
               label="Email"
               value={email}
               onChangeText={setEmail}
@@ -229,7 +258,7 @@ export function RegisterScreen({ navigation }: RegisterScreenProps) {
               error={errors.email}
             />
 
-            <TextInput
+            <AuthTextInput
               label="Password"
               value={password}
               onChangeText={setPassword}
@@ -239,7 +268,7 @@ export function RegisterScreen({ navigation }: RegisterScreenProps) {
               error={errors.password}
             />
 
-            <TextInput
+            <AuthTextInput
               label="Confirm Password"
               value={confirmPassword}
               onChangeText={setConfirmPassword}
@@ -285,7 +314,7 @@ export function RegisterScreen({ navigation }: RegisterScreenProps) {
               </Text>
             </TouchableOpacity>
             {errors.terms && (
-              <Text style={[styles.errorText, { color: theme.colors.error }]}>
+              <Text style={styles.errorText}>
                 {errors.terms}
               </Text>
             )}
@@ -299,11 +328,11 @@ export function RegisterScreen({ navigation }: RegisterScreenProps) {
           </View>
 
           <View style={styles.footer}>
-            <Text style={[styles.footerText, { color: theme.colors.textSecondary }]}>
+            <Text style={styles.footerText}>
               Already have an account?{' '}
             </Text>
             <Text
-              style={[styles.footerLink, { color: theme.colors.primary }]}
+              style={styles.footerLink}
               onPress={() => navigation.navigate('Login')}
             >
               Sign In
@@ -324,16 +353,43 @@ export function RegisterScreen({ navigation }: RegisterScreenProps) {
         onVerify={handleVerifyOTP}
         loading={otpLoading}
       />
-    </SafeAreaView>
+      </SafeAreaView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: '#000000',
+  },
+  video: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    width: '100%',
+    height: '100%',
+  },
+  safeArea: {
+    flex: 1,
+  },
+  overlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    bottom: 0,
+    right: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
   },
   keyboardView: {
     flex: 1,
+    zIndex: 1,
+  },
+  logo: {
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   scrollContent: {
     flexGrow: 1,
@@ -378,16 +434,28 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 14,
     lineHeight: 20,
+    color: '#FFFFFF',
+    textShadowColor: 'rgba(0, 0, 0, 0.75)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 3,
   },
   termsLink: {
     fontSize: 14,
     fontWeight: '600',
+    color: '#FFFFFF',
+    textShadowColor: 'rgba(0, 0, 0, 0.75)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 3,
   },
   errorText: {
     fontSize: 12,
     marginTop: -12,
     marginBottom: 8,
     marginLeft: 32,
+    color: '#FF6B6B',
+    textShadowColor: 'rgba(0, 0, 0, 0.75)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 3,
   },
   button: {
     marginTop: 8,
@@ -399,9 +467,17 @@ const styles = StyleSheet.create({
   },
   footerText: {
     fontSize: 14,
+    color: '#FFFFFF',
+    textShadowColor: 'rgba(0, 0, 0, 0.75)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 3,
   },
   footerLink: {
     fontSize: 14,
     fontWeight: '600',
+    color: '#FFFFFF',
+    textShadowColor: 'rgba(0, 0, 0, 0.75)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 3,
   },
 });

@@ -6,4 +6,6 @@ export { Skeleton, SkeletonText, SkeletonCard } from './Skeleton';
 export { Logo } from './Logo';
 export { BlurredModalOverlay } from './BlurredModalOverlay';
 export { Header } from './Header';
+export { WalletModal } from './WalletModal';
+export { NotificationsModal } from './NotificationsModal';
 export { InvitePeopleModal } from './InvitePeopleModal';

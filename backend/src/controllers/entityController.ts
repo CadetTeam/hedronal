@@ -153,6 +153,8 @@ export const entityController = {
         }
       }
 
+      console.log('[entityController] Entity creation complete, returning response');
+
       return res.status(201).json({
         success: true,
         entity,
@@ -161,10 +163,18 @@ export const entityController = {
       });
     } catch (error: any) {
       if (error instanceof z.ZodError) {
-        return res.status(400).json({ error: error.errors[0].message });
+        console.error('[entityController] Validation error:', error.errors);
+        return res.status(400).json({
+          error: error.errors[0].message,
+          details: error.errors,
+        });
       }
-      console.error('Entity creation error:', error);
-      return res.status(500).json({ error: error.message || 'Failed to create entity' });
+      console.error('[entityController] Entity creation error:', error);
+      console.error('[entityController] Error stack:', error.stack);
+      return res.status(500).json({
+        error: error.message || 'Failed to create entity',
+        details: process.env.NODE_ENV === 'development' ? error.stack : undefined,
+      });
     }
   },
 
@@ -232,7 +242,11 @@ export const entityController = {
 
   list: async (req: AuthenticatedRequest, res: Response) => {
     try {
+      console.log('[entityController] Listing entities for user:', req.userId);
+
       const { limit = 50, offset = 0 } = req.query;
+
+      console.log('[entityController] Query params:', { limit, offset });
 
       const { data: entities, error } = await supabase
         .from('entities')
@@ -247,12 +261,19 @@ export const entityController = {
         .range(Number(offset), Number(offset) + Number(limit) - 1);
 
       if (error) {
+        console.error('[entityController] Supabase error:', error);
         return res.status(400).json({ error: error.message });
       }
 
+      console.log('[entityController] Found entities:', entities?.length || 0);
       return res.json({ entities: entities || [] });
     } catch (error: any) {
-      return res.status(500).json({ error: error.message });
+      console.error('[entityController] List error:', error);
+      console.error('[entityController] Error stack:', error.stack);
+      return res.status(500).json({
+        error: error.message || 'Failed to fetch entities',
+        details: process.env.NODE_ENV === 'development' ? error.stack : undefined,
+      });
     }
   },
 

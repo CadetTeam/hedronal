@@ -5,14 +5,17 @@ dotenv.config();
 
 const SUPABASE_URL = process.env.SUPABASE_URL || process.env.EXPO_PUBLIC_SUPABASE_URL || '';
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
-const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY || process.env.EXPO_PUBLIC_SUPABASE_KEY || '';
+const SUPABASE_ANON_KEY =
+  process.env.SUPABASE_ANON_KEY || process.env.EXPO_PUBLIC_SUPABASE_KEY || '';
 
 if (!SUPABASE_URL) {
-  throw new Error('Missing SUPABASE_URL environment variable');
+  console.warn('⚠️  Missing SUPABASE_URL environment variable');
+  console.warn('⚠️  Supabase operations will fail until this is set');
 }
 
 if (!SUPABASE_SERVICE_ROLE_KEY && !SUPABASE_ANON_KEY) {
-  throw new Error('Missing Supabase key (SUPABASE_SERVICE_ROLE_KEY or SUPABASE_ANON_KEY)');
+  console.warn('⚠️  Missing Supabase key (SUPABASE_SERVICE_ROLE_KEY or SUPABASE_ANON_KEY)');
+  console.warn('⚠️  Supabase operations will fail until this is set');
 }
 
 // Use service role key for backend (bypasses RLS)
@@ -65,4 +68,3 @@ export async function upsertProfile(profileData: {
 
   return data;
 }
-

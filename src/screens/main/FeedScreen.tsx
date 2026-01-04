@@ -13,6 +13,7 @@ import { Header } from '../../components/Header';
 import { EmptyState } from '../../components/EmptyState';
 import { SkeletonCard } from '../../components/Skeleton';
 import { LoadingSpinner } from '../../components/LoadingSpinner';
+import { NotificationsModal } from '../../components/NotificationsModal';
 
 const MOCK_POSTS = [
   {
@@ -158,6 +159,7 @@ export function FeedScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [loading, setLoading] = useState(false);
   const [posts, setPosts] = useState<any[]>(MOCK_POSTS);
+  const [showNotificationsModal, setShowNotificationsModal] = useState(false);
 
   async function onRefresh() {
     setRefreshing(true);
@@ -249,7 +251,13 @@ export function FeedScreen() {
       edges={[]}
       style={[styles.container, { backgroundColor: theme.colors.background }]}
     >
-      <Header title="Feed" />
+      <Header
+        title="Feed"
+        rightSideAction={{
+          icon: 'notifications-outline',
+          onPress: () => setShowNotificationsModal(true),
+        }}
+      />
       <FlatList
         data={posts}
         renderItem={renderItem}

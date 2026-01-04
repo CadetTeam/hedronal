@@ -6,24 +6,32 @@ dotenv.config();
 const CLERK_SECRET_KEY = process.env.CLERK_SECRET_KEY || '';
 
 if (!CLERK_SECRET_KEY) {
-  throw new Error('Missing CLERK_SECRET_KEY environment variable');
+  console.warn('⚠️  Missing CLERK_SECRET_KEY environment variable');
+  console.warn('⚠️  Clerk authentication will not work until this is set');
 }
 
-export const clerk = createClerkClient({ secretKey: CLERK_SECRET_KEY });
+export const clerk = CLERK_SECRET_KEY
+  ? createClerkClient({ secretKey: CLERK_SECRET_KEY })
+  : (null as any); // Will fail gracefully when used
 
 // Helper function to verify Clerk token
 // Clerk SDK uses authenticateRequest for token verification
 export async function verifyClerkToken(token: string) {
   try {
+    if (!CLERK_SECRET_KEY || !clerk) {
+      console.error('Clerk client not initialized - missing CLERK_SECRET_KEY');
+      return null;
+    }
+
     // Create a mock request object for authenticateRequest
     const mockRequest = {
       headers: {
         authorization: `Bearer ${token}`,
       },
     } as any;
-    
+
     const authResult = await clerk.authenticateRequest(mockRequest);
-    
+
     if (authResult.isSignedIn && authResult.toAuth()) {
       const auth = authResult.toAuth();
       return {
@@ -32,7 +40,7 @@ export async function verifyClerkToken(token: string) {
         orgId: auth.orgId,
       };
     }
-    
+
     return null;
   } catch (error) {
     console.error('Token verification error:', error);
@@ -59,4 +67,3 @@ export async function getClerkOrganization(orgId: string) {
     return null;
   }
 }
-

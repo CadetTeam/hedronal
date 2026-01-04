@@ -144,7 +144,9 @@ export function OTPModal({
               {[0, 1, 2, 3, 4, 5].map((index) => (
                 <TextInput
                   key={index}
-                  ref={(ref) => (inputRefs.current[index] = ref)}
+                  ref={(ref) => {
+                    inputRefs.current[index] = ref;
+                  }}
                   style={[
                     styles.codeInput,
                     {

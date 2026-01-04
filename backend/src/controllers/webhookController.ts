@@ -202,25 +202,70 @@ async function handleOrganizationUpdated(orgData: any) {
 async function handleOrganizationDeleted(orgData: any) {
   const { id } = orgData;
   
+  console.log(`[handleOrganizationDeleted] Processing deletion for Clerk organization: ${id}`);
+  
   const { data: entity } = await supabase
     .from('entities')
     .select('id')
     .eq('clerk_organization_id', id)
     .single();
 
-  if (entity) {
-    // Cascade delete will handle related records
-    const { error } = await supabase
-      .from('entities')
-      .delete()
-      .eq('id', entity.id);
-
-    if (error) {
-      throw error;
-    }
+  if (!entity) {
+    console.log(`[handleOrganizationDeleted] No entity found for Clerk organization: ${id}`);
+    return;
   }
 
-  console.log(`Entity deleted for Clerk organization: ${id}`);
+  console.log(`[handleOrganizationDeleted] Found entity: ${entity.id}, deleting related records...`);
+
+  // Delete related records explicitly to ensure complete cleanup
+  // Delete entity configurations
+  const { error: configError } = await supabase
+    .from('entity_configurations')
+    .delete()
+    .eq('entity_id', entity.id);
+
+  if (configError) {
+    console.error(`[handleOrganizationDeleted] Error deleting configurations:`, configError);
+  } else {
+    console.log(`[handleOrganizationDeleted] Deleted entity configurations`);
+  }
+
+  // Delete entity social links
+  const { error: socialLinksError } = await supabase
+    .from('entity_social_links')
+    .delete()
+    .eq('entity_id', entity.id);
+
+  if (socialLinksError) {
+    console.error(`[handleOrganizationDeleted] Error deleting social links:`, socialLinksError);
+  } else {
+    console.log(`[handleOrganizationDeleted] Deleted entity social links`);
+  }
+
+  // Delete entity members
+  const { error: membersError } = await supabase
+    .from('entity_members')
+    .delete()
+    .eq('entity_id', entity.id);
+
+  if (membersError) {
+    console.error(`[handleOrganizationDeleted] Error deleting members:`, membersError);
+  } else {
+    console.log(`[handleOrganizationDeleted] Deleted entity members`);
+  }
+
+  // Finally, delete the entity itself
+  const { error: entityError } = await supabase
+    .from('entities')
+    .delete()
+    .eq('id', entity.id);
+
+  if (entityError) {
+    console.error(`[handleOrganizationDeleted] Error deleting entity:`, entityError);
+    throw entityError;
+  }
+
+  console.log(`[handleOrganizationDeleted] Successfully deleted entity ${entity.id} and all related records for Clerk organization: ${id}`);
 }
 
 // Organization membership handlers

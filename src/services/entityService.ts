@@ -2,10 +2,13 @@
 import { useOrganization, useOrganizationList } from '@clerk/clerk-expo';
 import { useClerkContext } from '../context/ClerkContext';
 import { useAuth } from '@clerk/clerk-expo';
+import { uploadEntityImages } from '../utils/imageUpload';
 
-const API_BASE_URL = __DEV__
-  ? 'http://localhost:3000/api'
-  : 'https://hedronal-production.up.railway.app/api';
+// For React Native, localhost doesn't work on physical devices or simulators
+// Use production URL by default, or set EXPO_PUBLIC_API_URL for local development
+// For local dev, use your machine's IP: http://YOUR_LOCAL_IP:3000/api
+const API_BASE_URL =
+  process.env.EXPO_PUBLIC_API_URL || 'https://hedronal-production.up.railway.app/api';
 
 export interface EntityData {
   name: string;
@@ -36,6 +39,15 @@ export async function createEntity(
   clerkToken?: string
 ): Promise<CreateEntityResult> {
   try {
+    console.log('[createEntity] Sending request to:', `${API_BASE_URL}/entities`);
+    console.log('[createEntity] Request payload:', {
+      name: entityData.name,
+      handle: entityData.handle,
+      brief: entityData.brief,
+      clerk_organization_id: clerkOrgId,
+      hasToken: !!clerkToken,
+    });
+
     const response = await fetch(`${API_BASE_URL}/entities`, {
       method: 'POST',
       headers: {
@@ -56,22 +68,43 @@ export async function createEntity(
       }),
     });
 
+    console.log('[createEntity] Response status:', response.status, response.statusText);
+
     if (!response.ok) {
-      const error = await response.json();
+      let errorMessage = 'Failed to create entity';
+      try {
+        const error = await response.json();
+        errorMessage = error.error || error.message || JSON.stringify(error);
+        console.error('[createEntity] Backend error response:', error);
+      } catch (parseError) {
+        const text = await response.text();
+        errorMessage = text || `HTTP ${response.status}: ${response.statusText}`;
+        console.error('[createEntity] Failed to parse error response:', text);
+      }
       return {
         success: false,
-        error: error.error || 'Failed to create entity',
+        error: errorMessage,
       };
     }
 
     const result = await response.json();
+    console.log('[createEntity] Success response:', {
+      success: result.success,
+      entityId: result.entityId,
+      clerkOrgId: result.clerkOrgId,
+    });
     return {
       success: result.success,
       entityId: result.entityId,
       clerkOrgId: result.clerkOrgId,
     };
   } catch (error: any) {
-    console.error('Error creating entity:', error);
+    console.error('[createEntity] Network/parsing error:', error);
+    console.error('[createEntity] Error details:', {
+      message: error?.message,
+      stack: error?.stack,
+      name: error?.name,
+    });
     return {
       success: false,
       error: error?.message || 'Failed to create entity',
@@ -84,6 +117,7 @@ export async function createEntity(
  */
 export async function fetchEntities(clerkToken?: string): Promise<any[]> {
   try {
+    console.log('[fetchEntities] Fetching from:', API_BASE_URL);
     const response = await fetch(`${API_BASE_URL}/entities`, {
       method: 'GET',
       headers: {
@@ -94,14 +128,20 @@ export async function fetchEntities(clerkToken?: string): Promise<any[]> {
 
     if (!response.ok) {
       const error = await response.json();
-      console.error('Error fetching entities:', error);
+      console.error('[fetchEntities] API error:', error);
       return [];
     }
 
     const result = await response.json();
+    console.log('[fetchEntities] Success, entities count:', result.entities?.length || 0);
     return result.entities || [];
   } catch (error: any) {
-    console.error('Error fetching entities:', error);
+    console.error('[fetchEntities] Network error:', error);
+    console.error('[fetchEntities] Error details:', {
+      message: error?.message,
+      stack: error?.stack,
+      API_BASE_URL,
+    });
     return [];
   }
 }
@@ -176,10 +216,40 @@ export function useEntityCreation() {
         throw new Error('Failed to create Clerk organization - no organization ID returned');
       }
 
+      console.log('[useEntityCreation] Uploading images via backend API...');
+
+      // Upload images via backend API first
+      let avatarUrl: string | null = null;
+      let bannerUrl: string | null = null;
+
+      if (entityData.avatar || entityData.banner) {
+        try {
+          const uploadedImages = await uploadEntityImages(
+            entityData.avatar,
+            entityData.banner,
+            token || undefined
+          );
+          avatarUrl = uploadedImages.avatar_url;
+          bannerUrl = uploadedImages.banner_url;
+          console.log('[useEntityCreation] Images uploaded:', { avatarUrl, bannerUrl });
+        } catch (imageError: any) {
+          console.error('[useEntityCreation] Image upload failed:', imageError);
+          // Continue with entity creation even if image upload fails
+          // Images will be null and can be added later
+        }
+      }
+
+      // Update entity data with uploaded image URLs (convert null to undefined)
+      const entityDataWithUrls = {
+        ...entityData,
+        avatar: avatarUrl || undefined,
+        banner: bannerUrl || undefined,
+      };
+
       console.log('[useEntityCreation] Creating entity via backend API with org ID:', org.id);
 
-      // Create entity via backend API with organization ID
-      const result = await createEntity(entityData, userId, org.id, token || undefined);
+      // Create entity via backend API with organization ID and image URLs
+      const result = await createEntity(entityDataWithUrls, userId, org.id, token || undefined);
 
       if (!result.success) {
         console.error('[useEntityCreation] Backend entity creation failed:', result.error);

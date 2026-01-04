@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import {
   View,
   Text,
@@ -7,13 +7,14 @@ import {
   Platform,
   ScrollView,
   Alert,
+  Image,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { Video, ResizeMode, AVPlaybackStatus } from 'expo-av';
 import { useSignIn } from '@clerk/clerk-expo';
 import { useTheme } from '../../context/ThemeContext';
 import { useDemoMode } from '../../context/DemoModeContext';
-import { Logo } from '../../components/Logo';
-import { TextInput } from '../../components/TextInput';
+import { AuthTextInput } from '../../components/AuthTextInput';
 import { Button } from '../../components/Button';
 import { LoadingSpinner } from '../../components/LoadingSpinner';
 import { OTPModal } from '../../components/OTPModal';
@@ -32,6 +33,7 @@ export function LoginScreen({ navigation }: LoginScreenProps) {
   const [errors, setErrors] = useState<{ email?: string; password?: string }>({});
   const [showOTPModal, setShowOTPModal] = useState(false);
   const [otpLoading, setOtpLoading] = useState(false);
+  const videoRef = useRef<Video>(null);
 
   function handleLongPressStart() {
     enableDemoMode();
@@ -104,130 +106,181 @@ export function LoginScreen({ navigation }: LoginScreenProps) {
   }
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]}>
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        style={styles.keyboardView}
-      >
-        <ScrollView
-          contentContainerStyle={styles.scrollContent}
-          keyboardShouldPersistTaps="handled"
-          showsVerticalScrollIndicator={false}
-        >
-          <View style={styles.logoContainer}>
-            <Logo size={100} onLongPressStart={handleLongPressStart} onLongPressEnd={() => {}} />
-            {isDemoMode && (
-              <Text style={[styles.demoBadge, { color: theme.colors.accent }]}>DEMO MODE</Text>
-            )}
-          </View>
-
-          <View style={styles.form}>
-            <TextInput
-              label="Email"
-              value={email}
-              onChangeText={setEmail}
-              placeholder="Enter your email"
-              keyboardType="email-address"
-              autoCapitalize="none"
-              autoComplete="email"
-              error={errors.email}
-            />
-
-            <TextInput
-              label="Password"
-              value={password}
-              onChangeText={setPassword}
-              placeholder="Enter your password"
-              secureTextEntry
-              autoCapitalize="none"
-              error={errors.password}
-            />
-
-            <Button title="Sign In" onPress={handleLogin} loading={loading} style={styles.button} />
-
-            <Button
-              title="Forgot Password?"
-              onPress={() => navigation.navigate('ForgotPassword')}
-              variant="outline"
-              style={styles.button}
-            />
-          </View>
-
-          <View style={styles.footer}>
-            <Text style={[styles.footerText, { color: theme.colors.textSecondary }]}>
-              Don't have an account?{' '}
-            </Text>
-            <Text
-              style={[styles.footerLink, { color: theme.colors.primary }]}
-              onPress={() => navigation.navigate('Register')}
-            >
-              Sign Up
-            </Text>
-          </View>
-        </ScrollView>
-      </KeyboardAvoidingView>
-
-      <OTPModal
-        visible={showOTPModal}
-        onClose={() => {
-          setShowOTPModal(false);
-          // Allow user to skip 2FA - they can try signing in again later
-        }}
-        email={email}
-        onResend={async () => {
-          if (!signIn || !isLoaded) return;
-          try {
-            await signIn.prepareSecondFactor({
-              strategy: 'totp',
-            });
-          } catch (error: any) {
-            const errorMessage =
-              error?.errors?.[0]?.message ||
-              error?.message ||
-              'Failed to resend code. Please try again.';
-            Alert.alert('Error', errorMessage);
-            throw error;
+    <View style={styles.container}>
+      {/* Video Background */}
+      <Video
+        ref={videoRef}
+        source={require('../../../assets/hedronal.mp4')}
+        style={styles.video}
+        resizeMode={ResizeMode.COVER}
+        shouldPlay
+        isLooping
+        isMuted
+        volume={0}
+        useNativeControls={false}
+        onPlaybackStatusUpdate={(status: AVPlaybackStatus) => {
+          if (!status.isLoaded) {
+            // Handle error
           }
         }}
-        onVerify={async (code: string) => {
-          if (!signIn || !isLoaded) return;
-
-          setOtpLoading(true);
-          try {
-            const result = await signIn.attemptSecondFactor({
-              strategy: 'totp',
-              code,
-            });
-
-            if (result.status === 'complete') {
-              await setActive({ session: result.createdSessionId });
-              setShowOTPModal(false);
-              console.log('[LoginScreen] Sign in successful with 2FA');
-            } else {
-              Alert.alert('Error', 'Invalid verification code. Please try again.');
-            }
-          } catch (error: any) {
-            const errorMessage =
-              error?.errors?.[0]?.message ||
-              error?.message ||
-              'Verification failed. Please try again.';
-            Alert.alert('Error', errorMessage);
-          } finally {
-            setOtpLoading(false);
-          }
-        }}
-        loading={otpLoading}
       />
-    </SafeAreaView>
+
+      {/* Dark overlay for readability */}
+      <View style={styles.overlay} />
+
+      <SafeAreaView style={styles.safeArea}>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={styles.keyboardView}
+        >
+          <ScrollView
+            contentContainerStyle={styles.scrollContent}
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}
+          >
+            <View style={styles.logoContainer}>
+              <Image
+                source={require('../../../assets/light.png')}
+                style={[styles.logo, { width: 100, height: 100 }]}
+                resizeMode="contain"
+              />
+              {isDemoMode && <Text style={styles.demoBadge}>DEMO MODE</Text>}
+            </View>
+
+            <View style={styles.form}>
+              <AuthTextInput
+                label="Email"
+                value={email}
+                onChangeText={setEmail}
+                placeholder="Enter your email"
+                keyboardType="email-address"
+                autoCapitalize="none"
+                autoComplete="email"
+                error={errors.email}
+              />
+
+              <AuthTextInput
+                label="Password"
+                value={password}
+                onChangeText={setPassword}
+                placeholder="Enter your password"
+                secureTextEntry
+                autoCapitalize="none"
+                error={errors.password}
+              />
+
+              <Button
+                title="Sign In"
+                onPress={handleLogin}
+                loading={loading}
+                style={styles.button}
+              />
+
+              <Button
+                title="Forgot Password?"
+                onPress={() => navigation.navigate('ForgotPassword')}
+                variant="outline"
+                style={styles.button}
+              />
+            </View>
+
+            <View style={styles.footer}>
+              <Text style={styles.footerText}>Don't have an account? </Text>
+              <Text style={styles.footerLink} onPress={() => navigation.navigate('Register')}>
+                Sign Up
+              </Text>
+            </View>
+          </ScrollView>
+        </KeyboardAvoidingView>
+
+        <OTPModal
+          visible={showOTPModal}
+          onClose={() => {
+            setShowOTPModal(false);
+            // Allow user to skip 2FA - they can try signing in again later
+          }}
+          email={email}
+          onResend={async () => {
+            if (!signIn || !isLoaded) return;
+            try {
+              await signIn.prepareSecondFactor({
+                strategy: 'totp',
+              } as any);
+            } catch (error: any) {
+              const errorMessage =
+                error?.errors?.[0]?.message ||
+                error?.message ||
+                'Failed to resend code. Please try again.';
+              Alert.alert('Error', errorMessage);
+              throw error;
+            }
+          }}
+          onVerify={async (code: string) => {
+            if (!signIn || !isLoaded) return;
+
+            setOtpLoading(true);
+            try {
+              const result = await signIn.attemptSecondFactor({
+                strategy: 'totp',
+                code,
+              } as any);
+
+              if (result.status === 'complete') {
+                await setActive({ session: result.createdSessionId });
+                setShowOTPModal(false);
+                console.log('[LoginScreen] Sign in successful with 2FA');
+              } else {
+                Alert.alert('Error', 'Invalid verification code. Please try again.');
+              }
+            } catch (error: any) {
+              const errorMessage =
+                error?.errors?.[0]?.message ||
+                error?.message ||
+                'Verification failed. Please try again.';
+              Alert.alert('Error', errorMessage);
+            } finally {
+              setOtpLoading(false);
+            }
+          }}
+          loading={otpLoading}
+        />
+      </SafeAreaView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: '#000000',
+  },
+  video: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    width: '100%',
+    height: '100%',
+  },
+  overlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    bottom: 0,
+    right: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+  },
+  safeArea: {
+    flex: 1,
   },
   keyboardView: {
     flex: 1,
+    zIndex: 1,
+  },
+  logo: {
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   scrollContent: {
     flexGrow: 1,
@@ -243,6 +296,25 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '600',
     letterSpacing: 1,
+    color: '#FFFFFF',
+    textShadowColor: 'rgba(0, 0, 0, 0.75)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 3,
+  },
+  footerText: {
+    fontSize: 14,
+    color: '#FFFFFF',
+    textShadowColor: 'rgba(0, 0, 0, 0.75)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 3,
+  },
+  footerLink: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#FFFFFF',
+    textShadowColor: 'rgba(0, 0, 0, 0.75)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 3,
   },
   title: {
     fontSize: 32,
@@ -265,12 +337,5 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'center',
     marginTop: 24,
-  },
-  footerText: {
-    fontSize: 14,
-  },
-  footerLink: {
-    fontSize: 14,
-    fontWeight: '600',
   },
 });

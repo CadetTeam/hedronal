@@ -24,6 +24,7 @@ import { SkeletonCard } from '../../components/Skeleton';
 import { LoadingSpinner } from '../../components/LoadingSpinner';
 import { BlurredModalOverlay } from '../../components/BlurredModalOverlay';
 import { LinearGradient } from 'expo-linear-gradient';
+import { NotificationsModal } from '../../components/NotificationsModal';
 
 const TOPICS = [
   'Private Equity',
@@ -302,6 +303,7 @@ export function ExploreScreen() {
   const [searchText, setSearchText] = useState('');
   const [keyboardVisible, setKeyboardVisible] = useState(false);
   const [keyboardHeight, setKeyboardHeight] = useState(0);
+  const [showNotificationsModal, setShowNotificationsModal] = useState(false);
 
   useEffect(() => {
     const keyboardWillShow = Keyboard.addListener(
@@ -456,7 +458,13 @@ export function ExploreScreen() {
         edges={[]}
         style={[styles.container, { backgroundColor: theme.colors.background }]}
       >
-        <Header title="Explore" />
+        <Header
+          title="Explore"
+          rightSideAction={{
+            icon: 'notifications-outline',
+            onPress: () => setShowNotificationsModal(true),
+          }}
+        />
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={styles.keyboardAvoid}
@@ -749,6 +757,12 @@ export function ExploreScreen() {
           </View>
         </BlurredModalOverlay>
       </Modal>
+
+      {/* Notifications Modal */}
+      <NotificationsModal
+        visible={showNotificationsModal}
+        onClose={() => setShowNotificationsModal(false)}
+      />
     </SafeAreaView>
   );
 }
