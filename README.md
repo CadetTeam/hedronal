@@ -377,8 +377,8 @@ Or set variables individually:
 
 railway variables --set "PORT=3000"
 railway variables --set "NODE_ENV=production"
-railway variables --set "SUPABASE_URL=https://izeqllkxznmurgziwcxx.supabase.co"
-railway variables --set "SUPABASE_ANON_KEY=sb_publishable_vuhE6AtXwY0WHMS6K0-pjg_rEVIfVTJ"
+railway variables --set "SUPABASE_URL=your-supabase-url"
+railway variables --set "SUPABASE_ANON_KEY=your-supabase-anon-key"
 railway variables --set "SUPABASE_SERVICE_ROLE_KEY=your-service-role-key"
 railway variables --set "CLERK_SECRET_KEY=your-clerk-secret-key"
 railway variables --set "CLERK_WEBHOOK_SECRET=your-clerk-webhook-secret"
@@ -445,7 +445,7 @@ The frontend is configured for EAS (Expo Application Services) builds and deploy
 
 EAS Project Configuration
 
-Project ID: 32ab9729-528b-4cf9-8939-7c0a274b7b35
+Project ID: your-eas-project-id
 Organization: responsenow
 Project Slug: hedronal
 
