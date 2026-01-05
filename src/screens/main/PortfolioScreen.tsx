@@ -84,12 +84,7 @@ export function PortfolioScreen() {
     setLoading(true);
     try {
       // Get a fresh token - Clerk will handle token refresh automatically
-      let token = await getToken({ template: 'default' });
-
-      // If token is null, try to get it without template
-      if (!token) {
-        token = await getToken();
-      }
+      const token = await getToken();
 
       console.log('[loadEntities] Token retrieved:', token ? 'Token exists' : 'No token');
 

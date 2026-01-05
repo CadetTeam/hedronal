@@ -307,11 +307,8 @@ export function useEntityCreation() {
         throw new Error('Failed to create Clerk organization - no organization ID returned');
       }
 
-      // Get a fresh token for backend authentication (refresh if needed)
-      let token = await getToken({ template: 'default' });
-      if (!token) {
-        token = await getToken();
-      }
+      // Get a fresh token for backend authentication
+      const token = await getToken();
 
       if (!token) {
         throw new Error('Unable to get authentication token. Please sign in again.');
@@ -328,10 +325,7 @@ export function useEntityCreation() {
       if (entityData.avatar || entityData.banner) {
         try {
           // Get fresh token for image upload
-          let uploadToken = await getToken({ template: 'default' });
-          if (!uploadToken) {
-            uploadToken = await getToken();
-          }
+          const uploadToken = await getToken();
 
           const uploadedImages = await uploadEntityImages(
             entityData.avatar,
@@ -358,10 +352,7 @@ export function useEntityCreation() {
       console.log('[useEntityCreation] Creating entity via backend API with org ID:', org.id);
 
       // Get fresh token right before entity creation to ensure it's valid
-      let createToken = await getToken({ template: 'default' });
-      if (!createToken) {
-        createToken = await getToken();
-      }
+      const createToken = await getToken();
 
       if (!createToken) {
         throw new Error('Unable to get authentication token. Please sign in again.');
