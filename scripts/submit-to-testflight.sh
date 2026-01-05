@@ -69,13 +69,30 @@ else
   echo "✅ Changes committed and pushed to GitHub"
 fi
 
-# Build and submit to TestFlight
-echo "🏗️  Building and submitting to TestFlight..."
+# Build the app
+echo "🏗️  Building iOS app..."
 echo "   This may take 10-20 minutes..."
-npx eas build --platform ios --profile production --auto-submit
+npx eas build --platform ios --profile production --non-interactive
+
+if [ $? -ne 0 ]; then
+  echo "❌ Build failed. Aborting submission."
+  exit 1
+fi
+
+echo ""
+echo "✅ Build complete!"
+echo "📤 Submitting to App Store Connect..."
+
+# Submit to App Store Connect
+npx eas submit --platform ios --profile production --non-interactive
+
+if [ $? -ne 0 ]; then
+  echo "❌ Submission failed."
+  exit 1
+fi
 
 echo ""
 echo "✅ Submission complete!"
 echo "📱 Version: $VERSION (build $NEW_BUILD)"
-echo "🎉 Your app is being submitted to TestFlight!"
+echo "🎉 Your app has been submitted to TestFlight!"
 
