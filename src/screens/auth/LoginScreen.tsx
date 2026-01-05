@@ -33,7 +33,7 @@ export function LoginScreen({ navigation }: LoginScreenProps) {
   const [errors, setErrors] = useState<{ email?: string; password?: string }>({});
   const [showOTPModal, setShowOTPModal] = useState(false);
   const [otpLoading, setOtpLoading] = useState(false);
-  const player = useVideoPlayer(require('../../../assets/Hedronali.mp4'), (player) => {
+  const player = useVideoPlayer(require('../../../assets/Hedronali.mp4'), player => {
     player.loop = true;
     player.muted = true;
     player.play();
@@ -112,12 +112,7 @@ export function LoginScreen({ navigation }: LoginScreenProps) {
   return (
     <View style={styles.container}>
       {/* Video Background */}
-      <VideoView
-        player={player}
-        style={styles.video}
-        contentFit="cover"
-        nativeControls={false}
-      />
+      <VideoView player={player} style={styles.video} contentFit="cover" nativeControls={false} />
 
       {/* Light overlay for readability with dark text */}
       <View style={styles.overlay} />
