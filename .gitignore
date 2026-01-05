@@ -45,3 +45,5 @@ backend/dist/
 backend/push-vars.sh
 backend/push-all-vars.sh
 backend/set-railway-vars.sh
+*.swp
+*.swo
