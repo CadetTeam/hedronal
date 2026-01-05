@@ -259,7 +259,7 @@ export const entityController = {
         const userOrganizations = await clerk.users.getOrganizationList({
           userId: req.userId,
         });
-        organizationIds = userOrganizations.data.map((org) => org.id);
+        organizationIds = userOrganizations.data.map((org: any) => org.id);
         console.log('[entityController] User organizations:', organizationIds);
       } catch (orgError) {
         console.error('[entityController] Error fetching user organizations:', orgError);
