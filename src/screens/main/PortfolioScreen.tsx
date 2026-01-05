@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
   View,
   Text,
@@ -14,7 +14,7 @@ import { useTheme } from '../../context/ThemeContext';
 import { useTabBar } from '../../context/TabBarContext';
 import { Header } from '../../components/Header';
 import { EmptyState } from '../../components/EmptyState';
-import { SkeletonCard } from '../../components/Skeleton';
+import { SkeletonCard, Skeleton } from '../../components/Skeleton';
 import { Button } from '../../components/Button';
 import { EntityCreationModal } from '../../components/EntityCreationModal';
 import { EntityProfileModal } from '../../components/EntityProfileModal';
@@ -23,6 +23,7 @@ import { NotificationsModal } from '../../components/NotificationsModal';
 import { fetchEntities, fetchEntityById } from '../../services/entityService';
 import { useClerkContext } from '../../context/ClerkContext';
 import { useAuth } from '@clerk/clerk-expo';
+import { formatPortfolioValue } from '../../utils/currencyFormatter';
 
 const ENTITY_TYPES = [
   'Fund',
@@ -50,6 +51,14 @@ export function PortfolioScreen() {
   const [showWalletModal, setShowWalletModal] = useState(false);
   const [showNotificationsModal, setShowNotificationsModal] = useState(false);
 
+  // Calculate total portfolio value (mock for now - can be replaced with actual calculation)
+  const totalPortfolioValue = useMemo(() => {
+    // TODO: Calculate from actual entity values when available
+    // For now, using a mock value based on number of entities
+    const baseValue = entities.length * 250000; // $250k per entity as placeholder
+    return baseValue || 0;
+  }, [entities.length]);
+
   // Fetch entities from backend
   async function loadEntities() {
     if (!userId) {
@@ -74,17 +83,27 @@ export function PortfolioScreen() {
 
     setLoading(true);
     try {
-      const token = await getToken();
+      // Get a fresh token - Clerk will handle token refresh automatically
+      let token = await getToken({ template: 'default' });
+
+      // If token is null, try to get it without template
+      if (!token) {
+        token = await getToken();
+      }
+
       console.log('[loadEntities] Token retrieved:', token ? 'Token exists' : 'No token');
+
       if (!token) {
         console.warn('[loadEntities] No token available, user may need to sign in again');
         setLoading(false);
         return;
       }
+
       console.log(
         '[loadEntities] Fetching entities for organizations:',
         organizationList.map((org: any) => org.id)
       );
+
       const fetchedEntities = await fetchEntities(token);
 
       // Transform entities to match the expected format
@@ -120,8 +139,50 @@ export function PortfolioScreen() {
       });
 
       setEntities(transformedEntities);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error loading entities:', error);
+      // If it's a token error, try to get a fresh token and retry once
+      if (error?.message?.includes('token') || error?.message?.includes('401')) {
+        console.log('[loadEntities] Token error detected, attempting to refresh...');
+        try {
+          const freshToken = await getToken({ template: 'default' });
+          if (freshToken) {
+            const retryEntities = await fetchEntities(freshToken);
+            const transformedEntities = retryEntities.map((entity: any) => {
+              const step2Data: { [key: string]: any } = {};
+              if (entity.entity_configurations && Array.isArray(entity.entity_configurations)) {
+                entity.entity_configurations.forEach((config: any) => {
+                  step2Data[config.config_type] = config.config_data;
+                });
+              }
+              const completedItems =
+                entity.entity_configurations
+                  ?.filter((config: any) => config.is_completed)
+                  .map((config: any) => config.config_type) || [];
+              return {
+                id: entity.id,
+                name: entity.name,
+                handle: entity.handle,
+                type: entity.type || 'Entity',
+                banner: entity.banner_url,
+                avatar: entity.avatar_url,
+                brief: entity.brief,
+                clerkOrgId: entity.clerk_organization_id,
+                createdAt: entity.created_at,
+                step2Data,
+                completedItems,
+                socialLinks: entity.entity_social_links || [],
+              };
+            });
+            setEntities(transformedEntities);
+            return;
+          }
+        } catch (retryError) {
+          console.error('[loadEntities] Retry failed:', retryError);
+        }
+      }
+      // If all else fails, set empty array
+      setEntities([]);
     } finally {
       setLoading(false);
     }
@@ -129,29 +190,43 @@ export function PortfolioScreen() {
 
   // Track previous org count to detect changes
   const prevOrgCountRef = useRef<number>(0);
+  const prevOrgIdsRef = useRef<string>('');
+
+  // Create a stable string of org IDs for dependency tracking
+  const orgIdsString = useMemo(
+    () =>
+      organizationList
+        ?.map((org: any) => org.id)
+        .sort()
+        .join(',') || '',
+    [organizationList]
+  );
 
   // Load entities when user or organizations change
   useEffect(() => {
     if (clerkLoaded && userId) {
       const currentOrgCount = organizationList?.length || 0;
       const orgCountChanged = currentOrgCount !== prevOrgCountRef.current;
+      const orgIdsChanged = orgIdsString !== prevOrgIdsRef.current;
 
       console.log('[PortfolioScreen] Clerk loaded, checking organizations and loading entities', {
         userId,
         orgCount: currentOrgCount,
         orgCountChanged,
+        orgIdsChanged,
         orgIds: organizationList?.map((org: any) => org.id) || [],
       });
 
-      // Update ref
+      // Update refs
       prevOrgCountRef.current = currentOrgCount;
+      prevOrgIdsRef.current = orgIdsString;
 
-      // Load entities if we have orgs or if org count changed
-      if (currentOrgCount > 0 || orgCountChanged) {
-        loadEntities();
-      }
+      // Always try to load entities when clerk is loaded and user exists
+      // This ensures we fetch entities even if org count is 0 (might have entities without orgs)
+      // or if orgs were just added
+      loadEntities();
     }
-  }, [userId, clerkLoaded, organizationList?.length]);
+  }, [userId, clerkLoaded, orgIdsString]);
 
   async function onRefresh() {
     setRefreshing(true);
@@ -173,8 +248,20 @@ export function PortfolioScreen() {
   async function handleEntityPress(entity: any) {
     // Fetch full entity data from backend if needed
     try {
-      const token = await getToken();
-      const fullEntity = await fetchEntityById(entity.id, token || undefined);
+      // Get a fresh token
+      let token = await getToken({ template: 'default' });
+      if (!token) {
+        token = await getToken();
+      }
+
+      if (!token) {
+        console.warn('[handleEntityPress] No token available, using entity from list');
+        setSelectedEntity(entity);
+        setShowProfileModal(true);
+        return;
+      }
+
+      const fullEntity = await fetchEntityById(entity.id, token);
       if (fullEntity) {
         // Transform entity_configurations array to object
         const step2Data: { [key: string]: any } = {};
@@ -212,7 +299,7 @@ export function PortfolioScreen() {
         setSelectedEntity(entity);
         setShowProfileModal(true);
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error fetching entity:', error);
       // Fallback to entity from list
       setSelectedEntity(entity);
@@ -286,6 +373,143 @@ export function PortfolioScreen() {
     );
   }
 
+  function renderOrganizationSkeleton() {
+    return (
+      <View
+        style={[
+          styles.entityCard,
+          {
+            backgroundColor: theme.colors.surface,
+            borderColor: theme.colors.border,
+            opacity: 0.1,
+          },
+        ]}
+      >
+        {/* Banner skeleton */}
+        <View
+          style={[
+            styles.entityBanner,
+            {
+              backgroundColor: theme.colors.surfaceVariant,
+            },
+          ]}
+        />
+
+        <View style={styles.entityCardContent}>
+          {/* Avatar skeleton */}
+          <View
+            style={[
+              styles.entityAvatar,
+              styles.entityAvatarPlaceholder,
+              {
+                backgroundColor: theme.colors.surfaceVariant,
+              },
+            ]}
+          />
+
+          <View style={styles.entityInfo}>
+            {/* Name skeleton */}
+            <View
+              style={[
+                {
+                  height: 18,
+                  width: '65%',
+                  backgroundColor: theme.colors.surfaceVariant,
+                  borderRadius: 4,
+                  marginBottom: 6,
+                },
+              ]}
+            />
+
+            {/* Handle skeleton */}
+            <View
+              style={[
+                {
+                  height: 14,
+                  width: '45%',
+                  backgroundColor: theme.colors.surfaceVariant,
+                  borderRadius: 4,
+                  marginBottom: 10,
+                },
+              ]}
+            />
+
+            {/* Bio skeleton - 2 lines */}
+            <View
+              style={[
+                {
+                  height: 14,
+                  width: '100%',
+                  backgroundColor: theme.colors.surfaceVariant,
+                  borderRadius: 4,
+                  marginBottom: 4,
+                },
+              ]}
+            />
+            <View
+              style={[
+                {
+                  height: 14,
+                  width: '85%',
+                  backgroundColor: theme.colors.surfaceVariant,
+                  borderRadius: 4,
+                  marginBottom: 12,
+                },
+              ]}
+            />
+
+            {/* Type skeleton */}
+            <View
+              style={[
+                {
+                  height: 12,
+                  width: '35%',
+                  backgroundColor: theme.colors.surfaceVariant,
+                  borderRadius: 4,
+                  marginBottom: 12,
+                },
+              ]}
+            />
+
+            {/* Counters skeleton */}
+            <View style={styles.skeletonCounters}>
+              <View
+                style={[
+                  {
+                    height: 16,
+                    width: 50,
+                    backgroundColor: theme.colors.surfaceVariant,
+                    borderRadius: 4,
+                  },
+                ]}
+              />
+              <View
+                style={[
+                  {
+                    height: 16,
+                    width: 50,
+                    backgroundColor: theme.colors.surfaceVariant,
+                    borderRadius: 4,
+                  },
+                ]}
+              />
+              <View
+                style={[
+                  {
+                    height: 16,
+                    width: 50,
+                    backgroundColor: theme.colors.surfaceVariant,
+                    borderRadius: 4,
+                  },
+                ]}
+              />
+            </View>
+          </View>
+        </View>
+      </View>
+    );
+  }
+
   function renderEmpty() {
     if (loading) {
       return (
@@ -296,7 +520,28 @@ export function PortfolioScreen() {
       );
     }
     return (
-      <EmptyState title="No entities yet" message="Tap the + button to add your first entity" />
+      <View style={styles.emptyContainer}>
+        {/* Skeleton cards in background */}
+        <View style={styles.listContent}>
+          {renderOrganizationSkeleton()}
+          {renderOrganizationSkeleton()}
+          {renderOrganizationSkeleton()}
+        </View>
+        {/* CTA overlay on top */}
+        <View style={styles.emptyStateOverlay}>
+          <TouchableOpacity
+            activeOpacity={0.7}
+            onPress={handleAddEntity}
+            style={styles.ctaContainer}
+          >
+            <EmptyState
+              title="No entities yet"
+              message="Tap here to add your first entity"
+              transparent={true}
+            />
+          </TouchableOpacity>
+        </View>
+      </View>
     );
   }
 
@@ -322,33 +567,42 @@ export function PortfolioScreen() {
       />
 
       <View style={styles.actionsBar}>
-        <TouchableOpacity
-          style={[
-            styles.actionButton,
-            {
-              backgroundColor: theme.colors.surface,
-              borderColor: theme.colors.border,
-            },
-          ]}
-          onPress={handleFilter}
-        >
-          <Ionicons name="filter" size={20} color={theme.colors.text} />
-          <Text style={[styles.actionText, { color: theme.colors.text }]}>Filter</Text>
-        </TouchableOpacity>
+        <View style={styles.actionsLeft}>
+          <TouchableOpacity
+            style={[
+              styles.actionButton,
+              {
+                backgroundColor: theme.colors.surface,
+                borderColor: theme.colors.border,
+              },
+            ]}
+            onPress={handleFilter}
+          >
+            <Ionicons name="filter" size={16} color={theme.colors.text} />
+          </TouchableOpacity>
 
-        <TouchableOpacity
-          style={[
-            styles.actionButton,
-            {
-              backgroundColor: theme.colors.surface,
-              borderColor: theme.colors.border,
-            },
-          ]}
-          onPress={handleSort}
-        >
-          <Ionicons name="swap-vertical" size={20} color={theme.colors.text} />
-          <Text style={[styles.actionText, { color: theme.colors.text }]}>Sort</Text>
-        </TouchableOpacity>
+          <TouchableOpacity
+            style={[
+              styles.actionButton,
+              {
+                backgroundColor: theme.colors.surface,
+                borderColor: theme.colors.border,
+              },
+            ]}
+            onPress={handleSort}
+          >
+            <Ionicons name="swap-vertical" size={16} color={theme.colors.text} />
+          </TouchableOpacity>
+        </View>
+
+        <View style={styles.portfolioValue}>
+          <Text style={[styles.portfolioLabel, { color: theme.colors.textSecondary }]}>
+            Total Portfolio
+          </Text>
+          <Text style={[styles.portfolioAmount, { color: theme.colors.text }]}>
+            {formatPortfolioValue(totalPortfolioValue)}
+          </Text>
+        </View>
       </View>
 
       {showFilters && (
@@ -452,22 +706,36 @@ const styles = StyleSheet.create({
   },
   actionsBar: {
     flexDirection: 'row',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    gap: 12,
-  },
-  actionButton: {
-    flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: 16,
     paddingVertical: 8,
-    borderRadius: 8,
-    borderWidth: 1,
+  },
+  actionsLeft: {
+    flexDirection: 'row',
     gap: 8,
   },
-  actionText: {
-    fontSize: 14,
+  actionButton: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    borderWidth: 1,
+  },
+  portfolioValue: {
+    alignItems: 'flex-end',
+  },
+  portfolioLabel: {
+    fontSize: 11,
     fontWeight: '500',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginBottom: 2,
+  },
+  portfolioAmount: {
+    fontSize: 18,
+    fontWeight: '700',
   },
   filtersContainer: {
     padding: 16,
@@ -500,6 +768,24 @@ const styles = StyleSheet.create({
   },
   emptyContainer: {
     flex: 1,
+    position: 'relative',
+  },
+  emptyStateOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 1,
+    backgroundColor: 'transparent',
+  },
+  ctaContainer: {
+    width: '100%',
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   loadingContainer: {
     padding: 16,
@@ -552,5 +838,10 @@ const styles = StyleSheet.create({
   entityType: {
     fontSize: 12,
     fontWeight: '500',
+  },
+  skeletonCounters: {
+    flexDirection: 'row',
+    gap: 16,
+    marginTop: 4,
   },
 });

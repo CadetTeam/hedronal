@@ -197,6 +197,71 @@ export async function fetchEntityById(entityId: string, clerkToken?: string): Pr
 }
 
 /**
+ * Updates an entity via backend API
+ */
+export async function updateEntity(
+  entityId: string,
+  updateData: Partial<EntityData>,
+  clerkToken?: string
+): Promise<{ success: boolean; entity?: any; error?: string }> {
+  try {
+    console.log('[updateEntity] Updating entity:', entityId, updateData);
+
+    if (!clerkToken) {
+      console.warn('[updateEntity] No token provided - request may fail');
+    }
+
+    const response = await fetch(`${API_BASE_URL}/entities/${entityId}`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(clerkToken && { Authorization: `Bearer ${clerkToken}` }),
+      },
+      body: JSON.stringify({
+        name: updateData.name,
+        handle: updateData.handle,
+        brief: updateData.brief,
+        banner_url: updateData.banner || null,
+        avatar_url: updateData.avatar || null,
+        type: updateData.type || null,
+      }),
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      console.error('[updateEntity] API error:', error);
+      console.error('[updateEntity] Response status:', response.status);
+
+      if (response.status === 401) {
+        console.error('[updateEntity] Authentication failed - token may be invalid or expired');
+        return {
+          success: false,
+          error: 'Invalid or expired token. Please sign in again.',
+        };
+      }
+
+      return {
+        success: false,
+        error: error.error || error.message || 'Failed to update entity',
+      };
+    }
+
+    const result = await response.json();
+    console.log('[updateEntity] Success, updated entity:', result.entity?.id);
+    return {
+      success: true,
+      entity: result.entity,
+    };
+  } catch (error: any) {
+    console.error('[updateEntity] Network error:', error);
+    return {
+      success: false,
+      error: error?.message || 'Failed to update entity',
+    };
+  }
+}
+
+/**
  * Hook to use entity creation with Clerk organizations
  * Use this hook in components that need to create entities
  */

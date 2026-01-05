@@ -13,6 +13,11 @@ import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../context/ThemeContext';
 import { BlurredModalOverlay } from './BlurredModalOverlay';
 import { LinearGradient } from 'expo-linear-gradient';
+import { ActivityTransactions } from './wallet/ActivityTransactions';
+import { Credit } from './wallet/Credit';
+import { Cards } from './wallet/Cards';
+import { Members } from './wallet/Members';
+import { Subscriptions } from './wallet/Subscriptions';
 
 interface BankCard {
   id: string;
@@ -95,43 +100,46 @@ export function WalletModal({ visible, onClose }: WalletModalProps) {
     switch (activeTab) {
       case 'Activity':
         return (
-          <View style={styles.tabContent}>
-            <Text style={[styles.emptyText, { color: theme.colors.textSecondary }]}>
-              No transactions yet
-            </Text>
-          </View>
+          <ActivityTransactions
+            onTransactionPress={transaction => {
+              console.log('Transaction pressed:', transaction);
+            }}
+          />
         );
       case 'Credit':
         return (
-          <View style={styles.tabContent}>
-            <Text style={[styles.emptyText, { color: theme.colors.textSecondary }]}>
-              No credit information available
-            </Text>
-          </View>
+          <Credit
+            onAccountPress={account => {
+              console.log('Credit account pressed:', account);
+            }}
+          />
         );
       case 'Cards':
         return (
-          <View style={styles.tabContent}>
-            <Text style={[styles.emptyText, { color: theme.colors.textSecondary }]}>
-              Manage your cards
-            </Text>
-          </View>
+          <Cards
+            onCardPress={card => {
+              console.log('Card pressed:', card);
+            }}
+          />
         );
       case 'Members':
         return (
-          <View style={styles.tabContent}>
-            <Text style={[styles.emptyText, { color: theme.colors.textSecondary }]}>
-              No members yet
-            </Text>
-          </View>
+          <Members
+            onMemberPress={member => {
+              console.log('Member pressed:', member);
+            }}
+            onInvitePress={() => {
+              console.log('Invite member pressed');
+            }}
+          />
         );
       case 'Subscriptions':
         return (
-          <View style={styles.tabContent}>
-            <Text style={[styles.emptyText, { color: theme.colors.textSecondary }]}>
-              No subscriptions yet
-            </Text>
-          </View>
+          <Subscriptions
+            onSubscriptionPress={subscription => {
+              console.log('Subscription pressed:', subscription);
+            }}
+          />
         );
       default:
         return null;
@@ -216,16 +224,7 @@ export function WalletModal({ visible, onClose }: WalletModalProps) {
           </View>
 
           {/* Tab Content */}
-          <ScrollView
-            style={styles.content}
-            contentContainerStyle={[
-              styles.contentContainer,
-              { paddingBottom: insets.bottom * 2 + 100 },
-            ]}
-            showsVerticalScrollIndicator={false}
-          >
-            {renderTabContent()}
-          </ScrollView>
+          <View style={styles.content}>{renderTabContent()}</View>
         </View>
       </BlurredModalOverlay>
     </Modal>
@@ -326,17 +325,6 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
-  },
-  contentContainer: {
     padding: 16,
-  },
-  tabContent: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    minHeight: 200,
-  },
-  emptyText: {
-    fontSize: 14,
   },
 });

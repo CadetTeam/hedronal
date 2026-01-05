@@ -8,11 +8,23 @@ interface EmptyStateProps {
   icon?: React.ReactNode;
 }
 
-export function EmptyState({ title, message, icon }: EmptyStateProps) {
+interface EmptyStateProps {
+  title: string;
+  message?: string;
+  icon?: React.ReactNode;
+  transparent?: boolean;
+}
+
+export function EmptyState({ title, message, icon, transparent = false }: EmptyStateProps) {
   const { theme } = useTheme();
 
   return (
-    <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
+    <View
+      style={[
+        styles.container,
+        { backgroundColor: transparent ? 'transparent' : theme.colors.background },
+      ]}
+    >
       {icon && <View style={styles.iconContainer}>{icon}</View>}
       <Text style={[styles.title, { color: theme.colors.text }]}>{title}</Text>
       {message && (

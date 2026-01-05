@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '../context/ThemeContext';
 import { Ionicons } from '@expo/vector-icons';
+import { lightTheme } from '../constants/theme';
 
 interface HeaderProps {
   title: string;
@@ -21,7 +22,7 @@ interface HeaderProps {
 }
 
 export function Header({ title, leftAction, rightAction, rightSideAction }: HeaderProps) {
-  const { theme } = useTheme();
+  const { theme, isDark } = useTheme();
 
   return (
     <SafeAreaView
@@ -50,11 +51,15 @@ export function Header({ title, leftAction, rightAction, rightSideAction }: Head
                   style={[
                     styles.actionButtonCircle,
                     {
-                      backgroundColor: '#3E2723',
+                      backgroundColor: isDark ? lightTheme.colors.background : '#3E2723',
                     },
                   ]}
                 >
-                  <Ionicons name={rightAction.icon} size={18} color={theme.colors.background} />
+                  <Ionicons
+                    name={rightAction.icon}
+                    size={18}
+                    color={isDark ? lightTheme.colors.text : theme.colors.background}
+                  />
                 </View>
               </TouchableOpacity>
             )}

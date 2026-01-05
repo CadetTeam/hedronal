@@ -83,12 +83,31 @@ echo ""
 echo "✅ Build complete!"
 echo "📤 Submitting to App Store Connect..."
 
-# Submit to App Store Connect
-npx eas submit --platform ios --profile production --non-interactive
+# Submit the latest build to App Store Connect
+# Note: This requires App Store Connect API key to be set up in EAS
+# If submission fails, run: npx eas credentials --platform ios
+# and set up App Store Connect API key
+npx eas submit --platform ios --latest --non-interactive
 
-if [ $? -ne 0 ]; then
-  echo "❌ Submission failed."
-  exit 1
+SUBMIT_EXIT_CODE=$?
+
+if [ $SUBMIT_EXIT_CODE -ne 0 ]; then
+  echo ""
+  echo "⚠️  Submission failed. This usually means:"
+  echo "   1. App Store Connect API key not configured"
+  echo "   2. App not found in App Store Connect"
+  echo "   3. Missing ascAppId in eas.json"
+  echo ""
+  echo "To fix:"
+  echo "   1. Go to App Store Connect → Users and Access → Keys"
+  echo "   2. Create an App Store Connect API key"
+  echo "   3. Run: npx eas credentials --platform ios"
+  echo "   4. Add the API key when prompted"
+  echo ""
+  echo "Or provide ascAppId in eas.json submit.production.ios.ascAppId"
+  echo ""
+  echo "Build completed successfully. You can submit manually later."
+  exit 0  # Don't fail the script - build succeeded
 fi
 
 echo ""

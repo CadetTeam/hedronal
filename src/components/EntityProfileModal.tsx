@@ -10,6 +10,7 @@ import {
   TextInput,
   Platform,
   Keyboard,
+  Alert,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -17,9 +18,11 @@ import { useTheme } from '../context/ThemeContext';
 import { BlurredModalOverlay } from './BlurredModalOverlay';
 import { LinearGradient } from 'expo-linear-gradient';
 import { EntityCreationModal } from './EntityCreationModal';
+import { updateEntity } from '../services/entityService';
+import { useAuth } from '@clerk/clerk-expo';
 
 const ACCORDION_ITEMS = [
-  { key: 'Domain', description: 'Configure your entity\'s domain name and website settings' },
+  { key: 'Domain', description: "Configure your entity's domain name and website settings" },
   { key: 'Workspace', description: 'Set up your workspace and collaboration tools' },
   { key: 'Formation', description: 'Document your entity formation details and structure' },
   { key: 'Bank', description: 'Add banking information and account details' },
@@ -40,17 +43,26 @@ interface EntityProfileModalProps {
   onUpdate?: (entity: any) => void;
 }
 
-export function EntityProfileModal({ visible, onClose, entity, onUpdate }: EntityProfileModalProps) {
+export function EntityProfileModal({
+  visible,
+  onClose,
+  entity,
+  onUpdate,
+}: EntityProfileModalProps) {
   const { theme, isDark } = useTheme();
   const insets = useSafeAreaInsets();
+  const { getToken } = useAuth();
   const [showAccordionModal, setShowAccordionModal] = useState(false);
   const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set());
-  const [completedItems, setCompletedItems] = useState<Set<string>>(new Set(entity?.completedItems || []));
+  const [completedItems, setCompletedItems] = useState<Set<string>>(
+    new Set(entity?.completedItems || [])
+  );
   const [step2Data, setStep2Data] = useState<{ [key: string]: any }>(entity?.step2Data || {});
   const [editingField, setEditingField] = useState<'name' | 'handle' | 'brief' | null>(null);
   const [editingName, setEditingName] = useState(entity?.name || '');
   const [editingHandle, setEditingHandle] = useState(entity?.handle || '');
   const [editingBrief, setEditingBrief] = useState(entity?.brief || '');
+  const [saving, setSaving] = useState(false);
   const nameInputRef = useRef<TextInput>(null);
   const handleInputRef = useRef<TextInput>(null);
   const briefInputRef = useRef<TextInput>(null);
@@ -70,7 +82,7 @@ export function EntityProfileModal({ visible, onClose, entity, onUpdate }: Entit
   React.useEffect(() => {
     const keyboardWillShow = Keyboard.addListener(
       Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow',
-      (e) => {
+      e => {
         setKeyboardHeight(e.endCoordinates.height);
       }
     );
@@ -103,9 +115,33 @@ export function EntityProfileModal({ visible, onClose, entity, onUpdate }: Entit
     }, 100);
   }
 
-  function handleFieldBlur(field: 'name' | 'handle' | 'brief') {
+  async function handleFieldBlur(field: 'name' | 'handle' | 'brief') {
     setEditingField(null);
-    if (onUpdate) {
+
+    // Check if value actually changed
+    let hasChanges = false;
+    if (field === 'name' && editingName !== entity?.name) {
+      hasChanges = true;
+    } else if (field === 'handle' && editingHandle !== entity?.handle) {
+      hasChanges = true;
+    } else if (field === 'brief' && editingBrief !== entity?.brief) {
+      hasChanges = true;
+    }
+
+    if (!hasChanges || !entity?.id) {
+      return;
+    }
+
+    // Save to backend
+    setSaving(true);
+    try {
+      const token = await getToken();
+      if (!token) {
+        Alert.alert('Error', 'Please sign in again to save changes');
+        setSaving(false);
+        return;
+      }
+
       const updates: any = {};
       if (field === 'name') {
         updates.name = editingName;
@@ -114,10 +150,45 @@ export function EntityProfileModal({ visible, onClose, entity, onUpdate }: Entit
       } else if (field === 'brief') {
         updates.brief = editingBrief;
       }
-      onUpdate({
-        ...entity,
-        ...updates,
-      });
+
+      const result = await updateEntity(entity.id, updates, token);
+
+      if (result.success && result.entity) {
+        // Transform the updated entity to match expected format
+        const updatedEntity = {
+          ...entity,
+          name: result.entity.name || entity.name,
+          handle: result.entity.handle || entity.handle,
+          brief: result.entity.brief || entity.brief,
+        };
+
+        if (onUpdate) {
+          onUpdate(updatedEntity);
+        }
+      } else {
+        Alert.alert('Error', result.error || 'Failed to save changes');
+        // Revert to original values
+        if (field === 'name') {
+          setEditingName(entity.name || '');
+        } else if (field === 'handle') {
+          setEditingHandle(entity.handle || '');
+        } else if (field === 'brief') {
+          setEditingBrief(entity.brief || '');
+        }
+      }
+    } catch (error: any) {
+      console.error('Error saving entity:', error);
+      Alert.alert('Error', 'Failed to save changes. Please try again.');
+      // Revert to original values
+      if (field === 'name') {
+        setEditingName(entity.name || '');
+      } else if (field === 'handle') {
+        setEditingHandle(entity.handle || '');
+      } else if (field === 'brief') {
+        setEditingBrief(entity.brief || '');
+      }
+    } finally {
+      setSaving(false);
     }
   }
 
@@ -189,7 +260,10 @@ export function EntityProfileModal({ visible, onClose, entity, onUpdate }: Entit
             <ScrollView
               ref={scrollViewRef}
               style={styles.scrollView}
-              contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom * 2 + 100 }]}
+              contentContainerStyle={[
+                styles.scrollContent,
+                { paddingBottom: insets.bottom * 2 + 100 },
+              ]}
               showsVerticalScrollIndicator={false}
               keyboardShouldPersistTaps="handled"
             >
@@ -198,7 +272,11 @@ export function EntityProfileModal({ visible, onClose, entity, onUpdate }: Entit
                 <View
                   style={[
                     styles.banner,
-                    { backgroundColor: entity.banner ? theme.colors.background : theme.colors.primary },
+                    {
+                      backgroundColor: entity.banner
+                        ? theme.colors.background
+                        : theme.colors.primary,
+                    },
                   ]}
                 >
                   {entity.banner ? (
@@ -312,7 +390,10 @@ export function EntityProfileModal({ visible, onClose, entity, onUpdate }: Entit
                       return (
                         <TouchableOpacity
                           key={index}
-                          style={[styles.socialLink, { backgroundColor: theme.colors.surfaceVariant }]}
+                          style={[
+                            styles.socialLink,
+                            { backgroundColor: theme.colors.surfaceVariant },
+                          ]}
                         >
                           <Ionicons name={iconName} size={20} color={theme.colors.text} />
                         </TouchableOpacity>
@@ -357,23 +438,45 @@ export function EntityProfileModal({ visible, onClose, entity, onUpdate }: Entit
                   <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>
                     Configuration
                   </Text>
-                  {ACCORDION_ITEMS.map((item) => {
+                  {ACCORDION_ITEMS.map(item => {
                     const isExpanded = expandedItems.has(item.key);
                     const isCompleted = completedItems.has(item.key);
                     return (
-                      <View key={item.key} style={[styles.accordionItem, { backgroundColor: theme.colors.surfaceVariant, borderColor: theme.colors.border }]}>
+                      <View
+                        key={item.key}
+                        style={[
+                          styles.accordionItem,
+                          {
+                            backgroundColor: theme.colors.surfaceVariant,
+                            borderColor: theme.colors.border,
+                          },
+                        ]}
+                      >
                         <TouchableOpacity
                           style={styles.accordionHeader}
                           onPress={() => toggleAccordionItem(item.key)}
                         >
                           <View style={styles.accordionHeaderLeft}>
                             {isCompleted && (
-                              <Ionicons name="checkmark-circle" size={20} color={theme.colors.success || '#10b981'} style={styles.completedIcon} />
+                              <Ionicons
+                                name="checkmark-circle"
+                                size={20}
+                                color={theme.colors.success || '#10b981'}
+                                style={styles.completedIcon}
+                              />
                             )}
                             <View style={styles.accordionHeaderText}>
-                              <Text style={[styles.accordionTitle, { color: theme.colors.text }]}>{item.key}</Text>
+                              <Text style={[styles.accordionTitle, { color: theme.colors.text }]}>
+                                {item.key}
+                              </Text>
                               {!isExpanded && (
-                                <Text style={[styles.accordionDescription, { color: theme.colors.textSecondary }]} numberOfLines={1}>
+                                <Text
+                                  style={[
+                                    styles.accordionDescription,
+                                    { color: theme.colors.textSecondary },
+                                  ]}
+                                  numberOfLines={1}
+                                >
                                   {item.description}
                                 </Text>
                               )}
@@ -387,15 +490,27 @@ export function EntityProfileModal({ visible, onClose, entity, onUpdate }: Entit
                         </TouchableOpacity>
                         {isExpanded && (
                           <View style={styles.accordionContent}>
-                            <Text style={[styles.accordionDescriptionFull, { color: theme.colors.textSecondary, marginBottom: 12 }]}>
+                            <Text
+                              style={[
+                                styles.accordionDescriptionFull,
+                                { color: theme.colors.textSecondary, marginBottom: 12 },
+                              ]}
+                            >
                               {item.description}
                             </Text>
                             <TextInput
-                              style={[styles.input, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border, color: theme.colors.text }]}
+                              style={[
+                                styles.input,
+                                {
+                                  backgroundColor: theme.colors.surface,
+                                  borderColor: theme.colors.border,
+                                  color: theme.colors.text,
+                                },
+                              ]}
                               placeholder={`Enter ${item.key.toLowerCase()} information`}
                               placeholderTextColor={theme.colors.textTertiary}
                               value={step2Data[item.key] || ''}
-                              onChangeText={(value) => {
+                              onChangeText={value => {
                                 const updated = { ...step2Data, [item.key]: value };
                                 setStep2Data(updated);
                                 if (onUpdate) {
@@ -411,7 +526,9 @@ export function EntityProfileModal({ visible, onClose, entity, onUpdate }: Entit
                               style={[
                                 styles.completeButton,
                                 {
-                                  backgroundColor: isCompleted ? theme.colors.success || '#10b981' : theme.colors.primary,
+                                  backgroundColor: isCompleted
+                                    ? theme.colors.success || '#10b981'
+                                    : theme.colors.primary,
                                   marginTop: 12,
                                 },
                               ]}
@@ -422,7 +539,12 @@ export function EntityProfileModal({ visible, onClose, entity, onUpdate }: Entit
                                 size={20}
                                 color={theme.colors.background}
                               />
-                              <Text style={[styles.completeButtonText, { color: theme.colors.background }]}>
+                              <Text
+                                style={[
+                                  styles.completeButtonText,
+                                  { color: theme.colors.background },
+                                ]}
+                              >
                                 {isCompleted ? 'Completed' : 'Mark as Complete'}
                               </Text>
                             </TouchableOpacity>
@@ -438,18 +560,20 @@ export function EntityProfileModal({ visible, onClose, entity, onUpdate }: Entit
             {/* Header */}
             <View style={styles.modalHeader}>
               <LinearGradient
-                colors={isDark ? [`${theme.colors.surface}ff`, `${theme.colors.surface}00`] : [`${theme.colors.surface}ff`, `${theme.colors.surface}00`]}
+                colors={
+                  isDark
+                    ? [`${theme.colors.surface}ff`, `${theme.colors.surface}00`]
+                    : [`${theme.colors.surface}ff`, `${theme.colors.surface}00`]
+                }
                 style={styles.modalHeaderGradient}
                 pointerEvents="none"
               />
-              <Text style={[styles.modalTitle, { color: theme.colors.text }]}>
-                {entity.name}
-              </Text>
+              <Text style={[styles.modalTitle, { color: theme.colors.text }]}>{entity.name}</Text>
               <TouchableOpacity onPress={onClose}>
                 <Ionicons name="close" size={24} color={theme.colors.text} />
               </TouchableOpacity>
             </View>
-            </View>
+          </View>
         </BlurredModalOverlay>
       </Modal>
 
@@ -706,4 +830,3 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
 });
-

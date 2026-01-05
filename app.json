@@ -15,9 +15,9 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.responsenow.Hedronal",
-      "buildNumber": "5",
+      "buildNumber": "7",
       "version": "1.0.0",
-      "appleTeamId": "SE9G4ZSFVEV",
+      "appleTeamId": "HAGF8PYH22",
       "infoPlist": {
         "NSContactsUsageDescription": "This app needs access to your contacts to invite people to join your entities.",
         "ITSAppUsesNonExemptEncryption": false
