@@ -4,6 +4,9 @@
 
 set -e  # Exit on error
 
+# Use EAS token if provided
+export EXPO_TOKEN="${EXPO_TOKEN:-riziok_YnDFAyO2YVYktdoMt08FCNVeQtV1A30sj}"
+
 echo "🚀 Starting automated TestFlight submission..."
 
 # Get current directory

@@ -15,7 +15,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.responsenow.Hedronal",
-      "buildNumber": "4",
+      "buildNumber": "5",
       "version": "1.0.0",
       "appleTeamId": "SE9G4ZSFVEV",
       "infoPlist": {

@@ -1,0 +1,53 @@
+name: EAS Build and Submit
+
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - '**.md'
+      - '.gitignore'
+      - 'README.md'
+  workflow_dispatch:
+
+jobs:
+  build-and-submit:
+    name: Build and Submit to TestFlight
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 18.x
+          cache: 'npm'
+
+      - name: Setup Expo and EAS
+        uses: expo/expo-github-action@v8
+        with:
+          expo-version: latest
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run type check
+        run: npx tsc --noEmit
+
+      - name: Build and submit to TestFlight
+        run: |
+          npx eas build --platform ios \
+            --profile production \
+            --auto-submit \
+            --non-interactive
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+
+      - name: Build status
+        if: always()
+        run: |
+          echo "Build completed with status: ${{ job.status }}"
+          npx eas build:list --platform ios --limit 1 --non-interactive || true
+
