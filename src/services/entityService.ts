@@ -128,6 +128,12 @@ export async function createEntity(
 export async function fetchEntities(clerkToken?: string): Promise<any[]> {
   try {
     console.log('[fetchEntities] Fetching from:', API_BASE_URL);
+    console.log('[fetchEntities] Token provided:', clerkToken ? 'Yes' : 'No');
+
+    if (!clerkToken) {
+      console.warn('[fetchEntities] No token provided - request may fail');
+    }
+
     const response = await fetch(`${API_BASE_URL}/entities`, {
       method: 'GET',
       headers: {
@@ -139,6 +145,13 @@ export async function fetchEntities(clerkToken?: string): Promise<any[]> {
     if (!response.ok) {
       const error = await response.json();
       console.error('[fetchEntities] API error:', error);
+      console.error('[fetchEntities] Response status:', response.status);
+
+      // If it's a 401, the token might be invalid or expired
+      if (response.status === 401) {
+        console.error('[fetchEntities] Authentication failed - token may be invalid or expired');
+      }
+
       return [];
     }
 

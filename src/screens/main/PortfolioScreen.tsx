@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -37,7 +37,7 @@ const ENTITY_TYPES = [
 export function PortfolioScreen() {
   const { theme } = useTheme();
   const { triggerRefresh } = useTabBar();
-  const { userId } = useClerkContext();
+  const { userId, organizationList, isLoaded: clerkLoaded } = useClerkContext();
   const { getToken } = useAuth();
   const [refreshing, setRefreshing] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -52,12 +52,40 @@ export function PortfolioScreen() {
 
   // Fetch entities from backend
   async function loadEntities() {
-    if (!userId) return;
+    if (!userId) {
+      console.log('[loadEntities] No userId, skipping');
+      return;
+    }
+
+    // Check if user has organizations
+    const hasOrgs = organizationList && organizationList.length > 0;
+    console.log('[loadEntities] User organizations:', {
+      count: organizationList?.length || 0,
+      orgIds: organizationList?.map((org: any) => org.id) || [],
+      hasOrgs,
+    });
+
+    if (!hasOrgs) {
+      console.log('[loadEntities] User has no organizations yet');
+      setEntities([]);
+      setLoading(false);
+      return;
+    }
 
     setLoading(true);
     try {
       const token = await getToken();
-      const fetchedEntities = await fetchEntities(token || undefined);
+      console.log('[loadEntities] Token retrieved:', token ? 'Token exists' : 'No token');
+      if (!token) {
+        console.warn('[loadEntities] No token available, user may need to sign in again');
+        setLoading(false);
+        return;
+      }
+      console.log(
+        '[loadEntities] Fetching entities for organizations:',
+        organizationList.map((org: any) => org.id)
+      );
+      const fetchedEntities = await fetchEntities(token);
 
       // Transform entities to match the expected format
       const transformedEntities = fetchedEntities.map((entity: any) => {
@@ -99,10 +127,31 @@ export function PortfolioScreen() {
     }
   }
 
-  // Load entities on mount
+  // Track previous org count to detect changes
+  const prevOrgCountRef = useRef<number>(0);
+
+  // Load entities when user or organizations change
   useEffect(() => {
-    loadEntities();
-  }, [userId]);
+    if (clerkLoaded && userId) {
+      const currentOrgCount = organizationList?.length || 0;
+      const orgCountChanged = currentOrgCount !== prevOrgCountRef.current;
+
+      console.log('[PortfolioScreen] Clerk loaded, checking organizations and loading entities', {
+        userId,
+        orgCount: currentOrgCount,
+        orgCountChanged,
+        orgIds: organizationList?.map((org: any) => org.id) || [],
+      });
+
+      // Update ref
+      prevOrgCountRef.current = currentOrgCount;
+
+      // Load entities if we have orgs or if org count changed
+      if (currentOrgCount > 0 || orgCountChanged) {
+        loadEntities();
+      }
+    }
+  }, [userId, clerkLoaded, organizationList?.length]);
 
   async function onRefresh() {
     setRefreshing(true);

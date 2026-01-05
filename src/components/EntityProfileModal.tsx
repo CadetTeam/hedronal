@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import {
   View,
   Text,
@@ -8,6 +8,8 @@ import {
   Image,
   Modal,
   TextInput,
+  Platform,
+  Keyboard,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -45,13 +47,79 @@ export function EntityProfileModal({ visible, onClose, entity, onUpdate }: Entit
   const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set());
   const [completedItems, setCompletedItems] = useState<Set<string>>(new Set(entity?.completedItems || []));
   const [step2Data, setStep2Data] = useState<{ [key: string]: any }>(entity?.step2Data || {});
+  const [editingField, setEditingField] = useState<'name' | 'handle' | 'brief' | null>(null);
+  const [editingName, setEditingName] = useState(entity?.name || '');
+  const [editingHandle, setEditingHandle] = useState(entity?.handle || '');
+  const [editingBrief, setEditingBrief] = useState(entity?.brief || '');
+  const nameInputRef = useRef<TextInput>(null);
+  const handleInputRef = useRef<TextInput>(null);
+  const briefInputRef = useRef<TextInput>(null);
+  const scrollViewRef = useRef<ScrollView>(null);
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
 
   React.useEffect(() => {
     if (entity) {
       setCompletedItems(new Set(entity.completedItems || []));
       setStep2Data(entity.step2Data || {});
+      setEditingName(entity.name || '');
+      setEditingHandle(entity.handle || '');
+      setEditingBrief(entity.brief || '');
     }
   }, [entity]);
+
+  React.useEffect(() => {
+    const keyboardWillShow = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow',
+      (e) => {
+        setKeyboardHeight(e.endCoordinates.height);
+      }
+    );
+    const keyboardWillHide = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide',
+      () => {
+        setKeyboardHeight(0);
+      }
+    );
+
+    return () => {
+      keyboardWillShow.remove();
+      keyboardWillHide.remove();
+    };
+  }, []);
+
+  function handleFieldPress(field: 'name' | 'handle' | 'brief') {
+    setEditingField(field);
+    setTimeout(() => {
+      if (field === 'name' && nameInputRef.current) {
+        nameInputRef.current.focus();
+        scrollViewRef.current?.scrollTo({ y: 0, animated: true });
+      } else if (field === 'handle' && handleInputRef.current) {
+        handleInputRef.current.focus();
+        scrollViewRef.current?.scrollTo({ y: 50, animated: true });
+      } else if (field === 'brief' && briefInputRef.current) {
+        briefInputRef.current.focus();
+        scrollViewRef.current?.scrollTo({ y: 100, animated: true });
+      }
+    }, 100);
+  }
+
+  function handleFieldBlur(field: 'name' | 'handle' | 'brief') {
+    setEditingField(null);
+    if (onUpdate) {
+      const updates: any = {};
+      if (field === 'name') {
+        updates.name = editingName;
+      } else if (field === 'handle') {
+        updates.handle = editingHandle;
+      } else if (field === 'brief') {
+        updates.brief = editingBrief;
+      }
+      onUpdate({
+        ...entity,
+        ...updates,
+      });
+    }
+  }
 
   function toggleAccordionItem(item: string) {
     const newExpanded = new Set(expandedItems);
@@ -114,13 +182,16 @@ export function EntityProfileModal({ visible, onClose, entity, onUpdate }: Entit
                 backgroundColor: theme.colors.surface,
                 minHeight: 500 + insets.bottom * 2,
                 maxHeight: 650,
+                marginBottom: keyboardHeight > 0 ? keyboardHeight - insets.bottom : 0,
               },
             ]}
           >
             <ScrollView
+              ref={scrollViewRef}
               style={styles.scrollView}
               contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom * 2 + 100 }]}
               showsVerticalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled"
             >
               {/* Banner */}
               <TouchableOpacity activeOpacity={0.8}>
@@ -162,19 +233,76 @@ export function EntityProfileModal({ visible, onClose, entity, onUpdate }: Entit
                   </View>
                 </TouchableOpacity>
 
-                <Text style={[styles.name, { color: theme.colors.text }]}>
-                  {entity.name}
-                </Text>
+                <TouchableOpacity
+                  activeOpacity={0.8}
+                  onPress={() => handleFieldPress('name')}
+                  style={styles.editableField}
+                >
+                  {editingField === 'name' ? (
+                    <TextInput
+                      ref={nameInputRef}
+                      style={[styles.nameInput, { color: theme.colors.text }]}
+                      value={editingName}
+                      onChangeText={setEditingName}
+                      onBlur={() => handleFieldBlur('name')}
+                      autoFocus
+                      placeholder="Name"
+                      placeholderTextColor={theme.colors.textTertiary}
+                    />
+                  ) : (
+                    <Text style={[styles.name, { color: theme.colors.text }]}>
+                      {entity.name || 'Name'}
+                    </Text>
+                  )}
+                </TouchableOpacity>
 
-                <Text style={[styles.username, { color: theme.colors.textSecondary }]}>
-                  {entity.handle ? `@${entity.handle}` : ''}
-                </Text>
+                <TouchableOpacity
+                  activeOpacity={0.8}
+                  onPress={() => handleFieldPress('handle')}
+                  style={styles.editableField}
+                >
+                  {editingField === 'handle' ? (
+                    <TextInput
+                      ref={handleInputRef}
+                      style={[styles.usernameInput, { color: theme.colors.textSecondary }]}
+                      value={editingHandle}
+                      onChangeText={setEditingHandle}
+                      onBlur={() => handleFieldBlur('handle')}
+                      autoFocus
+                      placeholder="@handle"
+                      placeholderTextColor={theme.colors.textTertiary}
+                    />
+                  ) : (
+                    <Text style={[styles.username, { color: theme.colors.textSecondary }]}>
+                      {entity.handle ? `@${entity.handle}` : '@handle'}
+                    </Text>
+                  )}
+                </TouchableOpacity>
 
-                {entity.brief && (
-                  <Text style={[styles.bio, { color: theme.colors.textSecondary }]}>
-                    {entity.brief}
-                  </Text>
-                )}
+                <TouchableOpacity
+                  activeOpacity={0.8}
+                  onPress={() => handleFieldPress('brief')}
+                  style={styles.editableField}
+                >
+                  {editingField === 'brief' ? (
+                    <TextInput
+                      ref={briefInputRef}
+                      style={[styles.bioInput, { color: theme.colors.textSecondary }]}
+                      value={editingBrief}
+                      onChangeText={setEditingBrief}
+                      onBlur={() => handleFieldBlur('brief')}
+                      autoFocus
+                      placeholder="Bio"
+                      placeholderTextColor={theme.colors.textTertiary}
+                      multiline
+                      textAlign="center"
+                    />
+                  ) : (
+                    <Text style={[styles.bio, { color: theme.colors.textSecondary }]}>
+                      {entity.brief || 'Bio'}
+                    </Text>
+                  )}
+                </TouchableOpacity>
 
                 {/* Social Links */}
                 {entity.socialLinks && entity.socialLinks.length > 0 && (
@@ -321,7 +449,7 @@ export function EntityProfileModal({ visible, onClose, entity, onUpdate }: Entit
                 <Ionicons name="close" size={24} color={theme.colors.text} />
               </TouchableOpacity>
             </View>
-          </View>
+            </View>
         </BlurredModalOverlay>
       </Modal>
 
@@ -421,14 +549,33 @@ const styles = StyleSheet.create({
     fontSize: 40,
     fontWeight: '700',
   },
+  editableField: {
+    width: '100%',
+    alignItems: 'center',
+  },
   name: {
     fontSize: 24,
     fontWeight: '700',
     marginBottom: 4,
   },
+  nameInput: {
+    fontSize: 24,
+    fontWeight: '700',
+    marginBottom: 4,
+    textAlign: 'center',
+    width: '100%',
+    padding: 4,
+  },
   username: {
     fontSize: 16,
     marginBottom: 8,
+  },
+  usernameInput: {
+    fontSize: 16,
+    marginBottom: 8,
+    textAlign: 'center',
+    width: '100%',
+    padding: 4,
   },
   bio: {
     fontSize: 14,
@@ -436,6 +583,16 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     lineHeight: 20,
     maxWidth: '90%',
+  },
+  bioInput: {
+    fontSize: 14,
+    textAlign: 'center',
+    marginBottom: 16,
+    lineHeight: 20,
+    maxWidth: '90%',
+    width: '100%',
+    padding: 4,
+    minHeight: 60,
   },
   socialLinks: {
     flexDirection: 'row',

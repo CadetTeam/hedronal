@@ -18,6 +18,9 @@ if (!REVENUECAT_API_KEY) {
   );
 }
 
+// Track initialization state
+let isRevenueCatInitialized = false;
+
 // Initialize RevenueCat SDK
 export async function initializeRevenueCat(userId?: string): Promise<void> {
   try {
@@ -31,9 +34,11 @@ export async function initializeRevenueCat(userId?: string): Promise<void> {
         await Purchases.logIn(userId);
       }
 
+      isRevenueCatInitialized = true;
       console.log('[RevenueCat] Initialized successfully');
     } else {
       console.warn('[RevenueCat] API key not found, skipping initialization');
+      isRevenueCatInitialized = false;
     }
   } catch (error) {
     console.error('[RevenueCat] Initialization error:', error);

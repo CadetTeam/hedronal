@@ -20,7 +20,6 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useTheme } from '../../context/ThemeContext';
 import { useTabBar } from '../../context/TabBarContext';
 import { EmptyState } from '../../components/EmptyState';
-import { Button } from '../../components/Button';
 import { BlurredModalOverlay } from '../../components/BlurredModalOverlay';
 import { Logo } from '../../components/Logo';
 import { SocialLinksModal } from '../../components/SocialLinksModal';
@@ -39,7 +38,6 @@ export function ProfileScreen() {
   const { triggerRefresh } = useTabBar();
   const insets = useSafeAreaInsets();
   const [refreshing, setRefreshing] = useState(false);
-  const [showWalletModal, setShowWalletModal] = useState(false);
   const [showPointsModal, setShowPointsModal] = useState(false);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [showFollowersModal, setShowFollowersModal] = useState(false);
@@ -350,22 +348,19 @@ export function ProfileScreen() {
                 Posts
               </Text>
             </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.statItem}
+              onPress={() => setShowPointsModal(true)}
+            >
+              <Text style={[styles.statNumber, { color: theme.colors.text }]}>0</Text>
+              <Text style={[styles.statLabel, { color: theme.colors.textSecondary }]}>
+                Points
+              </Text>
+            </TouchableOpacity>
           </View>
 
           {/* Action Buttons */}
           <View style={styles.actionButtons}>
-            <Button
-              title="Wallet"
-              onPress={() => setShowWalletModal(true)}
-              variant="outline"
-              style={styles.actionButton}
-            />
-            <Button
-              title="Points"
-              onPress={() => setShowPointsModal(true)}
-              variant="outline"
-              style={styles.actionButton}
-            />
             <TouchableOpacity
               style={[
                 styles.settingsButton,
@@ -814,57 +809,6 @@ export function ProfileScreen() {
         onSave={handleSaveSocialLinks}
       />
 
-      {/* Wallet Modal */}
-      <Modal
-        visible={showWalletModal}
-        animationType="slide"
-        transparent
-        onRequestClose={() => setShowWalletModal(false)}
-      >
-        <BlurredModalOverlay
-          visible={showWalletModal}
-          onClose={() => setShowWalletModal(false)}
-        >
-          <View
-            style={[
-              styles.modalContent,
-              {
-                backgroundColor: theme.colors.surface,
-                minHeight: 200 + insets.bottom * 2,
-              },
-            ]}
-          >
-            <View style={styles.modalHeader}>
-              <LinearGradient
-                colors={
-                  isDark
-                    ? ['rgba(30, 30, 30, 1)', 'rgba(30, 30, 30, 0)']
-                    : ['rgba(245, 245, 220, 1)', 'rgba(245, 245, 220, 0)']
-                }
-                style={styles.modalHeaderGradient}
-                pointerEvents="none"
-              />
-              <Text style={[styles.modalTitle, { color: theme.colors.text }]}>Wallet</Text>
-              <TouchableOpacity onPress={() => setShowWalletModal(false)}>
-                <Ionicons name="close" size={24} color={theme.colors.text} />
-              </TouchableOpacity>
-            </View>
-            <ScrollView
-              style={styles.modalBody}
-              contentContainerStyle={[
-                styles.modalBodyContent,
-                { paddingBottom: insets.bottom * 2 },
-              ]}
-              showsVerticalScrollIndicator={false}
-            >
-              <Text style={[styles.modalText, { color: theme.colors.textSecondary }]}>
-                Wallet functionality coming soon
-              </Text>
-            </ScrollView>
-          </View>
-        </BlurredModalOverlay>
-      </Modal>
-
       {/* Points Modal */}
       <Modal
         visible={showPointsModal}
@@ -1244,8 +1188,10 @@ const styles = StyleSheet.create({
   },
   stats: {
     flexDirection: 'row',
-    gap: 32,
+    gap: 24,
     marginBottom: 24,
+    flexWrap: 'wrap',
+    justifyContent: 'center',
   },
   statItem: {
     alignItems: 'center',
@@ -1263,6 +1209,7 @@ const styles = StyleSheet.create({
     gap: 12,
     width: '100%',
     marginBottom: 32,
+    justifyContent: 'center',
   },
   actionButton: {
     flex: 1,
