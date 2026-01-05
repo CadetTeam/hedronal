@@ -46,7 +46,8 @@
       "clerkAppId": "app_37mSSJfGyIm0Kg4FEhWL7zqqpfc"
     },
     "plugins": [
-      "expo-web-browser"
+      "expo-web-browser",
+      "expo-font"
     ],
     "owner": "hedronal"
   }
