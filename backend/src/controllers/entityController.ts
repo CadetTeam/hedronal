@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import { supabase, getProfileByClerkId } from '../config/supabase';
 import { AuthenticatedRequest } from '../middleware/clerkAuth';
+import { clerk } from '../config/clerk';
 import { z } from 'zod';
 
 const createEntitySchema = z.object({
