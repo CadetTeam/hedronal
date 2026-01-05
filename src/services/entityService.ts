@@ -20,6 +20,7 @@ export interface EntityData {
   socialLinks: Array<{ type: string; url: string }>;
   step2Data: { [key: string]: any };
   completedItems: string[];
+  invitedContacts?: Array<{ id: string; name: string; phone?: string; email?: string }>;
 }
 
 export interface CreateEntityResult {
@@ -46,6 +47,10 @@ export async function createEntity(
       brief: entityData.brief,
       clerk_organization_id: clerkOrgId,
       hasToken: !!clerkToken,
+      hasSocialLinks: !!(entityData.socialLinks && entityData.socialLinks.length > 0),
+      hasStep2Data: !!(entityData.step2Data && Object.keys(entityData.step2Data).length > 0),
+      completedItemsCount: entityData.completedItems?.length || 0,
+      invitedContactsCount: entityData.invitedContacts?.length || 0,
     });
 
     const response = await fetch(`${API_BASE_URL}/entities`, {
@@ -65,6 +70,7 @@ export async function createEntity(
         socialLinks: entityData.socialLinks,
         step2Data: entityData.step2Data,
         completedItems: entityData.completedItems,
+        invitedContacts: entityData.invitedContacts,
       }),
     });
 
@@ -289,9 +295,6 @@ export function useEntityCreation() {
         slug: entityData.handle,
       });
 
-      // Get Clerk session token for backend authentication
-      const token = await getToken();
-
       // Create Clerk organization using useOrganizationList().createOrganization
       const org = await createOrganization({
         name: entityData.name,
@@ -304,6 +307,18 @@ export function useEntityCreation() {
         throw new Error('Failed to create Clerk organization - no organization ID returned');
       }
 
+      // Get a fresh token for backend authentication (refresh if needed)
+      let token = await getToken({ template: 'default' });
+      if (!token) {
+        token = await getToken();
+      }
+
+      if (!token) {
+        throw new Error('Unable to get authentication token. Please sign in again.');
+      }
+
+      console.log('[useEntityCreation] Token retrieved for API calls');
+
       console.log('[useEntityCreation] Uploading images via backend API...');
 
       // Upload images via backend API first
@@ -312,10 +327,16 @@ export function useEntityCreation() {
 
       if (entityData.avatar || entityData.banner) {
         try {
+          // Get fresh token for image upload
+          let uploadToken = await getToken({ template: 'default' });
+          if (!uploadToken) {
+            uploadToken = await getToken();
+          }
+
           const uploadedImages = await uploadEntityImages(
             entityData.avatar,
             entityData.banner,
-            token || undefined
+            uploadToken || undefined
           );
           avatarUrl = uploadedImages.avatar_url;
           bannerUrl = uploadedImages.banner_url;
@@ -336,8 +357,18 @@ export function useEntityCreation() {
 
       console.log('[useEntityCreation] Creating entity via backend API with org ID:', org.id);
 
+      // Get fresh token right before entity creation to ensure it's valid
+      let createToken = await getToken({ template: 'default' });
+      if (!createToken) {
+        createToken = await getToken();
+      }
+
+      if (!createToken) {
+        throw new Error('Unable to get authentication token. Please sign in again.');
+      }
+
       // Create entity via backend API with organization ID and image URLs
-      const result = await createEntity(entityDataWithUrls, userId, org.id, token || undefined);
+      const result = await createEntity(entityDataWithUrls, userId, org.id, createToken);
 
       if (!result.success) {
         console.error('[useEntityCreation] Backend entity creation failed:', result.error);

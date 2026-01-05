@@ -32,6 +32,16 @@ const createEntitySchema = z.object({
     .optional(),
   step2Data: z.record(z.any()).optional(),
   completedItems: z.array(z.string()).optional(),
+  invitedContacts: z
+    .array(
+      z.object({
+        id: z.string().optional(),
+        name: z.string(),
+        phone: z.string().optional(),
+        email: z.string().email().optional(),
+      })
+    )
+    .optional(),
 });
 
 export const entityController = {
@@ -42,9 +52,32 @@ export const entityController = {
       }
 
       console.log('[entityController] Creating entity for user:', req.userId);
-      console.log('[entityController] Request body:', JSON.stringify(req.body, null, 2));
+      console.log('[entityController] Request body keys:', Object.keys(req.body));
+      console.log('[entityController] Request body summary:', {
+        name: req.body.name,
+        handle: req.body.handle,
+        hasBanner: !!req.body.banner_url,
+        hasAvatar: !!req.body.avatar_url,
+        type: req.body.type,
+        clerk_org_id: req.body.clerk_organization_id,
+        socialLinksCount: req.body.socialLinks?.length || 0,
+        step2DataKeys: req.body.step2Data ? Object.keys(req.body.step2Data) : [],
+        completedItemsCount: req.body.completedItems?.length || 0,
+        invitedContactsCount: req.body.invitedContacts?.length || 0,
+      });
 
       const validatedData = createEntitySchema.parse(req.body);
+
+      console.log('[entityController] Validated data:', {
+        name: validatedData.name,
+        handle: validatedData.handle,
+        type: validatedData.type,
+        clerk_org_id: validatedData.clerk_organization_id,
+        socialLinksCount: validatedData.socialLinks?.length || 0,
+        step2DataKeys: validatedData.step2Data ? Object.keys(validatedData.step2Data) : [],
+        completedItemsCount: validatedData.completedItems?.length || 0,
+        invitedContactsCount: validatedData.invitedContacts?.length || 0,
+      });
 
       // Get or create profile
       let profile = await getProfileByClerkId(req.userId);
@@ -151,6 +184,40 @@ export const entityController = {
           console.error('[entityController] Error adding configurations:', configError);
         } else {
           console.log('[entityController] Configurations added successfully');
+        }
+      }
+
+      // Add entity invitations if provided
+      if (validatedData.invitedContacts && validatedData.invitedContacts.length > 0) {
+        const crypto = require('crypto');
+        const invitations = validatedData.invitedContacts.map(contact => {
+          const inviteToken = crypto.randomBytes(32).toString('hex');
+          const expiresAt = new Date();
+          expiresAt.setDate(expiresAt.getDate() + 30); // 30 days expiration
+
+          return {
+            entity_id: entity.id,
+            invited_by: profile.id,
+            email: contact.email || null,
+            phone: contact.phone || null,
+            name: contact.name,
+            status: 'pending',
+            invite_token: inviteToken,
+            expires_at: expiresAt.toISOString(),
+          };
+        });
+
+        const { error: inviteError } = await supabase
+          .from('entity_invitations')
+          .insert(invitations);
+
+        if (inviteError) {
+          console.error('[entityController] Error adding entity invitations:', inviteError);
+        } else {
+          console.log(
+            '[entityController] Entity invitations added successfully:',
+            invitations.length
+          );
         }
       }
 

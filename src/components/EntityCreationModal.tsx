@@ -470,6 +470,7 @@ export function EntityCreationModal({ visible, onClose, onComplete }: EntityCrea
         socialLinks,
         step2Data,
         completedItems: Array.from(completedItems),
+        invitedContacts: selectedContacts,
       };
 
       // Create Clerk organization and save to Supabase (via service)
