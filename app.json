@@ -15,7 +15,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.responsenow.Hedronal",
-      "buildNumber": "7",
+      "buildNumber": "9",
       "version": "1.0.0",
       "appleTeamId": "HAGF8PYH22",
       "infoPlist": {
@@ -46,7 +46,8 @@
       "clerkAppId": "app_37mSSJfGyIm0Kg4FEhWL7zqqpfc"
     },
     "plugins": [
-      "expo-web-browser"
+      "expo-web-browser",
+      "expo-secure-store"
     ],
     "owner": "hedronal"
   }

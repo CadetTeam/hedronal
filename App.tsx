@@ -3,6 +3,7 @@ import { StatusBar } from 'expo-status-bar';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { ClerkProvider } from '@clerk/clerk-expo';
+import * as SecureStore from 'expo-secure-store';
 import { ThemeProvider, useTheme } from './src/context/ThemeContext';
 import { DemoModeProvider } from './src/context/DemoModeContext';
 import { ClerkProvider as CustomClerkProvider } from './src/context/ClerkContext';
@@ -48,7 +49,32 @@ export default function App() {
           
           This will keep users logged in for 7 days before requiring re-authentication.
         */}
-        <ClerkProvider publishableKey={CLERK_PUBLISHABLE_KEY}>
+        <ClerkProvider
+          publishableKey={CLERK_PUBLISHABLE_KEY}
+          tokenCache={{
+            async getToken(key: string) {
+              try {
+                return await SecureStore.getItemAsync(key);
+              } catch (err) {
+                return null;
+              }
+            },
+            async saveToken(key: string, value: string) {
+              try {
+                await SecureStore.setItemAsync(key, value);
+              } catch (err) {
+                // Handle error
+              }
+            },
+            async clearToken(key: string) {
+              try {
+                await SecureStore.deleteItemAsync(key);
+              } catch (err) {
+                // Handle error
+              }
+            },
+          }}
+        >
           <ThemeProvider>
             <DemoModeProvider>
               <AppContent />

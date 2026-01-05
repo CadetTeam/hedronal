@@ -16,8 +16,10 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Contacts from 'expo-contacts';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useAuth } from '@clerk/clerk-expo';
 import { useTheme } from '../context/ThemeContext';
 import { BlurredModalOverlay } from './BlurredModalOverlay';
+import { createInvite } from '../services/inviteService';
 
 interface InvitePeopleModalProps {
   visible: boolean;
@@ -29,6 +31,7 @@ interface InvitePeopleModalProps {
 
 export function InvitePeopleModal({ visible, onClose, onComplete }: InvitePeopleModalProps) {
   const { theme, isDark } = useTheme();
+  const { getToken } = useAuth();
   const insets = useSafeAreaInsets();
   const [contacts, setContacts] = useState<
     Array<{ id: string; name: string; phone?: string; email?: string }>
@@ -170,13 +173,37 @@ export function InvitePeopleModal({ visible, onClose, onComplete }: InvitePeople
   }
 
   async function sendInvites() {
-    // In a real app, you would send the invites via SMS/Email
-    Alert.alert('Invites Sent', `${selectedContacts.length} invitation(s) sent successfully.`);
-    setShowInviteMessage(false);
-    if (onComplete) {
-      onComplete(selectedContacts);
+    try {
+      const token = await getToken();
+      const invites = [];
+
+      // Send invites for each selected contact
+      for (const contact of selectedContacts) {
+        const result = await createInvite(
+          {
+            name: contact.name,
+            email: contact.email,
+            phone: contact.phone,
+            message: inviteMessage,
+          },
+          token || undefined
+        );
+
+        if (result.success) {
+          invites.push(result.invite);
+        }
+      }
+
+      Alert.alert('Invites Sent', `${invites.length} invitation(s) sent successfully.`);
+      setShowInviteMessage(false);
+      if (onComplete) {
+        onComplete(selectedContacts);
+      }
+      onClose();
+    } catch (error: any) {
+      console.error('[InvitePeopleModal] Error sending invites:', error);
+      Alert.alert('Error', 'Failed to send some invites. Please try again.');
     }
-    onClose();
   }
 
   function handleClose() {

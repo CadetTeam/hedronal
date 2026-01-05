@@ -6,6 +6,8 @@ import { entityRouter } from './routes/entity';
 import { webhookRouter } from './routes/webhook';
 import { imageRouter } from './routes/image';
 import { articleRouter } from './routes/article';
+import { profileRouter } from './routes/profile';
+import { inviteRouter } from './routes/invite';
 
 dotenv.config();
 
@@ -39,6 +41,8 @@ app.use('/api/entities', entityRouter);
 app.use('/api/webhooks', webhookRouter);
 app.use('/api/images', imageRouter);
 app.use('/api/articles', articleRouter);
+app.use('/api/profiles', profileRouter);
+app.use('/api/invites', inviteRouter);
 
 // Error handling middleware
 app.use((err: Error, req: express.Request, res: express.Response, next: express.NextFunction) => {

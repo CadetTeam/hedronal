@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -10,6 +10,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import { useAuth } from '@clerk/clerk-expo';
 import { useTheme } from '../../context/ThemeContext';
 import { useTabBar } from '../../context/TabBarContext';
 import { Header } from '../../components/Header';
@@ -19,24 +20,59 @@ import { Button } from '../../components/Button';
 import { InvitePeopleModal } from '../../components/InvitePeopleModal';
 import { WalletModal } from '../../components/WalletModal';
 import { NotificationsModal } from '../../components/NotificationsModal';
+import { UserProfileModal } from '../../components/UserProfileModal';
+import { getInvites } from '../../services/inviteService';
 
 export function PeopleScreen() {
   const { theme } = useTheme();
   const { triggerRefresh } = useTabBar();
+  const { getToken } = useAuth();
   const [refreshing, setRefreshing] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [people, setPeople] = useState<any[]>([]); // Will be populated with dummy data
+  const [people, setPeople] = useState<any[]>([]);
   const [showFilters, setShowFilters] = useState(false);
   const [selectedPerson, setSelectedPerson] = useState<any | null>(null);
+  const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
   const [showPersonMenu, setShowPersonMenu] = useState(false);
   const [showInviteModal, setShowInviteModal] = useState(false);
   const [showWalletModal, setShowWalletModal] = useState(false);
   const [showNotificationsModal, setShowNotificationsModal] = useState(false);
+  const [showUserProfileModal, setShowUserProfileModal] = useState(false);
+
+  useEffect(() => {
+    loadPeople();
+  }, []);
+
+  async function loadPeople() {
+    try {
+      setLoading(true);
+      const token = await getToken();
+      const result = await getInvites(token || undefined);
+      if (result.success && result.invites) {
+        // Transform invites to people format
+        const peopleList = result.invites.map((invite: any) => ({
+          id: invite.id,
+          name: invite.name,
+          email: invite.email,
+          phone: invite.phone,
+          company: invite.company || '',
+          location: invite.location || '',
+          status: invite.status || 'pending', // pending, accepted, rejected
+          profileId: invite.profile_id, // If they have a profile
+        }));
+        setPeople(peopleList);
+      }
+    } catch (error) {
+      console.error('[PeopleScreen] Error loading people:', error);
+    } finally {
+      setLoading(false);
+    }
+  }
 
   async function onRefresh() {
     setRefreshing(true);
     triggerRefresh(); // Trigger bubble animation reload
-    await new Promise(resolve => setTimeout(resolve, 1500));
+    await loadPeople();
     setRefreshing(false);
   }
 
@@ -47,9 +83,20 @@ export function PeopleScreen() {
   function handleInviteComplete(
     invitedContacts: Array<{ id: string; name: string; phone?: string; email?: string }>
   ) {
-    // Invites sent - could add to people list if needed
-    console.log('Invites sent to:', invitedContacts);
+    // Reload people list to show new invites
+    loadPeople();
     setShowInviteModal(false);
+  }
+
+  function handlePersonClick(person: any) {
+    // If person has a profileId, show their profile
+    if (person.profileId) {
+      setSelectedUserId(person.profileId);
+      setShowUserProfileModal(true);
+    } else {
+      // Otherwise, just show menu or do nothing
+      handlePersonMenu(person);
+    }
   }
 
   function handleFilter() {
@@ -75,9 +122,32 @@ export function PeopleScreen() {
     setSelectedPerson(null);
   }
 
+  function getStatusColor(status: string) {
+    switch (status) {
+      case 'accepted':
+        return theme.colors.primary;
+      case 'rejected':
+        return '#ef4444';
+      default:
+        return theme.colors.textSecondary;
+    }
+  }
+
+  function getStatusLabel(status: string) {
+    switch (status) {
+      case 'accepted':
+        return 'Accepted';
+      case 'rejected':
+        return 'Rejected';
+      default:
+        return 'Pending';
+    }
+  }
+
   function renderPerson({ item }: { item: any }) {
     return (
-      <View
+      <TouchableOpacity
+        onPress={() => handlePersonClick(item)}
         style={[
           styles.personCard,
           {
@@ -94,13 +164,41 @@ export function PeopleScreen() {
               </Text>
             </View>
             <View style={styles.personDetails}>
-              <Text style={[styles.personName, { color: theme.colors.text }]}>{item.name}</Text>
-              <Text style={[styles.personCompany, { color: theme.colors.textSecondary }]}>
-                {item.company}
-              </Text>
-              <Text style={[styles.personLocation, { color: theme.colors.textTertiary }]}>
-                {item.location}
-              </Text>
+              <View style={styles.personNameRow}>
+                <Text style={[styles.personName, { color: theme.colors.text }]}>{item.name}</Text>
+                {item.status && (
+                  <View
+                    style={[
+                      styles.statusBadge,
+                      {
+                        backgroundColor: getStatusColor(item.status) + '20',
+                        borderColor: getStatusColor(item.status),
+                      },
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.statusText,
+                        {
+                          color: getStatusColor(item.status),
+                        },
+                      ]}
+                    >
+                      {getStatusLabel(item.status)}
+                    </Text>
+                  </View>
+                )}
+              </View>
+              {item.company && (
+                <Text style={[styles.personCompany, { color: theme.colors.textSecondary }]}>
+                  {item.company}
+                </Text>
+              )}
+              {item.location && (
+                <Text style={[styles.personLocation, { color: theme.colors.textTertiary }]}>
+                  {item.location}
+                </Text>
+              )}
             </View>
           </View>
           <TouchableOpacity onPress={() => handlePersonMenu(item)} style={styles.menuButton}>
@@ -144,7 +242,7 @@ export function PeopleScreen() {
             </Text>
           </TouchableOpacity>
         </View>
-      </View>
+      </TouchableOpacity>
     );
   }
 
@@ -416,6 +514,18 @@ export function PeopleScreen() {
         visible={showNotificationsModal}
         onClose={() => setShowNotificationsModal(false)}
       />
+
+      {/* User Profile Modal */}
+      {selectedUserId && (
+        <UserProfileModal
+          visible={showUserProfileModal}
+          onClose={() => {
+            setShowUserProfileModal(false);
+            setSelectedUserId(null);
+          }}
+          userId={selectedUserId}
+        />
+      )}
     </SafeAreaView>
   );
 }
@@ -515,10 +625,27 @@ const styles = StyleSheet.create({
   personDetails: {
     flex: 1,
   },
+  personNameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 4,
+  },
   personName: {
     fontSize: 16,
     fontWeight: '600',
-    marginBottom: 4,
+  },
+  statusBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 4,
+    borderWidth: 1,
+  },
+  statusText: {
+    fontSize: 10,
+    fontWeight: '600',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
   },
   personCompany: {
     fontSize: 14,

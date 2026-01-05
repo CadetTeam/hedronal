@@ -69,10 +69,10 @@ else
   echo "✅ Changes committed and pushed to GitHub"
 fi
 
-# Build the app
-echo "🏗️  Building iOS app..."
+# Build the app with auto-submit
+echo "🏗️  Building iOS app with auto-submit..."
 echo "   This may take 10-20 minutes..."
-npx eas build --platform ios --profile production --non-interactive
+npx eas build --platform ios --profile production --auto-submit --non-interactive
 
 if [ $? -ne 0 ]; then
   echo "❌ Build failed. Aborting submission."
@@ -81,13 +81,11 @@ fi
 
 echo ""
 echo "✅ Build complete!"
-echo "📤 Submitting to App Store Connect..."
+echo "📤 Checking submission status..."
 
-# Submit the latest build to App Store Connect
-# Note: This requires App Store Connect API key to be set up in EAS
-# If submission fails, run: npx eas credentials --platform ios
-# and set up App Store Connect API key
-npx eas submit --platform ios --latest --non-interactive
+# If auto-submit didn't work, try manual submission
+echo "   Attempting manual submission as fallback..."
+npx eas submit --platform ios --latest --non-interactive 2>&1 || echo "   Manual submission also requires App Store Connect API key"
 
 SUBMIT_EXIT_CODE=$?
 

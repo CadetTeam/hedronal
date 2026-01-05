@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -17,12 +17,15 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import * as ImagePicker from 'expo-image-picker';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useAuth } from '@clerk/clerk-expo';
 import { useTheme } from '../../context/ThemeContext';
 import { useTabBar } from '../../context/TabBarContext';
 import { EmptyState } from '../../components/EmptyState';
 import { BlurredModalOverlay } from '../../components/BlurredModalOverlay';
 import { Logo } from '../../components/Logo';
 import { SocialLinksModal } from '../../components/SocialLinksModal';
+import { getProfile, updateProfile } from '../../services/profileService';
+import { uploadProfileImages } from '../../utils/imageUpload';
 
 const SOCIAL_ICONS = [
   { name: 'logo-twitter', label: 'Twitter' },
@@ -36,8 +39,10 @@ const SOCIAL_ICONS = [
 export function ProfileScreen() {
   const { theme, setColorScheme, colorScheme, isDark } = useTheme();
   const { triggerRefresh } = useTabBar();
+  const { getToken } = useAuth();
   const insets = useSafeAreaInsets();
   const [refreshing, setRefreshing] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [showPointsModal, setShowPointsModal] = useState(false);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [showFollowersModal, setShowFollowersModal] = useState(false);
@@ -73,10 +78,44 @@ export function ProfileScreen() {
   const [editingUsername, setEditingUsername] = useState(profileData.username);
   const [editingSocialLinks, setEditingSocialLinks] = useState(profileData.socialLinks);
 
+  // For sticky settings button
+  const namePositionRef = useRef<View>(null);
+  const [nameYPosition, setNameYPosition] = useState(200); // Default fallback position
+
+  // Load profile on mount
+  useEffect(() => {
+    loadProfile();
+  }, []);
+
+  async function loadProfile() {
+    try {
+      setLoading(true);
+      const token = await getToken();
+      const result = await getProfile(token || undefined);
+      if (result.success && result.profile) {
+        setProfileData({
+          name: result.profile.full_name || 'User Name',
+          username: result.profile.username || '@username',
+          bio: result.profile.bio || '',
+          avatar: result.profile.avatar_url || null,
+          banner: result.profile.banner_url || null,
+          socialLinks: profileData.socialLinks, // Keep existing social links for now
+        });
+        setEditingName(result.profile.full_name || 'User Name');
+        setEditingUsername(result.profile.username || '@username');
+        setEditingBio(result.profile.bio || '');
+      }
+    } catch (error) {
+      console.error('[ProfileScreen] Error loading profile:', error);
+    } finally {
+      setLoading(false);
+    }
+  }
+
   async function onRefresh() {
     setRefreshing(true);
     triggerRefresh();
-    await new Promise((resolve) => setTimeout(resolve, 1500));
+    await loadProfile();
     setRefreshing(false);
   }
 
@@ -95,49 +134,105 @@ export function ProfileScreen() {
     });
 
     if (!result.canceled && result.assets[0]) {
-      if (type === 'avatar') {
-        setProfileData({ ...profileData, avatar: result.assets[0].uri });
-        setShowAvatarModal(false);
-      } else {
-        setProfileData({ ...profileData, banner: result.assets[0].uri });
-        setShowBannerModal(false);
+      try {
+        const token = await getToken();
+        // Upload image to Supabase
+        const imageUrl = await uploadProfileImages(
+          type === 'avatar' ? result.assets[0].uri : undefined,
+          type === 'banner' ? result.assets[0].uri : undefined,
+          token || undefined
+        );
+
+        // Update local state
+        if (type === 'avatar') {
+          setProfileData({ ...profileData, avatar: imageUrl.avatar_url || result.assets[0].uri });
+          setShowAvatarModal(false);
+          // Save to backend
+          await saveProfileUpdate({ avatar_url: imageUrl.avatar_url || null });
+        } else {
+          setProfileData({ ...profileData, banner: imageUrl.banner_url || result.assets[0].uri });
+          setShowBannerModal(false);
+          // Save to backend
+          await saveProfileUpdate({ banner_url: imageUrl.banner_url || null });
+        }
+      } catch (error: any) {
+        console.error('[ProfileScreen] Error uploading image:', error);
+        Alert.alert('Error', 'Failed to upload image. Please try again.');
       }
     }
   }
 
-  function removeImage(type: 'avatar' | 'banner') {
-    if (type === 'avatar') {
-      setProfileData({ ...profileData, avatar: null });
-    } else {
-      setProfileData({ ...profileData, banner: null });
-    }
-    if (type === 'avatar') {
-      setShowAvatarModal(false);
-    } else {
-      setShowBannerModal(false);
+  async function removeImage(type: 'avatar' | 'banner') {
+    try {
+      const token = await getToken();
+      if (type === 'avatar') {
+        setProfileData({ ...profileData, avatar: null });
+        await saveProfileUpdate({ avatar_url: null });
+      } else {
+        setProfileData({ ...profileData, banner: null });
+        await saveProfileUpdate({ banner_url: null });
+      }
+      if (type === 'avatar') {
+        setShowAvatarModal(false);
+      } else {
+        setShowBannerModal(false);
+      }
+    } catch (error: any) {
+      console.error('[ProfileScreen] Error removing image:', error);
+      Alert.alert('Error', 'Failed to remove image. Please try again.');
     }
   }
 
-  function saveBio() {
+  async function saveProfileUpdate(updateData: any) {
+    try {
+      const token = await getToken();
+      const result = await updateProfile(updateData, token || undefined);
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to update profile');
+      }
+    } catch (error: any) {
+      console.error('[ProfileScreen] Error saving profile:', error);
+      throw error;
+    }
+  }
+
+  async function saveBio() {
     if (editingBio.length > 120) {
       Alert.alert('Error', 'Bio must be 120 characters or less.');
       return;
     }
-    setProfileData({ ...profileData, bio: editingBio });
-    setShowBioModal(false);
-  }
-
-  function saveName() {
-    setProfileData({ ...profileData, name: editingName });
-    setShowNameModal(false);
-  }
-
-  function saveUsername() {
-    if (!editingUsername.startsWith('@')) {
-      setEditingUsername('@' + editingUsername.replace(/^@+/, ''));
+    try {
+      await saveProfileUpdate({ bio: editingBio });
+      setProfileData({ ...profileData, bio: editingBio });
+      setShowBioModal(false);
+    } catch (error: any) {
+      Alert.alert('Error', 'Failed to save bio. Please try again.');
     }
-    setProfileData({ ...profileData, username: editingUsername });
-    setShowUsernameModal(false);
+  }
+
+  async function saveName() {
+    try {
+      await saveProfileUpdate({ full_name: editingName });
+      setProfileData({ ...profileData, name: editingName });
+      setShowNameModal(false);
+    } catch (error: any) {
+      Alert.alert('Error', 'Failed to save name. Please try again.');
+    }
+  }
+
+  async function saveUsername() {
+    let username = editingUsername;
+    if (!username.startsWith('@')) {
+      username = '@' + username.replace(/^@+/, '');
+      setEditingUsername(username);
+    }
+    try {
+      await saveProfileUpdate({ username });
+      setProfileData({ ...profileData, username });
+      setShowUsernameModal(false);
+    } catch (error: any) {
+      Alert.alert('Error', 'Failed to save username. Please try again.');
+    }
   }
 
   function handleSaveSocialLinks(socialLinks: Array<{ type: string; url: string }>) {
@@ -264,7 +359,16 @@ export function ProfileScreen() {
               setShowNameModal(true);
             }}
           >
-            <View style={styles.editableField}>
+            <View
+              ref={namePositionRef}
+              style={styles.editableField}
+              onLayout={() => {
+                namePositionRef.current?.measureInWindow((x, y, width, height) => {
+                  // y is the position on screen, use it directly
+                  setNameYPosition(y);
+                });
+              }}
+            >
               <Text style={[styles.name, { color: theme.colors.text }]}>
                 {profileData.name}
               </Text>
@@ -359,21 +463,6 @@ export function ProfileScreen() {
             </TouchableOpacity>
           </View>
 
-          {/* Action Buttons */}
-          <View style={styles.actionButtons}>
-            <TouchableOpacity
-              style={[
-                styles.settingsButton,
-                {
-                  backgroundColor: theme.colors.surface,
-                  borderColor: theme.colors.border,
-                },
-              ]}
-              onPress={() => setShowSettingsModal(true)}
-            >
-              <Ionicons name="settings-outline" size={24} color={theme.colors.text} />
-            </TouchableOpacity>
-          </View>
         </View>
 
         {/* Activity Feed */}
@@ -394,6 +483,25 @@ export function ProfileScreen() {
           )}
         </View>
       </ScrollView>
+
+      {/* Sticky Settings Button */}
+      <View
+        style={[
+          styles.stickySettingsButton,
+          {
+            backgroundColor: theme.colors.surface,
+            borderColor: theme.colors.border,
+            top: nameYPosition,
+          },
+        ]}
+      >
+        <TouchableOpacity
+          style={styles.stickySettingsButtonInner}
+          onPress={() => setShowSettingsModal(true)}
+        >
+          <Ionicons name="settings-outline" size={24} color={theme.colors.text} />
+        </TouchableOpacity>
+      </View>
 
       {/* Avatar Modal */}
       <Modal
@@ -1221,6 +1329,29 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
+  },
+  stickySettingsButton: {
+    position: 'absolute',
+    right: 16,
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    borderWidth: 1,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
+    zIndex: 1000,
+  },
+  stickySettingsButtonInner: {
+    width: '100%',
+    height: '100%',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   activitySection: {
     paddingHorizontal: 16,
