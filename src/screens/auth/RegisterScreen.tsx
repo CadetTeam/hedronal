@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
@@ -12,7 +12,7 @@ import {
   Image,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Video, ResizeMode, AVPlaybackStatus } from 'expo-av';
+import { useVideoPlayer, VideoView } from 'expo-video';
 import { useSignUp } from '@clerk/clerk-expo';
 import { useTheme } from '../../context/ThemeContext';
 import { AuthTextInput } from '../../components/AuthTextInput';
@@ -42,7 +42,11 @@ export function RegisterScreen({ navigation }: RegisterScreenProps) {
   }>({});
   const [showOTPModal, setShowOTPModal] = useState(false);
   const [otpLoading, setOtpLoading] = useState(false);
-  const videoRef = useRef<Video>(null);
+  const player = useVideoPlayer(require('../../../assets/Hedronali.mp4'), (player) => {
+    player.loop = true;
+    player.muted = true;
+    player.play();
+  });
 
   function validate() {
     const newErrors: {
@@ -198,21 +202,11 @@ export function RegisterScreen({ navigation }: RegisterScreenProps) {
   return (
     <View style={styles.container}>
       {/* Video Background */}
-      <Video
-        ref={videoRef}
-        source={require('../../../assets/Hedronali.mp4')}
+      <VideoView
+        player={player}
         style={styles.video}
-        resizeMode={ResizeMode.COVER}
-        shouldPlay
-        isLooping
-        isMuted
-        volume={0}
-        useNativeControls={false}
-        onPlaybackStatusUpdate={(status: AVPlaybackStatus) => {
-          if (!status.isLoaded) {
-            // Handle error
-          }
-        }}
+        contentFit="cover"
+        nativeControls={false}
       />
       
       {/* Light overlay for readability with dark text */}

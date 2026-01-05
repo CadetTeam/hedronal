@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
@@ -10,7 +10,7 @@ import {
   Image,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Video, ResizeMode, AVPlaybackStatus } from 'expo-av';
+import { useVideoPlayer, VideoView } from 'expo-video';
 import { useSignIn } from '@clerk/clerk-expo';
 import { useTheme } from '../../context/ThemeContext';
 import { useDemoMode } from '../../context/DemoModeContext';
@@ -33,7 +33,11 @@ export function LoginScreen({ navigation }: LoginScreenProps) {
   const [errors, setErrors] = useState<{ email?: string; password?: string }>({});
   const [showOTPModal, setShowOTPModal] = useState(false);
   const [otpLoading, setOtpLoading] = useState(false);
-  const videoRef = useRef<Video>(null);
+  const player = useVideoPlayer(require('../../../assets/Hedronali.mp4'), (player) => {
+    player.loop = true;
+    player.muted = true;
+    player.play();
+  });
 
   function handleLongPressStart() {
     enableDemoMode();
@@ -108,21 +112,11 @@ export function LoginScreen({ navigation }: LoginScreenProps) {
   return (
     <View style={styles.container}>
       {/* Video Background */}
-      <Video
-        ref={videoRef}
-        source={require('../../../assets/Hedronali.mp4')}
+      <VideoView
+        player={player}
         style={styles.video}
-        resizeMode={ResizeMode.COVER}
-        shouldPlay
-        isLooping
-        isMuted
-        volume={0}
-        useNativeControls={false}
-        onPlaybackStatusUpdate={(status: AVPlaybackStatus) => {
-          if (!status.isLoaded) {
-            // Handle error
-          }
-        }}
+        contentFit="cover"
+        nativeControls={false}
       />
 
       {/* Light overlay for readability with dark text */}
