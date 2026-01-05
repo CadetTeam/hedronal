@@ -244,10 +244,34 @@ export const entityController = {
     try {
       console.log('[entityController] Listing entities for user:', req.userId);
 
+      if (!req.userId) {
+        return res.status(401).json({ error: 'Unauthorized' });
+      }
+
       const { limit = 50, offset = 0 } = req.query;
 
       console.log('[entityController] Query params:', { limit, offset });
 
+      // Get user's Clerk organizations
+      let organizationIds: string[] = [];
+      try {
+        const userOrganizations = await clerk.users.getOrganizationList({
+          userId: req.userId,
+        });
+        organizationIds = userOrganizations.data.map((org) => org.id);
+        console.log('[entityController] User organizations:', organizationIds);
+      } catch (orgError) {
+        console.error('[entityController] Error fetching user organizations:', orgError);
+        // Continue with empty array - will return no entities if user has no orgs
+      }
+
+      // If user has no organizations, return empty array
+      if (organizationIds.length === 0) {
+        console.log('[entityController] User has no organizations, returning empty array');
+        return res.json({ entities: [] });
+      }
+
+      // Filter entities by clerk_organization_id matching user's organizations
       const { data: entities, error } = await supabase
         .from('entities')
         .select(
@@ -257,6 +281,7 @@ export const entityController = {
           entity_configurations (*)
         `
         )
+        .in('clerk_organization_id', organizationIds)
         .order('created_at', { ascending: false })
         .range(Number(offset), Number(offset) + Number(limit) - 1);
 
