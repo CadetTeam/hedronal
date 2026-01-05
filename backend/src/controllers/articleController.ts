@@ -21,12 +21,10 @@ export const articleController = {
       const limitNum = limit ? parseInt(limit as string, 10) : 50;
       const offsetNum = offset ? parseInt(offset as string, 10) : 0;
 
+      // First, fetch articles
       let query = supabase
         .from('articles')
-        .select(`
-          *,
-          article_likes(count)
-        `)
+        .select('*')
         .order('date', { ascending: false, nullsFirst: false })
         .order('created_at', { ascending: false })
         .range(offsetNum, offsetNum + limitNum - 1);
@@ -42,12 +40,31 @@ export const articleController = {
         return res.status(400).json({ error: error.message });
       }
 
-      // Transform the data to include likes count
-      const articlesWithLikes = (articles || []).map((article: any) => ({
-        ...article,
-        likes_count: article.article_likes?.[0]?.count || 0,
-        article_likes: undefined, // Remove the nested data
-      }));
+      if (!articles || articles.length === 0) {
+        return res.json({
+          articles: [],
+          total: 0,
+        });
+      }
+
+      // Fetch like counts for all articles in a batch
+      const articleIds = articles.map((article: any) => article.id);
+      const { data: likesData, error: likesError } = await supabase
+        .from('article_likes')
+        .select('article_id')
+        .in('article_id', articleIds);
+
+      if (likesError) {
+        console.warn('[articleController] Error fetching likes:', likesError);
+      }
+
+      // Count likes per article
+      const likesCountMap: { [key: string]: number } = {};
+      if (likesData) {
+        likesData.forEach((like: any) => {
+          likesCountMap[like.article_id] = (likesCountMap[like.article_id] || 0) + 1;
+        });
+      }
 
       // Get current user's liked articles if authenticated
       let userLikedArticles: string[] = [];
@@ -55,21 +72,23 @@ export const articleController = {
         try {
           const profile = await getProfileByClerkId(req.userId);
           if (profile) {
-            const { data: likes } = await supabase
+            const { data: userLikes } = await supabase
               .from('article_likes')
               .select('article_id')
-              .eq('profile_id', profile.id);
+              .eq('profile_id', profile.id)
+              .in('article_id', articleIds);
 
-            userLikedArticles = (likes || []).map((like: any) => like.article_id);
+            userLikedArticles = (userLikes || []).map((like: any) => like.article_id);
           }
         } catch (profileError) {
           console.warn('[articleController] Could not fetch user profile for likes:', profileError);
         }
       }
 
-      // Add isLiked flag to each article
-      const articlesWithLikeStatus = articlesWithLikes.map((article: any) => ({
+      // Combine articles with like counts and user like status
+      const articlesWithLikeStatus = articles.map((article: any) => ({
         ...article,
+        likes_count: likesCountMap[article.id] || 0,
         isLiked: userLikedArticles.includes(article.id),
       }));
 
@@ -90,10 +109,7 @@ export const articleController = {
 
       const { data: article, error } = await supabase
         .from('articles')
-        .select(`
-          *,
-          article_likes(count)
-        `)
+        .select('*')
         .eq('id', id)
         .single();
 
@@ -101,8 +117,15 @@ export const articleController = {
         return res.status(404).json({ error: 'Article not found' });
       }
 
-      // Get like count
-      const likesCount = article.article_likes?.[0]?.count || 0;
+      // Fetch like count
+      const { count: likesCount, error: likesError } = await supabase
+        .from('article_likes')
+        .select('*', { count: 'exact', head: true })
+        .eq('article_id', id);
+
+      if (likesError) {
+        console.warn('[articleController] Error fetching like count:', likesError);
+      }
 
       // Check if current user liked it
       let isLiked = false;
@@ -126,9 +149,8 @@ export const articleController = {
 
       return res.json({
         ...article,
-        likes_count: likesCount,
+        likes_count: likesCount || 0,
         isLiked,
-        article_likes: undefined,
       });
     } catch (error: any) {
       console.error('[articleController] Error fetching article:', error);
