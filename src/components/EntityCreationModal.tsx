@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
   View,
   Text,
@@ -55,7 +55,7 @@ interface EntityCreationModalProps {
 }
 
 const ACCORDION_ITEMS = [
-  { key: 'Domain', description: 'Configure your entity\'s domain name and website settings' },
+  { key: 'Domain', description: "Configure your entity's domain name and website settings" },
   { key: 'Workspace', description: 'Set up your workspace and collaboration tools' },
   { key: 'Formation', description: 'Document your entity formation details and structure' },
   { key: 'Bank', description: 'Add banking information and account details' },
@@ -109,12 +109,45 @@ export function EntityCreationModal({ visible, onClose, onComplete }: EntityCrea
   const [hasScrolledToBottom, setHasScrolledToBottom] = useState(false);
 
   // Step 3 state
-  const [contacts, setContacts] = useState<Array<{ id: string; name: string; phone?: string; email?: string }>>([]);
-  const [people, setPeople] = useState<Array<{ id: string; name: string; phone?: string; email?: string }>>([]);
-  const [selectedContacts, setSelectedContacts] = useState<Array<{ id: string; name: string; phone?: string; email?: string }>>([]);
+  const [contacts, setContacts] = useState<
+    Array<{ id: string; name: string; phone?: string; email?: string }>
+  >([]);
+  const [people, setPeople] = useState<
+    Array<{ id: string; name: string; phone?: string; email?: string }>
+  >([]);
+  const [selectedContacts, setSelectedContacts] = useState<
+    Array<{ id: string; name: string; phone?: string; email?: string }>
+  >([]);
   const [showInviteMessage, setShowInviteMessage] = useState(false);
   const [inviteMessage, setInviteMessage] = useState('');
   const [inviteSource, setInviteSource] = useState<'contacts' | 'people' | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
+
+  // Sort and filter contacts/people alphabetically by name
+  const sortedAndFilteredList = useMemo(() => {
+    const sourceList =
+      inviteSource === 'contacts' ? contacts : inviteSource === 'people' ? people : [];
+
+    // Sort alphabetically by name
+    const sorted = [...sourceList].sort((a, b) => {
+      const nameA = a.name.toLowerCase();
+      const nameB = b.name.toLowerCase();
+      return nameA.localeCompare(nameB);
+    });
+
+    // Filter by search query
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase().trim();
+      return sorted.filter(item => {
+        const name = item.name.toLowerCase();
+        const phone = item.phone?.toLowerCase() || '';
+        const email = item.email?.toLowerCase() || '';
+        return name.includes(query) || phone.includes(query) || email.includes(query);
+      });
+    }
+
+    return sorted;
+  }, [inviteSource, contacts, people, searchQuery]);
 
   useEffect(() => {
     if (visible) {
@@ -148,7 +181,7 @@ export function EntityCreationModal({ visible, onClose, onComplete }: EntityCrea
         });
         if (data && data.length > 0) {
           setContacts(
-            data.map((contact) => ({
+            data.map(contact => ({
               id: contact.id,
               name: contact.name || 'Unknown',
               phone: contact.phoneNumbers?.[0]?.number,
@@ -167,7 +200,7 @@ export function EntityCreationModal({ visible, onClose, onComplete }: EntityCrea
   useEffect(() => {
     const keyboardWillShow = Keyboard.addListener(
       Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow',
-      (e) => {
+      e => {
         setKeyboardVisible(true);
         setKeyboardHeight(e.endCoordinates.height);
       }
@@ -329,14 +362,14 @@ export function EntityCreationModal({ visible, onClose, onComplete }: EntityCrea
   function handleScroll(event: any) {
     const { layoutMeasurement, contentOffset, contentSize } = event.nativeEvent;
     const offsetY = contentOffset.y;
-    
+
     // Update scroll position for minimized title
     scrollY.value = offsetY;
     const shouldShow = offsetY > 50;
-    
+
     if (shouldShow !== showMinimizedTitle) {
       setShowMinimizedTitle(shouldShow);
-      
+
       // Animate title appearance
       Animated.parallel([
         Animated.timing(minimizedTitleOpacity, {
@@ -351,7 +384,7 @@ export function EntityCreationModal({ visible, onClose, onComplete }: EntityCrea
         }),
       ]).start();
     }
-    
+
     // Check if scrolled to bottom (for step 2)
     if (currentStep === 2) {
       const paddingToBottom = 20;
@@ -367,7 +400,7 @@ export function EntityCreationModal({ visible, onClose, onComplete }: EntityCrea
         fields: [Contacts.Fields.Name, Contacts.Fields.PhoneNumbers, Contacts.Fields.Emails],
       });
       setContacts(
-        data.map((contact) => ({
+        data.map(contact => ({
           id: contact.id,
           name: contact.name || 'Unknown',
           phone: contact.phoneNumbers?.[0]?.number,
@@ -386,10 +419,15 @@ export function EntityCreationModal({ visible, onClose, onComplete }: EntityCrea
     setInviteSource('people');
   }
 
-  function toggleContactSelection(contact: { id: string; name: string; phone?: string; email?: string }) {
-    const isSelected = selectedContacts.some((c) => c.id === contact.id);
+  function toggleContactSelection(contact: {
+    id: string;
+    name: string;
+    phone?: string;
+    email?: string;
+  }) {
+    const isSelected = selectedContacts.some(c => c.id === contact.id);
     if (isSelected) {
-      setSelectedContacts(selectedContacts.filter((c) => c.id !== contact.id));
+      setSelectedContacts(selectedContacts.filter(c => c.id !== contact.id));
     } else {
       setSelectedContacts([...selectedContacts, contact]);
     }
@@ -476,7 +514,6 @@ export function EntityCreationModal({ visible, onClose, onComplete }: EntityCrea
     await handleComplete();
   }
 
-
   function renderStep1() {
     return (
       <ScrollView
@@ -492,10 +529,7 @@ export function EntityCreationModal({ visible, onClose, onComplete }: EntityCrea
         </Text>
 
         {/* Banner */}
-        <TouchableOpacity
-          activeOpacity={0.8}
-          onPress={() => pickImage('banner')}
-        >
+        <TouchableOpacity activeOpacity={0.8} onPress={() => pickImage('banner')}>
           <View
             style={[
               styles.banner,
@@ -535,7 +569,14 @@ export function EntityCreationModal({ visible, onClose, onComplete }: EntityCrea
             Name <Text style={{ color: theme.colors.error }}>*</Text>
           </Text>
           <TextInput
-            style={[styles.input, { backgroundColor: theme.colors.surfaceVariant, borderColor: theme.colors.border, color: theme.colors.text }]}
+            style={[
+              styles.input,
+              {
+                backgroundColor: theme.colors.surfaceVariant,
+                borderColor: theme.colors.border,
+                color: theme.colors.text,
+              },
+            ]}
             value={name}
             onChangeText={setName}
             placeholder="Entity name"
@@ -554,7 +595,14 @@ export function EntityCreationModal({ visible, onClose, onComplete }: EntityCrea
             Brief <Text style={{ color: theme.colors.error }}>*</Text>
           </Text>
           <TextInput
-            style={[styles.textArea, { backgroundColor: theme.colors.surfaceVariant, borderColor: theme.colors.border, color: theme.colors.text }]}
+            style={[
+              styles.textArea,
+              {
+                backgroundColor: theme.colors.surfaceVariant,
+                borderColor: theme.colors.border,
+                color: theme.colors.text,
+              },
+            ]}
             value={brief}
             onChangeText={setBrief}
             placeholder="Company bio"
@@ -569,7 +617,10 @@ export function EntityCreationModal({ visible, onClose, onComplete }: EntityCrea
           <View style={styles.socialLinksHeader}>
             <Text style={[styles.label, { color: theme.colors.text }]}>Social Links</Text>
             <TouchableOpacity
-              style={[styles.addSocialLinkIconButton, { backgroundColor: theme.colors.surfaceVariant, borderColor: theme.colors.border }]}
+              style={[
+                styles.addSocialLinkIconButton,
+                { backgroundColor: theme.colors.surfaceVariant, borderColor: theme.colors.border },
+              ]}
               onPress={() => {
                 setSocialLinks([...socialLinks, { type: 'twitter', url: '' }]);
               }}
@@ -578,11 +629,19 @@ export function EntityCreationModal({ visible, onClose, onComplete }: EntityCrea
             </TouchableOpacity>
           </View>
           {socialLinks.map((link, index) => {
-            const icon = SOCIAL_ICONS.find((s) => s.type === link.type);
+            const icon = SOCIAL_ICONS.find(s => s.type === link.type);
             const isDropdownOpen = showSocialDropdown === index;
             return (
               <View key={index} style={styles.socialLinkRow}>
-                <View style={[styles.socialLinkItem, { backgroundColor: theme.colors.surfaceVariant, borderColor: theme.colors.border }]}>
+                <View
+                  style={[
+                    styles.socialLinkItem,
+                    {
+                      backgroundColor: theme.colors.surfaceVariant,
+                      borderColor: theme.colors.border,
+                    },
+                  ]}
+                >
                   <TouchableOpacity
                     style={styles.socialIconButton}
                     onPress={() => setShowSocialDropdown(isDropdownOpen ? null : index)}
@@ -593,7 +652,7 @@ export function EntityCreationModal({ visible, onClose, onComplete }: EntityCrea
                   <TextInput
                     style={[styles.socialLinkInput, { color: theme.colors.text }]}
                     value={link.url}
-                    onChangeText={(url) => {
+                    onChangeText={url => {
                       const updated = [...socialLinks];
                       updated[index] = { ...updated[index], url };
                       setSocialLinks(updated);
@@ -603,18 +662,30 @@ export function EntityCreationModal({ visible, onClose, onComplete }: EntityCrea
                     keyboardType="url"
                     autoCapitalize="none"
                   />
-                  <TouchableOpacity onPress={() => setSocialLinks(socialLinks.filter((_, i) => i !== index))}>
+                  <TouchableOpacity
+                    onPress={() => setSocialLinks(socialLinks.filter((_, i) => i !== index))}
+                  >
                     <Ionicons name="close-circle" size={20} color={theme.colors.error} />
                   </TouchableOpacity>
                 </View>
                 {isDropdownOpen && (
-                  <View style={[styles.socialDropdown, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}>
-                    {SOCIAL_ICONS.map((social) => (
+                  <View
+                    style={[
+                      styles.socialDropdown,
+                      { backgroundColor: theme.colors.surface, borderColor: theme.colors.border },
+                    ]}
+                  >
+                    {SOCIAL_ICONS.map(social => (
                       <TouchableOpacity
                         key={social.type}
                         style={[
                           styles.socialDropdownItem,
-                          { backgroundColor: link.type === social.type ? theme.colors.surfaceVariant : 'transparent' },
+                          {
+                            backgroundColor:
+                              link.type === social.type
+                                ? theme.colors.surfaceVariant
+                                : 'transparent',
+                          },
                         ]}
                         onPress={() => {
                           const updated = [...socialLinks];
@@ -644,7 +715,10 @@ export function EntityCreationModal({ visible, onClose, onComplete }: EntityCrea
       <ScrollView
         ref={scrollViewRef}
         style={styles.stepContent}
-        contentContainerStyle={[styles.stepContentContainer, { paddingBottom: insets.bottom * 2 + 80 }]}
+        contentContainerStyle={[
+          styles.stepContentContainer,
+          { paddingBottom: insets.bottom * 2 + 80 },
+        ]}
         showsVerticalScrollIndicator={false}
         onScroll={handleScroll}
         scrollEventThrottle={16}
@@ -654,23 +728,39 @@ export function EntityCreationModal({ visible, onClose, onComplete }: EntityCrea
           Configure your entity settings. Scroll to the bottom to continue.
         </Text>
 
-        {ACCORDION_ITEMS.map((item) => {
+        {ACCORDION_ITEMS.map(item => {
           const isExpanded = expandedItems.has(item.key);
           const isCompleted = completedItems.has(item.key);
           return (
-            <View key={item.key} style={[styles.accordionItem, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}>
+            <View
+              key={item.key}
+              style={[
+                styles.accordionItem,
+                { backgroundColor: theme.colors.surface, borderColor: theme.colors.border },
+              ]}
+            >
               <TouchableOpacity
                 style={styles.accordionHeader}
                 onPress={() => toggleAccordionItem(item.key)}
               >
                 <View style={styles.accordionHeaderLeft}>
                   {isCompleted && (
-                    <Ionicons name="checkmark-circle" size={20} color={theme.colors.success || '#10b981'} style={styles.completedIcon} />
+                    <Ionicons
+                      name="checkmark-circle"
+                      size={20}
+                      color={theme.colors.success || '#10b981'}
+                      style={styles.completedIcon}
+                    />
                   )}
                   <View style={styles.accordionHeaderText}>
-                    <Text style={[styles.accordionTitle, { color: theme.colors.text }]}>{item.key}</Text>
+                    <Text style={[styles.accordionTitle, { color: theme.colors.text }]}>
+                      {item.key}
+                    </Text>
                     {!isExpanded && (
-                      <Text style={[styles.accordionDescription, { color: theme.colors.textSecondary }]} numberOfLines={1}>
+                      <Text
+                        style={[styles.accordionDescription, { color: theme.colors.textSecondary }]}
+                        numberOfLines={1}
+                      >
                         {item.description}
                       </Text>
                     )}
@@ -684,22 +774,36 @@ export function EntityCreationModal({ visible, onClose, onComplete }: EntityCrea
               </TouchableOpacity>
               {isExpanded && (
                 <View style={styles.accordionContent}>
-                  <Text style={[styles.accordionDescriptionFull, { color: theme.colors.textSecondary, marginBottom: 12 }]}>
+                  <Text
+                    style={[
+                      styles.accordionDescriptionFull,
+                      { color: theme.colors.textSecondary, marginBottom: 12 },
+                    ]}
+                  >
                     {item.description}
                   </Text>
                   <TextInput
-                    style={[styles.input, { backgroundColor: theme.colors.surfaceVariant, borderColor: theme.colors.border, color: theme.colors.text }]}
+                    style={[
+                      styles.input,
+                      {
+                        backgroundColor: theme.colors.surfaceVariant,
+                        borderColor: theme.colors.border,
+                        color: theme.colors.text,
+                      },
+                    ]}
                     placeholder={`Enter ${item.key.toLowerCase()} information`}
                     placeholderTextColor={theme.colors.textTertiary}
                     value={step2Data[item.key] || ''}
-                    onChangeText={(value) => setStep2Data({ ...step2Data, [item.key]: value })}
+                    onChangeText={value => setStep2Data({ ...step2Data, [item.key]: value })}
                     multiline
                   />
                   <TouchableOpacity
                     style={[
                       styles.completeButton,
                       {
-                        backgroundColor: isCompleted ? theme.colors.success || '#10b981' : theme.colors.primary,
+                        backgroundColor: isCompleted
+                          ? theme.colors.success || '#10b981'
+                          : theme.colors.primary,
                         marginTop: 12,
                       },
                     ]}
@@ -724,13 +828,19 @@ export function EntityCreationModal({ visible, onClose, onComplete }: EntityCrea
   }
 
   function renderStep3() {
-    const displayList = inviteSource === 'contacts' ? contacts : inviteSource === 'people' ? people : [];
-
     return (
       <View style={styles.stepContent}>
         <ScrollView
           style={styles.stepContent}
-          contentContainerStyle={[styles.stepContentContainer, { paddingBottom: insets.bottom * 2 + (selectedContacts.length > 0 ? 80 : 0) + (showInviteMessage ? 200 : 0) }]}
+          contentContainerStyle={[
+            styles.stepContentContainer,
+            {
+              paddingBottom:
+                insets.bottom * 2 +
+                (selectedContacts.length > 0 ? 80 : 0) +
+                (showInviteMessage ? 200 : 0),
+            },
+          ]}
           showsVerticalScrollIndicator={false}
           onScroll={handleScroll}
           scrollEventThrottle={16}
@@ -739,6 +849,40 @@ export function EntityCreationModal({ visible, onClose, onComplete }: EntityCrea
           <Text style={[styles.stepDescription, { color: theme.colors.textSecondary }]}>
             Invite people to join your entity (optional)
           </Text>
+
+          {inviteSource !== null && (
+            <View style={styles.searchContainer}>
+              <Ionicons
+                name="search-outline"
+                size={20}
+                color={theme.colors.textTertiary}
+                style={styles.searchIcon}
+              />
+              <TextInput
+                style={[
+                  styles.searchInput,
+                  {
+                    backgroundColor: theme.colors.surfaceVariant,
+                    borderColor: theme.colors.border,
+                    color: theme.colors.text,
+                  },
+                ]}
+                value={searchQuery}
+                onChangeText={setSearchQuery}
+                placeholder="Search contacts..."
+                placeholderTextColor={theme.colors.textTertiary}
+                autoCorrect={false}
+              />
+              {searchQuery.length > 0 && (
+                <TouchableOpacity
+                  onPress={() => setSearchQuery('')}
+                  style={styles.searchClearButton}
+                >
+                  <Ionicons name="close-circle" size={20} color={theme.colors.textTertiary} />
+                </TouchableOpacity>
+              )}
+            </View>
+          )}
 
           {inviteSource === null ? (
             <View style={styles.inviteSourceButtons}>
@@ -752,7 +896,14 @@ export function EntityCreationModal({ visible, onClose, onComplete }: EntityCrea
                 </Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={[styles.importButton, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border, borderWidth: 1 }]}
+                style={[
+                  styles.importButton,
+                  {
+                    backgroundColor: theme.colors.surface,
+                    borderColor: theme.colors.border,
+                    borderWidth: 1,
+                  },
+                ]}
                 onPress={loadPeople}
               >
                 <Ionicons name="people-outline" size={20} color={theme.colors.text} />
@@ -761,32 +912,63 @@ export function EntityCreationModal({ visible, onClose, onComplete }: EntityCrea
                 </Text>
               </TouchableOpacity>
             </View>
-          ) : displayList.length === 0 ? (
+          ) : sortedAndFilteredList.length === 0 ? (
             <View style={styles.emptyContacts}>
               <Text style={[styles.emptyContactsText, { color: theme.colors.textSecondary }]}>
-                {inviteSource === 'contacts' ? 'No contacts found' : 'No people in your list'}
+                {searchQuery.trim()
+                  ? 'No contacts found matching your search'
+                  : inviteSource === 'contacts'
+                    ? 'No contacts found'
+                    : 'No people in your list'}
               </Text>
             </View>
           ) : (
             <FlatList
-              data={displayList}
-              keyExtractor={(item) => item.id}
+              data={sortedAndFilteredList}
+              keyExtractor={item => item.id}
               renderItem={({ item }) => {
-                const isSelected = selectedContacts.some((c) => c.id === item.id);
+                const isSelected = selectedContacts.some(c => c.id === item.id);
                 return (
                   <TouchableOpacity
-                    style={[styles.contactItem, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}
+                    style={[
+                      styles.contactItem,
+                      { backgroundColor: theme.colors.surface, borderColor: theme.colors.border },
+                    ]}
                     onPress={() => toggleContactSelection(item)}
                   >
-                    <View style={[styles.contactAvatar, { backgroundColor: isSelected ? theme.colors.primary : theme.colors.surfaceVariant }]}>
-                      <Text style={[styles.contactAvatarText, { color: isSelected ? theme.colors.background : theme.colors.text }]}>
+                    <View
+                      style={[
+                        styles.contactAvatar,
+                        {
+                          backgroundColor: isSelected
+                            ? theme.colors.primary
+                            : theme.colors.surfaceVariant,
+                        },
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          styles.contactAvatarText,
+                          { color: isSelected ? theme.colors.background : theme.colors.text },
+                        ]}
+                      >
                         {item.name.charAt(0).toUpperCase()}
                       </Text>
                     </View>
                     <View style={styles.contactInfo}>
-                      <Text style={[styles.contactName, { color: theme.colors.text }]}>{item.name}</Text>
-                      {item.phone && <Text style={[styles.contactDetail, { color: theme.colors.textSecondary }]}>{item.phone}</Text>}
-                      {item.email && <Text style={[styles.contactDetail, { color: theme.colors.textSecondary }]}>{item.email}</Text>}
+                      <Text style={[styles.contactName, { color: theme.colors.text }]}>
+                        {item.name}
+                      </Text>
+                      {item.phone && (
+                        <Text style={[styles.contactDetail, { color: theme.colors.textSecondary }]}>
+                          {item.phone}
+                        </Text>
+                      )}
+                      {item.email && (
+                        <Text style={[styles.contactDetail, { color: theme.colors.textSecondary }]}>
+                          {item.email}
+                        </Text>
+                      )}
                     </View>
                     {isSelected && (
                       <Ionicons name="checkmark-circle" size={24} color={theme.colors.primary} />
@@ -835,19 +1017,33 @@ export function EntityCreationModal({ visible, onClose, onComplete }: EntityCrea
             ]}
           >
             <View style={styles.inviteMessageHeader}>
-              <Text style={[styles.inviteMessageTitle, { color: theme.colors.text }]}>Invitation Message</Text>
+              <Text style={[styles.inviteMessageTitle, { color: theme.colors.text }]}>
+                Invitation Message
+              </Text>
               <TouchableOpacity onPress={() => setShowInviteMessage(false)}>
                 <Ionicons name="close" size={24} color={theme.colors.text} />
               </TouchableOpacity>
             </View>
-            <View style={[styles.deepLinkContainer, { backgroundColor: theme.colors.surfaceVariant }]}>
-              <Text style={[styles.deepLinkText, { color: theme.colors.textSecondary }]} numberOfLines={1}>
+            <View
+              style={[styles.deepLinkContainer, { backgroundColor: theme.colors.surfaceVariant }]}
+            >
+              <Text
+                style={[styles.deepLinkText, { color: theme.colors.textSecondary }]}
+                numberOfLines={1}
+              >
                 https://apps.apple.com/app/hedronal
               </Text>
               <Ionicons name="lock-closed" size={16} color={theme.colors.textTertiary} />
             </View>
             <TextInput
-              style={[styles.inviteMessageInput, { backgroundColor: theme.colors.surfaceVariant, borderColor: theme.colors.border, color: theme.colors.text }]}
+              style={[
+                styles.inviteMessageInput,
+                {
+                  backgroundColor: theme.colors.surfaceVariant,
+                  borderColor: theme.colors.border,
+                  color: theme.colors.text,
+                },
+              ]}
               value={inviteMessage}
               onChangeText={setInviteMessage}
               placeholder="Edit your invitation message..."
@@ -868,7 +1064,7 @@ export function EntityCreationModal({ visible, onClose, onComplete }: EntityCrea
   }
 
   function getSocialIcon(type: string) {
-    const icon = SOCIAL_ICONS.find((s) => s.type === type);
+    const icon = SOCIAL_ICONS.find(s => s.type === type);
     return icon?.name || 'globe-outline';
   }
 
@@ -886,7 +1082,11 @@ export function EntityCreationModal({ visible, onClose, onComplete }: EntityCrea
         >
           <View style={styles.modalHeader}>
             <LinearGradient
-              colors={isDark ? [theme.colors.surface, `${theme.colors.surface}00`] : [theme.colors.surface, `${theme.colors.surface}00`]}
+              colors={
+                isDark
+                  ? [theme.colors.surface, `${theme.colors.surface}00`]
+                  : [theme.colors.surface, `${theme.colors.surface}00`]
+              }
               style={styles.modalHeaderGradient}
               pointerEvents="none"
             />
@@ -901,7 +1101,12 @@ export function EntityCreationModal({ visible, onClose, onComplete }: EntityCrea
                 </TouchableOpacity>
               )}
               {showMenu && (
-                <View style={[styles.menu, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}>
+                <View
+                  style={[
+                    styles.menu,
+                    { backgroundColor: theme.colors.surface, borderColor: theme.colors.border },
+                  ]}
+                >
                   <TouchableOpacity
                     style={styles.menuItem}
                     onPress={async () => {
@@ -921,7 +1126,9 @@ export function EntityCreationModal({ visible, onClose, onComplete }: EntityCrea
                     }}
                   >
                     <Ionicons name="save-outline" size={20} color={theme.colors.text} />
-                    <Text style={[styles.menuItemText, { color: theme.colors.text }]}>Save as Draft</Text>
+                    <Text style={[styles.menuItemText, { color: theme.colors.text }]}>
+                      Save as Draft
+                    </Text>
                   </TouchableOpacity>
                   <TouchableOpacity
                     style={styles.menuItem}
@@ -931,7 +1138,9 @@ export function EntityCreationModal({ visible, onClose, onComplete }: EntityCrea
                     }}
                   >
                     <Ionicons name="help-circle-outline" size={20} color={theme.colors.text} />
-                    <Text style={[styles.menuItemText, { color: theme.colors.text }]}>Get Help</Text>
+                    <Text style={[styles.menuItemText, { color: theme.colors.text }]}>
+                      Get Help
+                    </Text>
                   </TouchableOpacity>
                 </View>
               )}
@@ -957,17 +1166,22 @@ export function EntityCreationModal({ visible, onClose, onComplete }: EntityCrea
               pointerEvents="none"
             >
               <Text style={[styles.minimizedTitle, { color: theme.colors.text }]}>
-                {currentStep === 1 ? 'Profile' : currentStep === 2 ? 'Configuration' : 'Invite People'}
+                {currentStep === 1
+                  ? 'Profile'
+                  : currentStep === 2
+                    ? 'Configuration'
+                    : 'Invite People'}
               </Text>
             </Animated.View>
             <View style={styles.stepIndicator}>
-              {[1, 2, 3].map((step) => (
+              {[1, 2, 3].map(step => (
                 <View
                   key={step}
                   style={[
                     styles.stepDot,
                     {
-                      backgroundColor: step <= currentStep ? theme.colors.primary : theme.colors.border,
+                      backgroundColor:
+                        step <= currentStep ? theme.colors.primary : theme.colors.border,
                     },
                   ]}
                 />
@@ -982,7 +1196,12 @@ export function EntityCreationModal({ visible, onClose, onComplete }: EntityCrea
 
           {/* Navigation Buttons */}
           {currentStep < 3 && (
-            <View style={[styles.navigationButtons, { borderTopColor: theme.colors.border, paddingBottom: insets.bottom }]}>
+            <View
+              style={[
+                styles.navigationButtons,
+                { borderTopColor: theme.colors.border, paddingBottom: insets.bottom },
+              ]}
+            >
               {currentStep > 1 && (
                 <TouchableOpacity
                   style={[styles.backButton, { borderColor: theme.colors.border }]}
@@ -995,20 +1214,26 @@ export function EntityCreationModal({ visible, onClose, onComplete }: EntityCrea
                 style={[
                   styles.nextButton,
                   {
-                    backgroundColor: (currentStep === 1 && !canProceedToStep2()) || (currentStep === 2 && !canProceedToStep3())
-                      ? theme.colors.border
-                      : theme.colors.primary,
+                    backgroundColor:
+                      (currentStep === 1 && !canProceedToStep2()) ||
+                      (currentStep === 2 && !canProceedToStep3())
+                        ? theme.colors.border
+                        : theme.colors.primary,
                   },
                 ]}
                 onPress={handleNext}
-                disabled={(currentStep === 1 && !canProceedToStep2()) || (currentStep === 2 && !canProceedToStep3())}
+                disabled={
+                  (currentStep === 1 && !canProceedToStep2()) ||
+                  (currentStep === 2 && !canProceedToStep3())
+                }
               >
                 <Text
                   style={[
                     styles.nextButtonText,
                     {
                       color:
-                        (currentStep === 1 && !canProceedToStep2()) || (currentStep === 2 && !canProceedToStep3())
+                        (currentStep === 1 && !canProceedToStep2()) ||
+                        (currentStep === 2 && !canProceedToStep3())
                           ? theme.colors.textTertiary
                           : theme.colors.background,
                     },
@@ -1022,7 +1247,12 @@ export function EntityCreationModal({ visible, onClose, onComplete }: EntityCrea
 
           {/* Complete Button for Step 3 */}
           {currentStep === 3 && (
-            <View style={[styles.navigationButtons, { borderTopColor: theme.colors.border, paddingBottom: insets.bottom }]}>
+            <View
+              style={[
+                styles.navigationButtons,
+                { borderTopColor: theme.colors.border, paddingBottom: insets.bottom },
+              ]}
+            >
               {selectedContacts.length === 0 && (
                 <TouchableOpacity
                   style={[styles.completeButton, { backgroundColor: theme.colors.primary }]}
@@ -1353,6 +1583,33 @@ const styles = StyleSheet.create({
   emptyContactsText: {
     fontSize: 14,
   },
+  searchContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 16,
+    marginTop: 0,
+    position: 'relative',
+  },
+  searchIcon: {
+    position: 'absolute',
+    left: 12,
+    zIndex: 1,
+  },
+  searchInput: {
+    flex: 1,
+    borderWidth: 1,
+    borderRadius: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    paddingLeft: 44,
+    fontSize: 16,
+    minHeight: 48,
+  },
+  searchClearButton: {
+    position: 'absolute',
+    right: 12,
+    padding: 4,
+  },
   importButtonText: {
     fontSize: 16,
     fontWeight: '600',
@@ -1503,4 +1760,3 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
 });
-

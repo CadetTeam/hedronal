@@ -42,12 +42,23 @@ export function Header({ title, leftAction, rightAction, rightSideAction }: Head
           <View style={styles.leftActionButton} />
         )}
         <View style={styles.titleContainer}>
-          <Text style={[styles.title, { color: theme.colors.text }]}>{title.toUpperCase()}</Text>
-          {rightAction && (
-            <TouchableOpacity style={styles.inlineActionButton} onPress={rightAction.onPress}>
-              <Ionicons name={rightAction.icon} size={18} color={theme.colors.text} />
-            </TouchableOpacity>
-          )}
+          <View style={styles.titleWithButton}>
+            <Text style={[styles.title, { color: theme.colors.text }]}>{title.toUpperCase()}</Text>
+            {rightAction && (
+              <TouchableOpacity style={styles.inlineActionButton} onPress={rightAction.onPress}>
+                <View
+                  style={[
+                    styles.actionButtonCircle,
+                    {
+                      backgroundColor: '#3E2723',
+                    },
+                  ]}
+                >
+                  <Ionicons name={rightAction.icon} size={18} color={theme.colors.background} />
+                </View>
+              </TouchableOpacity>
+            )}
+          </View>
         </View>
         {rightSideAction ? (
           <TouchableOpacity style={styles.rightSideActionButton} onPress={rightSideAction.onPress}>
@@ -75,9 +86,12 @@ const styles = StyleSheet.create({
   },
   titleContainer: {
     flex: 1,
-    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  titleWithButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
     gap: 8,
   },
   title: {
@@ -85,8 +99,13 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   inlineActionButton: {
-    width: 18,
-    height: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  actionButtonCircle: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
     alignItems: 'center',
     justifyContent: 'center',
   },

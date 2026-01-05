@@ -1,6 +1,8 @@
 import React, { createContext, useContext, ReactNode } from 'react';
 import { useAuth, useUser, useOrganization, useOrganizationList } from '@clerk/clerk-expo';
 
+import { initializeRevenueCat, logOutRevenueCat } from '../config/revenuecat';
+
 interface ClerkContextType {
   isSignedIn: boolean;
   userId: string | null | undefined;
@@ -37,6 +39,24 @@ export function ClerkProvider({ children }: { children: ReactNode }) {
   }, [authLoaded, userLoaded]);
 
   const isLoaded = (authLoaded && userLoaded) || hasTimedOut;
+
+  // Initialize RevenueCat when user signs in
+  React.useEffect(() => {
+    if (isLoaded && isSignedIn && user?.id) {
+      initializeRevenueCat(user.id).catch(error => {
+        console.error('[ClerkContext] Failed to initialize RevenueCat:', error);
+      });
+    }
+  }, [isLoaded, isSignedIn, user?.id]);
+
+  // Log out RevenueCat when user signs out
+  React.useEffect(() => {
+    if (isLoaded && !isSignedIn) {
+      logOutRevenueCat().catch(error => {
+        console.error('[ClerkContext] Failed to log out RevenueCat:', error);
+      });
+    }
+  }, [isLoaded, isSignedIn]);
 
   // Debug logging
   React.useEffect(() => {

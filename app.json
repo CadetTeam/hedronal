@@ -15,11 +15,12 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.responsenow.Hedronal",
-      "buildNumber": "1",
+      "buildNumber": "2",
       "version": "1.0.0",
       "appleTeamId": "SE9G4ZSFVEV",
       "infoPlist": {
-        "NSContactsUsageDescription": "This app needs access to your contacts to invite people to join your entities."
+        "NSContactsUsageDescription": "This app needs access to your contacts to invite people to join your entities.",
+        "ITSAppUsesNonExemptEncryption": false
       }
     },
     "android": {
@@ -39,13 +40,14 @@
     },
     "extra": {
       "eas": {
-        "projectId": "32ab9729-528b-4cf9-8939-7c0a274b7b35"
+        "projectId": "4b4fa0f9-aee0-453e-a485-11691a4b68d7"
       },
       "clerkPublishableKey": "pk_live_Y2xlcmsuaGVkcm9uYWwuY29tJA",
       "clerkAppId": "app_37mSSJfGyIm0Kg4FEhWL7zqqpfc"
     },
     "plugins": [
       "expo-web-browser"
-    ]
+    ],
+    "owner": "hedronal"
   }
 }

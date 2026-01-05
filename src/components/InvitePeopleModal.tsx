@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
   View,
   Text,
@@ -44,6 +44,7 @@ export function InvitePeopleModal({ visible, onClose, onComplete }: InvitePeople
   const [inviteSource, setInviteSource] = useState<'contacts' | 'people' | null>(null);
   const [keyboardVisible, setKeyboardVisible] = useState(false);
   const [keyboardHeight, setKeyboardHeight] = useState(0);
+  const [searchQuery, setSearchQuery] = useState('');
   const inviteMessageInputRef = useRef<TextInput>(null);
 
   useEffect(() => {
@@ -86,6 +87,7 @@ export function InvitePeopleModal({ visible, onClose, onComplete }: InvitePeople
       setShowInviteMessage(false);
       setInviteMessage('');
       setInviteSource(null);
+      setSearchQuery('');
     } else {
       // Auto-load contacts when modal opens if permission already granted
       checkAndLoadContacts();
@@ -185,8 +187,31 @@ export function InvitePeopleModal({ visible, onClose, onComplete }: InvitePeople
     }
   }
 
-  const displayList =
-    inviteSource === 'contacts' ? contacts : inviteSource === 'people' ? people : [];
+  // Sort and filter contacts/people alphabetically by name
+  const sortedAndFilteredList = useMemo(() => {
+    const sourceList =
+      inviteSource === 'contacts' ? contacts : inviteSource === 'people' ? people : [];
+
+    // Sort alphabetically by name
+    const sorted = [...sourceList].sort((a, b) => {
+      const nameA = a.name.toLowerCase();
+      const nameB = b.name.toLowerCase();
+      return nameA.localeCompare(nameB);
+    });
+
+    // Filter by search query
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase().trim();
+      return sorted.filter(item => {
+        const name = item.name.toLowerCase();
+        const phone = item.phone?.toLowerCase() || '';
+        const email = item.email?.toLowerCase() || '';
+        return name.includes(query) || phone.includes(query) || email.includes(query);
+      });
+    }
+
+    return sorted;
+  }, [inviteSource, contacts, people, searchQuery]);
 
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={handleClose}>
@@ -244,6 +269,40 @@ export function InvitePeopleModal({ visible, onClose, onComplete }: InvitePeople
               Invite people to join Hedronal
             </Text>
 
+            {inviteSource !== null && (
+              <View style={styles.searchContainer}>
+                <Ionicons
+                  name="search-outline"
+                  size={20}
+                  color={theme.colors.textTertiary}
+                  style={styles.searchIcon}
+                />
+                <TextInput
+                  style={[
+                    styles.searchInput,
+                    {
+                      backgroundColor: theme.colors.surfaceVariant,
+                      borderColor: theme.colors.border,
+                      color: theme.colors.text,
+                    },
+                  ]}
+                  value={searchQuery}
+                  onChangeText={setSearchQuery}
+                  placeholder="Search contacts..."
+                  placeholderTextColor={theme.colors.textTertiary}
+                  autoCorrect={false}
+                />
+                {searchQuery.length > 0 && (
+                  <TouchableOpacity
+                    onPress={() => setSearchQuery('')}
+                    style={styles.searchClearButton}
+                  >
+                    <Ionicons name="close-circle" size={20} color={theme.colors.textTertiary} />
+                  </TouchableOpacity>
+                )}
+              </View>
+            )}
+
             {inviteSource === null ? (
               <View style={styles.inviteSourceButtons}>
                 <TouchableOpacity
@@ -272,15 +331,19 @@ export function InvitePeopleModal({ visible, onClose, onComplete }: InvitePeople
                   </Text>
                 </TouchableOpacity>
               </View>
-            ) : displayList.length === 0 ? (
+            ) : sortedAndFilteredList.length === 0 ? (
               <View style={styles.emptyContacts}>
                 <Text style={[styles.emptyContactsText, { color: theme.colors.textSecondary }]}>
-                  {inviteSource === 'contacts' ? 'No contacts found' : 'No people in your list'}
+                  {searchQuery.trim()
+                    ? 'No contacts found matching your search'
+                    : inviteSource === 'contacts'
+                      ? 'No contacts found'
+                      : 'No people in your list'}
                 </Text>
               </View>
             ) : (
               <FlatList
-                data={displayList}
+                data={sortedAndFilteredList}
                 keyExtractor={item => item.id}
                 renderItem={({ item }) => {
                   const isSelected = selectedContacts.some(c => c.id === item.id);
@@ -505,6 +568,33 @@ const styles = StyleSheet.create({
   },
   emptyContactsText: {
     fontSize: 16,
+  },
+  searchContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 16,
+    marginTop: 8,
+    position: 'relative',
+  },
+  searchIcon: {
+    position: 'absolute',
+    left: 12,
+    zIndex: 1,
+  },
+  searchInput: {
+    flex: 1,
+    borderWidth: 1,
+    borderRadius: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    paddingLeft: 44,
+    fontSize: 16,
+    minHeight: 48,
+  },
+  searchClearButton: {
+    position: 'absolute',
+    right: 12,
+    padding: 4,
   },
   contactItem: {
     flexDirection: 'row',
