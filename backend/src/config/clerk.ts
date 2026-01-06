@@ -169,7 +169,7 @@ export async function verifyClerkToken(token: string) {
       }
 
       console.log('[verifyClerkToken] authenticateRequest returned not signed in');
-      
+
       // If we already tried JWT decoding above and it failed, we're done
       console.log('[verifyClerkToken] Token verification failed - not signed in or invalid');
       return null;

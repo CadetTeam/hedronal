@@ -66,7 +66,8 @@ export function PortfolioScreen() {
       return;
     }
 
-    // Check if user has organizations
+    // Always check Clerk organizations first
+    console.log('[loadEntities] Checking Clerk organizations...');
     const hasOrgs = organizationList && organizationList.length > 0;
     console.log('[loadEntities] User organizations:', {
       count: organizationList?.length || 0,
@@ -74,76 +75,25 @@ export function PortfolioScreen() {
       hasOrgs,
     });
 
+    // Even if no orgs, we should still try to load entities (in case there are orphaned entities)
+    // But if we have orgs, we'll fetch entities for them
     if (!hasOrgs) {
-      console.log('[loadEntities] User has no organizations yet');
-      setEntities([]);
-      setLoading(false);
-      return;
-    }
-
-    setLoading(true);
-    try {
-      // Get a fresh token - Clerk will handle token refresh automatically
-      const token = await getToken();
-
-      console.log('[loadEntities] Token retrieved:', token ? 'Token exists' : 'No token');
-
-      if (!token) {
-        console.warn('[loadEntities] No token available, user may need to sign in again');
-        setLoading(false);
-        return;
-      }
-
       console.log(
-        '[loadEntities] Fetching entities for organizations:',
-        organizationList.map((org: any) => org.id)
+        '[loadEntities] User has no Clerk organizations yet, checking for existing entities...'
       );
-
-      const fetchedEntities = await fetchEntities(token);
-
-      // Transform entities to match the expected format
-      const transformedEntities = fetchedEntities.map((entity: any) => {
-        // Transform entity_configurations array to object
-        const step2Data: { [key: string]: any } = {};
-        if (entity.entity_configurations && Array.isArray(entity.entity_configurations)) {
-          entity.entity_configurations.forEach((config: any) => {
-            step2Data[config.config_type] = config.config_data;
-          });
-        }
-
-        // Get completed items from configurations
-        const completedItems =
-          entity.entity_configurations
-            ?.filter((config: any) => config.is_completed)
-            .map((config: any) => config.config_type) || [];
-
-        return {
-          id: entity.id,
-          name: entity.name,
-          handle: entity.handle,
-          type: entity.type || 'Entity',
-          banner: entity.banner_url,
-          avatar: entity.avatar_url,
-          brief: entity.brief,
-          clerkOrgId: entity.clerk_organization_id,
-          createdAt: entity.created_at,
-          step2Data,
-          completedItems,
-          socialLinks: entity.entity_social_links || [],
-        };
-      });
-
-      setEntities(transformedEntities);
-    } catch (error: any) {
-      console.error('Error loading entities:', error);
-      // If it's a token error, try to get a fresh token and retry once
-      if (error?.message?.includes('token') || error?.message?.includes('401')) {
-        console.log('[loadEntities] Token error detected, attempting to refresh...');
-        try {
-          const freshToken = await getToken({ template: 'default' });
-          if (freshToken) {
-            const retryEntities = await fetchEntities(freshToken);
-            const transformedEntities = retryEntities.map((entity: any) => {
+      // Still try to load entities in case there are any without orgs
+      setLoading(true);
+      try {
+        const token = await getToken();
+        if (token) {
+          const fetchedEntities = await fetchEntities(token);
+          if (fetchedEntities.length > 0) {
+            console.log(
+              '[loadEntities] Found',
+              fetchedEntities.length,
+              'entities without Clerk orgs'
+            );
+            const transformedEntities = fetchedEntities.map((entity: any) => {
               const step2Data: { [key: string]: any } = {};
               if (entity.entity_configurations && Array.isArray(entity.entity_configurations)) {
                 entity.entity_configurations.forEach((config: any) => {
@@ -170,14 +120,155 @@ export function PortfolioScreen() {
               };
             });
             setEntities(transformedEntities);
+            setLoading(false);
+            return;
+          }
+        }
+      } catch (error) {
+        console.error('[loadEntities] Error loading entities without orgs:', error);
+      }
+      setEntities([]);
+      setLoading(false);
+      return;
+    }
+
+    setLoading(true);
+    try {
+      // Get a fresh token - Clerk will handle token refresh automatically
+      const token = await getToken();
+
+      console.log('[loadEntities] Token retrieved:', token ? 'Token exists' : 'No token');
+
+      // Create a map of Clerk org IDs to org data
+      const clerkOrgMap = new Map();
+      organizationList.forEach((org: any) => {
+        clerkOrgMap.set(org.id, org);
+      });
+
+      // Fetch entities from Supabase
+      let fetchedEntities: any[] = [];
+      if (token) {
+        try {
+          fetchedEntities = await fetchEntities(token);
+          console.log('[loadEntities] Fetched', fetchedEntities.length, 'entities from Supabase');
+        } catch (error) {
+          console.error('[loadEntities] Error fetching from Supabase:', error);
+        }
+      }
+
+      // Create a map of Supabase entities by Clerk org ID
+      const supabaseEntityMap = new Map();
+      fetchedEntities.forEach((entity: any) => {
+        if (entity.clerk_organization_id) {
+          supabaseEntityMap.set(entity.clerk_organization_id, entity);
+        }
+      });
+
+      // Build the final entities list:
+      // 1. Start with entities that have Supabase data
+      // 2. Add Clerk orgs that don't have Supabase data yet (as placeholder cards)
+      const finalEntities: any[] = [];
+
+      // First, add all entities with Supabase data
+      fetchedEntities.forEach((entity: any) => {
+        // Transform entity_configurations array to object
+        const step2Data: { [key: string]: any } = {};
+        if (entity.entity_configurations && Array.isArray(entity.entity_configurations)) {
+          entity.entity_configurations.forEach((config: any) => {
+            step2Data[config.config_type] = config.config_data;
+          });
+        }
+
+        // Get completed items from configurations
+        const completedItems =
+          entity.entity_configurations
+            ?.filter((config: any) => config.is_completed)
+            .map((config: any) => config.config_type) || [];
+
+        finalEntities.push({
+          id: entity.id,
+          name: entity.name,
+          handle: entity.handle,
+          type: entity.type || 'Entity',
+          banner: entity.banner_url,
+          avatar: entity.avatar_url,
+          brief: entity.brief,
+          clerkOrgId: entity.clerk_organization_id,
+          createdAt: entity.created_at,
+          step2Data,
+          completedItems,
+          socialLinks: entity.entity_social_links || [],
+          hasSupabaseData: true,
+        });
+      });
+
+      // Then, add Clerk orgs that don't have Supabase data yet
+      organizationList.forEach((org: any) => {
+        if (!supabaseEntityMap.has(org.id)) {
+          console.log('[loadEntities] Clerk org without Supabase data:', org.name, org.id);
+          // Create a placeholder entity from Clerk org data
+          finalEntities.push({
+            id: `clerk-${org.id}`, // Temporary ID
+            name: org.name || 'Untitled Entity',
+            handle: org.slug || org.name?.toLowerCase().replace(/\s+/g, '-') || 'entity',
+            type: 'Entity',
+            banner: null,
+            avatar: null,
+            brief: null,
+            clerkOrgId: org.id,
+            createdAt: org.createdAt || new Date().toISOString(),
+            step2Data: {},
+            completedItems: [],
+            socialLinks: [],
+            hasSupabaseData: false, // Flag to indicate this needs Supabase data
+          });
+        }
+      });
+
+      console.log('[loadEntities] Final entities list:', {
+        total: finalEntities.length,
+        withSupabase: finalEntities.filter((e: any) => e.hasSupabaseData).length,
+        withoutSupabase: finalEntities.filter((e: any) => !e.hasSupabaseData).length,
+      });
+
+      setEntities(finalEntities);
+    } catch (error: any) {
+      console.error('[loadEntities] Error loading entities:', error);
+      // If it's a token error, try to get a fresh token and retry once
+      if (error?.message?.includes('token') || error?.message?.includes('401')) {
+        console.log('[loadEntities] Token error detected, attempting to refresh...');
+        try {
+          const freshToken = await getToken({ template: 'default' });
+          if (freshToken) {
+            // Retry loading entities
+            await loadEntities();
             return;
           }
         } catch (retryError) {
           console.error('[loadEntities] Retry failed:', retryError);
         }
       }
-      // If all else fails, set empty array
-      setEntities([]);
+      // If all else fails, show Clerk orgs at least
+      if (organizationList && organizationList.length > 0) {
+        const clerkOnlyEntities = organizationList.map((org: any) => ({
+          id: `clerk-${org.id}`,
+          name: org.name || 'Untitled Entity',
+          handle: org.slug || org.name?.toLowerCase().replace(/\s+/g, '-') || 'entity',
+          type: 'Entity',
+          banner: null,
+          avatar: null,
+          brief: null,
+          clerkOrgId: org.id,
+          createdAt: org.createdAt || new Date().toISOString(),
+          step2Data: {},
+          completedItems: [],
+          socialLinks: [],
+          hasSupabaseData: false,
+        }));
+        setEntities(clerkOnlyEntities);
+      } else {
+        setEntities([]);
+      }
     } finally {
       setLoading(false);
     }
@@ -226,7 +317,45 @@ export function PortfolioScreen() {
   async function onRefresh() {
     setRefreshing(true);
     triggerRefresh(); // Trigger bubble animation reload
+
+    // Refresh Clerk organizations first
+    console.log('[onRefresh] Refreshing Clerk organizations...');
+
+    // Load entities from Supabase (this will also check Clerk orgs)
     await loadEntities();
+
+    // Also ensure we show any Clerk organizations that might not have Supabase data yet
+    if (organizationList && organizationList.length > 0) {
+      console.log('[onRefresh] Found', organizationList.length, 'Clerk organizations');
+
+      // Get entities from Supabase
+      const token = await getToken();
+      if (token) {
+        try {
+          const fetchedEntities = await fetchEntities(token);
+          const supabaseOrgIds = new Set(
+            fetchedEntities.map((e: any) => e.clerk_organization_id).filter(Boolean)
+          );
+
+          // Check if any Clerk orgs don't have Supabase entities yet
+          const orgsWithoutEntities = organizationList.filter(
+            (org: any) => !supabaseOrgIds.has(org.id)
+          );
+
+          if (orgsWithoutEntities.length > 0) {
+            console.log(
+              '[onRefresh] Found',
+              orgsWithoutEntities.length,
+              'Clerk orgs without Supabase data'
+            );
+            // These will be shown when user creates entities for them
+          }
+        } catch (error) {
+          console.error('[onRefresh] Error checking entities:', error);
+        }
+      }
+    }
+
     setRefreshing(false);
   }
 
@@ -241,7 +370,29 @@ export function PortfolioScreen() {
   }
 
   async function handleEntityPress(entity: any) {
-    // Fetch full entity data from backend if needed
+    if (!entity || !entity.id) {
+      console.warn('[handleEntityPress] Invalid entity provided');
+      return;
+    }
+
+    // If entity doesn't have Supabase data, it's a Clerk org placeholder
+    // In this case, we should prompt to create the entity profile
+    if (entity.hasSupabaseData === false) {
+      console.log(
+        '[handleEntityPress] Entity is a Clerk org without Supabase data, opening creation modal'
+      );
+      // Could show a message or open entity creation modal
+      // For now, just show the entity with limited data
+      setSelectedEntity(entity);
+      setShowProfileModal(true);
+      return;
+    }
+
+    // Set entity immediately so modal can open (optimistic UI)
+    setSelectedEntity(entity);
+    setShowProfileModal(true);
+
+    // Fetch full entity data from backend in the background
     try {
       // Get a fresh token
       let token = await getToken({ template: 'default' });
@@ -251,54 +402,50 @@ export function PortfolioScreen() {
 
       if (!token) {
         console.warn('[handleEntityPress] No token available, using entity from list');
-        setSelectedEntity(entity);
-        setShowProfileModal(true);
         return;
       }
 
-      const fullEntity = await fetchEntityById(entity.id, token);
-      if (fullEntity) {
-        // Transform entity_configurations array to object
-        const step2Data: { [key: string]: any } = {};
-        if (fullEntity.entity_configurations && Array.isArray(fullEntity.entity_configurations)) {
-          fullEntity.entity_configurations.forEach((config: any) => {
-            step2Data[config.config_type] = config.config_data;
-          });
+      // Only fetch if we have a real entity ID (not a temporary Clerk ID)
+      if (!entity.id.startsWith('clerk-')) {
+        const fullEntity = await fetchEntityById(entity.id, token);
+        if (fullEntity) {
+          // Transform entity_configurations array to object
+          const step2Data: { [key: string]: any } = {};
+          if (fullEntity.entity_configurations && Array.isArray(fullEntity.entity_configurations)) {
+            fullEntity.entity_configurations.forEach((config: any) => {
+              step2Data[config.config_type] = config.config_data;
+            });
+          }
+
+          // Get completed items from configurations
+          const completedItems =
+            fullEntity.entity_configurations
+              ?.filter((config: any) => config.is_completed)
+              .map((config: any) => config.config_type) || [];
+
+          // Transform to match expected format
+          const transformedEntity = {
+            id: fullEntity.id,
+            name: fullEntity.name,
+            handle: fullEntity.handle,
+            type: fullEntity.type || 'Entity',
+            banner: fullEntity.banner_url,
+            avatar: fullEntity.avatar_url,
+            brief: fullEntity.brief,
+            clerkOrgId: fullEntity.clerk_organization_id,
+            createdAt: fullEntity.created_at,
+            step2Data,
+            completedItems,
+            socialLinks: fullEntity.entity_social_links || [],
+            hasSupabaseData: true,
+          };
+          // Update with full entity data
+          setSelectedEntity(transformedEntity);
         }
-
-        // Get completed items from configurations
-        const completedItems =
-          fullEntity.entity_configurations
-            ?.filter((config: any) => config.is_completed)
-            .map((config: any) => config.config_type) || [];
-
-        // Transform to match expected format
-        const transformedEntity = {
-          id: fullEntity.id,
-          name: fullEntity.name,
-          handle: fullEntity.handle,
-          type: fullEntity.type || 'Entity',
-          banner: fullEntity.banner_url,
-          avatar: fullEntity.avatar_url,
-          brief: fullEntity.brief,
-          clerkOrgId: fullEntity.clerk_organization_id,
-          createdAt: fullEntity.created_at,
-          step2Data,
-          completedItems,
-          socialLinks: fullEntity.entity_social_links || [],
-        };
-        setSelectedEntity(transformedEntity);
-        setShowProfileModal(true);
-      } else {
-        // Fallback to entity from list
-        setSelectedEntity(entity);
-        setShowProfileModal(true);
       }
     } catch (error: any) {
-      console.error('Error fetching entity:', error);
-      // Fallback to entity from list
-      setSelectedEntity(entity);
-      setShowProfileModal(true);
+      console.error('[handleEntityPress] Error fetching full entity data:', error);
+      // Entity from list is already set, so modal will still work
     }
   }
 
