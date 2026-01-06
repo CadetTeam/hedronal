@@ -19,9 +19,16 @@ export const clerk = CLERK_SECRET_KEY
 export async function verifyClerkToken(token: string) {
   try {
     if (!CLERK_SECRET_KEY || !clerk) {
-      console.error('Clerk client not initialized - missing CLERK_SECRET_KEY');
+      console.error('[verifyClerkToken] Clerk client not initialized - missing CLERK_SECRET_KEY');
       return null;
     }
+
+    if (!token || token.trim().length === 0) {
+      console.error('[verifyClerkToken] Empty or invalid token provided');
+      return null;
+    }
+
+    console.log('[verifyClerkToken] Verifying token, length:', token.length);
 
     // Create a mock request object for authenticateRequest
     const mockRequest = {
@@ -34,6 +41,7 @@ export async function verifyClerkToken(token: string) {
 
     if (authResult.isSignedIn && authResult.toAuth()) {
       const auth = authResult.toAuth();
+      console.log('[verifyClerkToken] Token verified successfully, userId:', auth.userId);
       return {
         userId: auth.userId,
         sessionId: auth.sessionId,
@@ -41,9 +49,15 @@ export async function verifyClerkToken(token: string) {
       };
     }
 
+    console.log('[verifyClerkToken] Token verification failed - not signed in');
     return null;
-  } catch (error) {
-    console.error('Token verification error:', error);
+  } catch (error: any) {
+    console.error('[verifyClerkToken] Token verification error:', error?.message || error);
+    console.error('[verifyClerkToken] Error details:', {
+      name: error?.name,
+      message: error?.message,
+      stack: error?.stack?.substring(0, 200),
+    });
     return null;
   }
 }

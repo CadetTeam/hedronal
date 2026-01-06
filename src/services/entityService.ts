@@ -53,11 +53,23 @@ export async function createEntity(
       invitedContactsCount: entityData.invitedContacts?.length || 0,
     });
 
+    // Ensure token is properly formatted
+    if (!clerkToken || clerkToken.trim().length === 0) {
+      console.error('[createEntity] No token provided for entity creation');
+      return {
+        success: false,
+        error: 'Authentication token is required. Please sign in again.',
+      };
+    }
+
+    const authHeader = `Bearer ${clerkToken.trim()}`;
+    console.log('[createEntity] Making request with token, length:', clerkToken.length, 'starts with:', clerkToken.substring(0, 20));
+
     const response = await fetch(`${API_BASE_URL}/entities`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        ...(clerkToken && { Authorization: `Bearer ${clerkToken}` }),
+        Authorization: authHeader,
       },
       body: JSON.stringify({
         name: entityData.name,
@@ -273,12 +285,12 @@ export async function updateEntity(
  */
 export function useEntityCreation() {
   const { userId, user } = useClerkContext();
-  const { getToken } = useAuth();
+  const { getToken, isSignedIn } = useAuth();
   const { createOrganization, isLoaded: orgListLoaded } = useOrganizationList();
 
   const createEntityWithOrganization = async (entityData: EntityData) => {
-    if (!userId) {
-      throw new Error('User must be authenticated');
+    if (!userId || !isSignedIn) {
+      throw new Error('User must be authenticated. Please sign in and try again.');
     }
 
     if (!orgListLoaded) {
@@ -287,6 +299,15 @@ export function useEntityCreation() {
 
     if (!createOrganization) {
       throw new Error('Organization creation is not available. Please ensure you are signed in.');
+    }
+
+    // Verify we can get a token before proceeding
+    let testToken = await getToken();
+    if (!testToken) {
+      testToken = await getToken({ template: 'default' });
+    }
+    if (!testToken) {
+      throw new Error('Unable to retrieve authentication token. Please sign out and sign in again.');
     }
 
     try {
@@ -352,11 +373,28 @@ export function useEntityCreation() {
       console.log('[useEntityCreation] Creating entity via backend API with org ID:', org.id);
 
       // Get fresh token right before entity creation to ensure it's valid
-      const createToken = await getToken();
+      // Try with template first, then fallback to default
+      let createToken = await getToken({ template: 'default' });
+      if (!createToken) {
+        console.log('[useEntityCreation] Token with template failed, trying without template...');
+        createToken = await getToken();
+      }
+      
+      // If still no token, try to get a new session token
+      if (!createToken) {
+        console.log('[useEntityCreation] Attempting to get fresh session token...');
+        try {
+          createToken = await getToken({ template: 'default', skipCache: true });
+        } catch (tokenError) {
+          console.error('[useEntityCreation] Token retrieval error:', tokenError);
+        }
+      }
 
       if (!createToken) {
-        throw new Error('Unable to get authentication token. Please sign in again.');
+        throw new Error('Unable to get authentication token. Please sign out and sign in again.');
       }
+
+      console.log('[useEntityCreation] Token retrieved, length:', createToken.length);
 
       // Create entity via backend API with organization ID and image URLs
       const result = await createEntity(entityDataWithUrls, userId, org.id, createToken);
