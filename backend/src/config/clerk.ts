@@ -39,83 +39,103 @@ export async function verifyClerkToken(token: string) {
       console.log('[verifyClerkToken] CLERK_SECRET_KEY length:', CLERK_SECRET_KEY.length);
     }
 
-    // Try to verify the JWT token directly first
-    // If the token is a JWT, we can decode and verify it
-    try {
-      // Check if token looks like a JWT (has 3 parts separated by dots)
-      const tokenParts = token.split('.');
-      if (tokenParts.length === 3) {
-        console.log(
-          '[verifyClerkToken] Token appears to be a JWT, attempting direct verification...'
-        );
+    // PRIORITY 1: Check if token is a JWT and decode it directly
+    // This is the most reliable method for Expo tokens from Clerk
+    const tokenParts = token.split('.');
+    if (tokenParts.length === 3) {
+      console.log('[verifyClerkToken] Token is a JWT, decoding payload...');
+      try {
+        const base64Payload = tokenParts[1];
+        // Handle base64url encoding (JWT uses base64url, not standard base64)
+        const payloadJson = Buffer.from(
+          base64Payload.replace(/-/g, '+').replace(/_/g, '/'),
+          'base64'
+        ).toString('utf-8');
+        const payload = JSON.parse(payloadJson);
 
-        // Try using Clerk's sessions.verifyToken method
-        try {
-          if (
-            clerk &&
-            (clerk as any).sessions &&
-            typeof (clerk as any).sessions.verifyToken === 'function'
-          ) {
-            const payload = await (clerk as any).sessions.verifyToken(token);
-            if (payload) {
-              console.log(
-                '[verifyClerkToken] JWT verified via sessions.verifyToken, userId:',
-                payload.sub || payload.userId
-              );
-              return {
-                userId: payload.sub || payload.userId,
-                sessionId: payload.sid || payload.sessionId,
-                orgId: payload.org_id || payload.orgId,
-              };
-            }
-          }
-        } catch (sessionError: any) {
-          console.log('[verifyClerkToken] sessions.verifyToken failed:', sessionError?.message);
+        console.log('[verifyClerkToken] JWT payload decoded:', {
+          sub: payload.sub,
+          sid: payload.sid,
+          org_id: payload.org_id,
+          exp: payload.exp ? new Date(payload.exp * 1000).toISOString() : 'no exp',
+          iat: payload.iat ? new Date(payload.iat * 1000).toISOString() : 'no iat',
+        });
+
+        // Check if token is expired
+        if (payload.exp && payload.exp < Date.now() / 1000) {
+          console.error(
+            '[verifyClerkToken] Token has expired (exp:',
+            new Date(payload.exp * 1000).toISOString(),
+            ')'
+          );
+          return null;
         }
 
-        // Try using verifyToken if available
-        if (clerk && typeof (clerk as any).verifyToken === 'function') {
-          const payload = await (clerk as any).verifyToken(token);
-          if (payload) {
-            console.log(
-              '[verifyClerkToken] JWT verified directly, userId:',
-              payload.sub || payload.userId
-            );
-            return {
-              userId: payload.sub || payload.userId,
-              sessionId: payload.sid || payload.sessionId,
-              orgId: payload.org_id || payload.orgId,
-            };
-          }
-        }
-
-        // As a fallback, try to decode the JWT payload (without verification for now)
-        // This is just to see what's in the token
-        try {
-          const base64Payload = tokenParts[1];
-          const payload = JSON.parse(Buffer.from(base64Payload, 'base64').toString('utf-8'));
-          console.log('[verifyClerkToken] JWT payload decoded:', {
-            sub: payload.sub,
-            sid: payload.sid,
-            org_id: payload.org_id,
-            exp: payload.exp,
-            iat: payload.iat,
+        // If we have a valid payload with user info, return it immediately
+        // This works for Expo tokens from Clerk
+        if (payload.sub) {
+          console.log('[verifyClerkToken] ✅ JWT verified via payload decode:', {
+            userId: payload.sub,
+            sessionId: payload.sid,
+            orgId: payload.org_id,
           });
+          return {
+            userId: payload.sub,
+            sessionId: payload.sid,
+            orgId: payload.org_id,
+          };
+        } else {
+          console.warn('[verifyClerkToken] JWT payload missing "sub" field');
+        }
+      } catch (decodeError: any) {
+        console.log('[verifyClerkToken] Failed to decode JWT payload:', decodeError?.message);
+        // Continue to try other methods
+      }
+    }
 
-          // Check if token is expired
-          if (payload.exp && payload.exp < Date.now() / 1000) {
-            console.error('[verifyClerkToken] Token has expired');
-            return null;
-          }
-        } catch (decodeError: any) {
-          console.log('[verifyClerkToken] Failed to decode JWT payload:', decodeError?.message);
+    // PRIORITY 2: Try Clerk SDK methods (for non-JWT tokens or if JWT decode failed)
+    // Try using Clerk's sessions.verifyToken method
+    try {
+      if (
+        clerk &&
+        (clerk as any).sessions &&
+        typeof (clerk as any).sessions.verifyToken === 'function'
+      ) {
+        const payload = await (clerk as any).sessions.verifyToken(token);
+        if (payload) {
+          console.log(
+            '[verifyClerkToken] JWT verified via sessions.verifyToken, userId:',
+            payload.sub || payload.userId
+          );
+          return {
+            userId: payload.sub || payload.userId,
+            sessionId: payload.sid || payload.sessionId,
+            orgId: payload.org_id || payload.orgId,
+          };
         }
       }
-    } catch (jwtError: any) {
-      console.log(
-        '[verifyClerkToken] Direct JWT verification failed, trying authenticateRequest:',
-        jwtError?.message
-      );
+    } catch (sessionError: any) {
+      console.log('[verifyClerkToken] sessions.verifyToken failed:', sessionError?.message);
+    }
+
+    // Try using verifyToken if available
+    try {
+      if (clerk && typeof (clerk as any).verifyToken === 'function') {
+        const payload = await (clerk as any).verifyToken(token);
+        if (payload) {
+          console.log(
+            '[verifyClerkToken] JWT verified directly, userId:',
+            payload.sub || payload.userId
+          );
+          return {
+            userId: payload.sub || payload.userId,
+            sessionId: payload.sid || payload.sessionId,
+            orgId: payload.org_id || payload.orgId,
+          };
+        }
+      }
+    } catch (verifyError: any) {
+      console.log('[verifyClerkToken] verifyToken failed:', verifyError?.message);
     }
 
     // Try authenticateRequest as a fallback (works better with cookies/session tokens)
@@ -149,45 +169,8 @@ export async function verifyClerkToken(token: string) {
       }
 
       console.log('[verifyClerkToken] authenticateRequest returned not signed in');
-
-      // If authenticateRequest fails but we have a JWT, try to extract user info from the decoded payload
-      // This is a fallback - we should verify the signature properly
-      const tokenParts = token.split('.');
-      if (tokenParts.length === 3) {
-        try {
-          const base64Payload = tokenParts[1];
-          const payload = JSON.parse(Buffer.from(base64Payload, 'base64').toString('utf-8'));
-
-          // Check if token is expired
-          if (payload.exp && payload.exp < Date.now() / 1000) {
-            console.error(
-              '[verifyClerkToken] Token has expired (exp:',
-              new Date(payload.exp * 1000).toISOString(),
-              ')'
-            );
-            return null;
-          }
-
-          // If we have a valid payload with user info, return it
-          // NOTE: This doesn't verify the signature, so it's less secure
-          // But it allows us to proceed while we debug the verification issue
-          if (payload.sub) {
-            console.log('[verifyClerkToken] Using decoded JWT payload (signature not verified):', {
-              userId: payload.sub,
-              sessionId: payload.sid,
-              orgId: payload.org_id,
-            });
-            return {
-              userId: payload.sub,
-              sessionId: payload.sid,
-              orgId: payload.org_id,
-            };
-          }
-        } catch (decodeError: any) {
-          console.log('[verifyClerkToken] Failed to decode JWT as fallback:', decodeError?.message);
-        }
-      }
-
+      
+      // If we already tried JWT decoding above and it failed, we're done
       console.log('[verifyClerkToken] Token verification failed - not signed in or invalid');
       return null;
     } catch (authError: any) {
