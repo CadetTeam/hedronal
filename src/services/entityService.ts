@@ -62,8 +62,12 @@ export async function createEntity(
       };
     }
 
-    const authHeader = `Bearer ${clerkToken.trim()}`;
-    console.log('[createEntity] Making request with token, length:', clerkToken.length, 'starts with:', clerkToken.substring(0, 20));
+    const trimmedToken = clerkToken.trim();
+    const authHeader = `Bearer ${trimmedToken}`;
+    console.log('[createEntity] Making request with token');
+    console.log('[createEntity] Token length:', trimmedToken.length);
+    console.log('[createEntity] Token preview:', trimmedToken.substring(0, 30) + '...');
+    console.log('[createEntity] API URL:', `${API_BASE_URL}/entities`);
 
     const response = await fetch(`${API_BASE_URL}/entities`, {
       method: 'POST',
@@ -307,7 +311,9 @@ export function useEntityCreation() {
       testToken = await getToken({ template: 'default' });
     }
     if (!testToken) {
-      throw new Error('Unable to retrieve authentication token. Please sign out and sign in again.');
+      throw new Error(
+        'Unable to retrieve authentication token. Please sign out and sign in again.'
+      );
     }
 
     try {
@@ -328,14 +334,23 @@ export function useEntityCreation() {
         throw new Error('Failed to create Clerk organization - no organization ID returned');
       }
 
-      // Get a fresh token for backend authentication
-      const token = await getToken();
+      // Wait a moment for Clerk to sync the organization
+      await new Promise(resolve => setTimeout(resolve, 500));
 
+      // Get a fresh token for backend authentication after org creation
+      // The token needs to include the new organization context
+      let token = await getToken({ template: 'default' });
       if (!token) {
-        throw new Error('Unable to get authentication token. Please sign in again.');
+        console.log('[useEntityCreation] Token with template failed, trying without template...');
+        token = await getToken();
       }
 
-      console.log('[useEntityCreation] Token retrieved for API calls');
+      if (!token) {
+        console.error('[useEntityCreation] Failed to get token after org creation');
+        throw new Error('Unable to get authentication token. Please sign out and sign in again.');
+      }
+
+      console.log('[useEntityCreation] Token retrieved for API calls, length:', token.length);
 
       console.log('[useEntityCreation] Uploading images via backend API...');
 
@@ -346,12 +361,19 @@ export function useEntityCreation() {
       if (entityData.avatar || entityData.banner) {
         try {
           // Get fresh token for image upload
-          const uploadToken = await getToken();
+          let uploadToken = await getToken({ template: 'default' });
+          if (!uploadToken) {
+            uploadToken = await getToken();
+          }
+
+          if (!uploadToken) {
+            throw new Error('Unable to get token for image upload');
+          }
 
           const uploadedImages = await uploadEntityImages(
             entityData.avatar,
             entityData.banner,
-            uploadToken || undefined
+            uploadToken
           );
           avatarUrl = uploadedImages.avatar_url;
           bannerUrl = uploadedImages.banner_url;
@@ -379,7 +401,7 @@ export function useEntityCreation() {
         console.log('[useEntityCreation] Token with template failed, trying without template...');
         createToken = await getToken();
       }
-      
+
       // If still no token, try to get a new session token
       if (!createToken) {
         console.log('[useEntityCreation] Attempting to get fresh session token...');
