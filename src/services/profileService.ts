@@ -1,4 +1,8 @@
-const API_BASE_URL = __DEV__ ? 'http://localhost:3000/api' : 'https://hedronal-production.up.railway.app/api';
+// For React Native, localhost doesn't work on physical devices or simulators
+// Use production URL by default, or set EXPO_PUBLIC_API_URL for local development
+// For local dev, use your machine's IP: http://YOUR_LOCAL_IP:3000/api
+const API_BASE_URL =
+  process.env.EXPO_PUBLIC_API_URL || 'https://hedronal-production.up.railway.app/api';
 const API_URL = API_BASE_URL;
 
 export interface ProfileData {
@@ -9,7 +13,9 @@ export interface ProfileData {
   banner_url?: string | null;
 }
 
-export async function getProfile(clerkToken?: string): Promise<{ success: boolean; profile?: any; error?: string }> {
+export async function getProfile(
+  clerkToken?: string
+): Promise<{ success: boolean; profile?: any; error?: string }> {
   try {
     const response = await fetch(`${API_URL}/profiles/me`, {
       method: 'GET',
@@ -132,4 +138,3 @@ export async function getProfileById(
     };
   }
 }
-

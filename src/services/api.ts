@@ -1,6 +1,10 @@
 import { AuthResponse, ApiError } from '../types';
 
-const API_BASE_URL = __DEV__ ? 'http://localhost:3000/api' : 'https://hedronal-production.up.railway.app/api';
+// For React Native, localhost doesn't work on physical devices or simulators
+// Use production URL by default, or set EXPO_PUBLIC_API_URL for local development
+// For local dev, use your machine's IP: http://YOUR_LOCAL_IP:3000/api
+const API_BASE_URL =
+  process.env.EXPO_PUBLIC_API_URL || 'https://hedronal-production.up.railway.app/api';
 
 class ApiService {
   private baseUrl: string;
@@ -14,10 +18,7 @@ class ApiService {
     this.token = token;
   }
 
-  private async request<T>(
-    endpoint: string,
-    options: RequestInit = {}
-  ): Promise<T> {
+  private async request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
     const url = `${this.baseUrl}${endpoint}`;
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
