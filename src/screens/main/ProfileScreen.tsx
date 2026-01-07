@@ -12,6 +12,7 @@ import {
   TextInput,
   Alert,
   Platform,
+  Keyboard,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
@@ -81,10 +82,35 @@ export function ProfileScreen() {
   // For sticky settings button
   const namePositionRef = useRef<View>(null);
   const [nameYPosition, setNameYPosition] = useState(200); // Default fallback position
+  const [keyboardVisible, setKeyboardVisible] = useState(false);
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
 
   // Load profile on mount
   useEffect(() => {
     loadProfile();
+  }, []);
+
+  // Keyboard listeners
+  useEffect(() => {
+    const keyboardWillShow = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow',
+      e => {
+        setKeyboardVisible(true);
+        setKeyboardHeight(e.endCoordinates.height);
+      }
+    );
+    const keyboardWillHide = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide',
+      () => {
+        setKeyboardVisible(false);
+        setKeyboardHeight(0);
+      }
+    );
+
+    return () => {
+      keyboardWillShow.remove();
+      keyboardWillHide.remove();
+    };
   }, []);
 
   async function loadProfile() {
@@ -93,17 +119,19 @@ export function ProfileScreen() {
       const token = await getToken();
       const result = await getProfile(token || undefined);
       if (result.success && result.profile) {
+        const loadedSocialLinks = result.profile.socialLinks || [];
         setProfileData({
           name: result.profile.full_name || 'User Name',
           username: result.profile.username || '@username',
           bio: result.profile.bio || '',
           avatar: result.profile.avatar_url || null,
           banner: result.profile.banner_url || null,
-          socialLinks: profileData.socialLinks, // Keep existing social links for now
+          socialLinks: loadedSocialLinks,
         });
         setEditingName(result.profile.full_name || 'User Name');
         setEditingUsername(result.profile.username || '@username');
         setEditingBio(result.profile.bio || '');
+        setEditingSocialLinks(loadedSocialLinks);
       }
     } catch (error) {
       console.error('[ProfileScreen] Error loading profile:', error);
@@ -143,17 +171,29 @@ export function ProfileScreen() {
           token || undefined
         );
 
-        // Update local state
+        // Update local state - preserve all existing data including bio and socialLinks
         if (type === 'avatar') {
-          setProfileData({ ...profileData, avatar: imageUrl.avatar_url || result.assets[0].uri });
+          const newAvatar = imageUrl.avatar_url || result.assets[0].uri;
+          setProfileData({
+            ...profileData,
+            avatar: newAvatar,
+            // Explicitly preserve bio
+            bio: profileData.bio || editingBio || '',
+          });
           setShowAvatarModal(false);
-          // Save to backend
-          await saveProfileUpdate({ avatar_url: imageUrl.avatar_url || null });
+          // Save to backend - only update avatar_url, preserve other fields
+          await saveProfileUpdate({ avatar_url: newAvatar });
         } else {
-          setProfileData({ ...profileData, banner: imageUrl.banner_url || result.assets[0].uri });
+          const newBanner = imageUrl.banner_url || result.assets[0].uri;
+          setProfileData({
+            ...profileData,
+            banner: newBanner,
+            // Explicitly preserve bio
+            bio: profileData.bio || editingBio || '',
+          });
           setShowBannerModal(false);
-          // Save to backend
-          await saveProfileUpdate({ banner_url: imageUrl.banner_url || null });
+          // Save to backend - only update banner_url, preserve other fields
+          await saveProfileUpdate({ banner_url: newBanner });
         }
       } catch (error: any) {
         console.error('[ProfileScreen] Error uploading image:', error);
@@ -166,15 +206,22 @@ export function ProfileScreen() {
     try {
       const token = await getToken();
       if (type === 'avatar') {
-        setProfileData({ ...profileData, avatar: null });
+        setProfileData({
+          ...profileData,
+          avatar: null,
+          // Explicitly preserve bio
+          bio: profileData.bio || editingBio || '',
+        });
         await saveProfileUpdate({ avatar_url: null });
-      } else {
-        setProfileData({ ...profileData, banner: null });
-        await saveProfileUpdate({ banner_url: null });
-      }
-      if (type === 'avatar') {
         setShowAvatarModal(false);
       } else {
+        setProfileData({
+          ...profileData,
+          banner: null,
+          // Explicitly preserve bio
+          bio: profileData.bio || editingBio || '',
+        });
+        await saveProfileUpdate({ banner_url: null });
         setShowBannerModal(false);
       }
     } catch (error: any) {
@@ -235,8 +282,16 @@ export function ProfileScreen() {
     }
   }
 
-  function handleSaveSocialLinks(socialLinks: Array<{ type: string; url: string }>) {
-    setProfileData({ ...profileData, socialLinks });
+  async function handleSaveSocialLinks(socialLinks: Array<{ type: string; url: string }>) {
+    try {
+      await saveProfileUpdate({ socialLinks });
+      setProfileData({ ...profileData, socialLinks });
+      setEditingSocialLinks(socialLinks);
+      setShowSocialLinksModal(false);
+    } catch (error: any) {
+      console.error('[ProfileScreen] Error saving social links:', error);
+      Alert.alert('Error', 'Failed to save social links. Please try again.');
+    }
   }
 
   function renderActivityItem({ item }: { item: any }) {
@@ -257,9 +312,7 @@ export function ProfileScreen() {
           style={styles.activityIcon}
         />
         <View style={styles.activityContent}>
-          <Text style={[styles.activityText, { color: theme.colors.text }]}>
-            {item.text}
-          </Text>
+          <Text style={[styles.activityText, { color: theme.colors.text }]}>{item.text}</Text>
           <Text style={[styles.activityDate, { color: theme.colors.textTertiary }]}>
             {item.date}
           </Text>
@@ -269,7 +322,7 @@ export function ProfileScreen() {
   }
 
   function getSocialIcon(type: string) {
-    const icon = SOCIAL_ICONS.find((i) => i.name.includes(type.toLowerCase()));
+    const icon = SOCIAL_ICONS.find(i => i.name.includes(type.toLowerCase()));
     return icon?.name || 'globe-outline';
   }
 
@@ -296,7 +349,10 @@ export function ProfileScreen() {
       />
       <ScrollView
         style={styles.scrollView}
-        contentContainerStyle={[styles.scrollContent, { paddingTop: insets.top * 1.5, paddingBottom: 100 }]}
+        contentContainerStyle={[
+          styles.scrollContent,
+          { paddingTop: insets.top * 1.5, paddingBottom: 100 },
+        ]}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -307,14 +363,15 @@ export function ProfileScreen() {
         showsVerticalScrollIndicator={false}
       >
         {/* Banner */}
-        <TouchableOpacity
-          activeOpacity={0.8}
-          onPress={() => setShowBannerModal(true)}
-        >
+        <TouchableOpacity activeOpacity={0.8} onPress={() => setShowBannerModal(true)}>
           <View
             style={[
               styles.banner,
-              { backgroundColor: profileData.banner ? theme.colors.background : theme.colors.primary },
+              {
+                backgroundColor: profileData.banner
+                  ? theme.colors.background
+                  : theme.colors.primary,
+              },
             ]}
           >
             {profileData.banner ? (
@@ -329,10 +386,7 @@ export function ProfileScreen() {
 
         {/* Profile Info */}
         <View style={styles.profileSection}>
-          <TouchableOpacity
-            activeOpacity={0.8}
-            onPress={() => setShowAvatarModal(true)}
-          >
+          <TouchableOpacity activeOpacity={0.8} onPress={() => setShowAvatarModal(true)}>
             <View
               style={[
                 styles.avatar,
@@ -369,9 +423,7 @@ export function ProfileScreen() {
                 });
               }}
             >
-              <Text style={[styles.name, { color: theme.colors.text }]}>
-                {profileData.name}
-              </Text>
+              <Text style={[styles.name, { color: theme.colors.text }]}>{profileData.name}</Text>
             </View>
           </TouchableOpacity>
 
@@ -392,26 +444,32 @@ export function ProfileScreen() {
           <TouchableOpacity
             activeOpacity={0.8}
             onPress={() => {
-              setEditingBio(profileData.bio);
+              // Use editingBio if available, otherwise use profileData.bio
+              const currentBio = editingBio || profileData.bio || '';
+              setEditingBio(currentBio);
               setShowBioModal(true);
             }}
           >
             <View style={styles.editableField}>
               <Text style={[styles.bio, { color: theme.colors.textSecondary }]}>
-                {profileData.bio}
+                {profileData.bio || editingBio || 'Add a bio...'}
               </Text>
             </View>
           </TouchableOpacity>
 
           {/* Social Links */}
           <View style={styles.socialLinks}>
-            {profileData.socialLinks.map((link, index) => (
+            {profileData.socialLinks.map((link, index) =>
               link.url ? (
                 <TouchableOpacity key={index} style={styles.socialLink}>
-                  <Ionicons name={getSocialIcon(link.type) as any} size={20} color={theme.colors.text} />
+                  <Ionicons
+                    name={getSocialIcon(link.type) as any}
+                    size={20}
+                    color={theme.colors.text}
+                  />
                 </TouchableOpacity>
               ) : null
-            ))}
+            )}
             <TouchableOpacity
               style={styles.socialLink}
               onPress={() => {
@@ -425,54 +483,34 @@ export function ProfileScreen() {
 
           {/* Stats */}
           <View style={styles.stats}>
-            <TouchableOpacity
-              style={styles.statItem}
-              onPress={() => setShowFollowersModal(true)}
-            >
+            <TouchableOpacity style={styles.statItem} onPress={() => setShowFollowersModal(true)}>
               <Text style={[styles.statNumber, { color: theme.colors.text }]}>0</Text>
               <Text style={[styles.statLabel, { color: theme.colors.textSecondary }]}>
                 Followers
               </Text>
             </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.statItem}
-              onPress={() => setShowFollowingModal(true)}
-            >
+            <TouchableOpacity style={styles.statItem} onPress={() => setShowFollowingModal(true)}>
               <Text style={[styles.statNumber, { color: theme.colors.text }]}>0</Text>
               <Text style={[styles.statLabel, { color: theme.colors.textSecondary }]}>
                 Following
               </Text>
             </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.statItem}
-              onPress={() => setShowPostsModal(true)}
-            >
+            <TouchableOpacity style={styles.statItem} onPress={() => setShowPostsModal(true)}>
               <Text style={[styles.statNumber, { color: theme.colors.text }]}>0</Text>
-              <Text style={[styles.statLabel, { color: theme.colors.textSecondary }]}>
-                Posts
-              </Text>
+              <Text style={[styles.statLabel, { color: theme.colors.textSecondary }]}>Posts</Text>
             </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.statItem}
-              onPress={() => setShowPointsModal(true)}
-            >
+            <TouchableOpacity style={styles.statItem} onPress={() => setShowPointsModal(true)}>
               <Text style={[styles.statNumber, { color: theme.colors.text }]}>0</Text>
-              <Text style={[styles.statLabel, { color: theme.colors.textSecondary }]}>
-                Points
-              </Text>
+              <Text style={[styles.statLabel, { color: theme.colors.textSecondary }]}>Points</Text>
             </TouchableOpacity>
           </View>
-
         </View>
 
         {/* Activity Feed */}
         <View style={styles.activitySection}>
           <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>Activity</Text>
           {activity.length === 0 ? (
-            <EmptyState
-              title="No activity yet"
-              message="Your activity will appear here"
-            />
+            <EmptyState title="No activity yet" message="Your activity will appear here" />
           ) : (
             <FlatList
               data={activity}
@@ -510,10 +548,7 @@ export function ProfileScreen() {
         transparent
         onRequestClose={() => setShowAvatarModal(false)}
       >
-        <BlurredModalOverlay
-          visible={showAvatarModal}
-          onClose={() => setShowAvatarModal(false)}
-        >
+        <BlurredModalOverlay visible={showAvatarModal} onClose={() => setShowAvatarModal(false)}>
           <View
             style={[
               styles.modalContent,
@@ -547,10 +582,7 @@ export function ProfileScreen() {
               showsVerticalScrollIndicator={false}
             >
               <TouchableOpacity
-                style={[
-                  styles.modalButton,
-                  { backgroundColor: theme.colors.primary },
-                ]}
+                style={[styles.modalButton, { backgroundColor: theme.colors.primary }]}
                 onPress={() => pickImage('avatar')}
               >
                 <Ionicons name="image-outline" size={20} color={theme.colors.background} />
@@ -561,22 +593,14 @@ export function ProfileScreen() {
               {profileData.avatar && (
                 <>
                   <TouchableOpacity
-                    style={[
-                      styles.modalButton,
-                      { backgroundColor: theme.colors.secondary },
-                    ]}
+                    style={[styles.modalButton, { backgroundColor: theme.colors.secondary }]}
                     onPress={() => pickImage('avatar')}
                   >
                     <Ionicons name="create-outline" size={20} color={theme.colors.text} />
-                    <Text style={[styles.modalButtonText, { color: theme.colors.text }]}>
-                      Edit
-                    </Text>
+                    <Text style={[styles.modalButtonText, { color: theme.colors.text }]}>Edit</Text>
                   </TouchableOpacity>
                   <TouchableOpacity
-                    style={[
-                      styles.modalButton,
-                      { backgroundColor: theme.colors.error },
-                    ]}
+                    style={[styles.modalButton, { backgroundColor: theme.colors.error }]}
                     onPress={() => removeImage('avatar')}
                   >
                     <Ionicons name="trash-outline" size={20} color={theme.colors.background} />
@@ -598,10 +622,7 @@ export function ProfileScreen() {
         transparent
         onRequestClose={() => setShowBannerModal(false)}
       >
-        <BlurredModalOverlay
-          visible={showBannerModal}
-          onClose={() => setShowBannerModal(false)}
-        >
+        <BlurredModalOverlay visible={showBannerModal} onClose={() => setShowBannerModal(false)}>
           <View
             style={[
               styles.modalContent,
@@ -635,10 +656,7 @@ export function ProfileScreen() {
               showsVerticalScrollIndicator={false}
             >
               <TouchableOpacity
-                style={[
-                  styles.modalButton,
-                  { backgroundColor: theme.colors.primary },
-                ]}
+                style={[styles.modalButton, { backgroundColor: theme.colors.primary }]}
                 onPress={() => pickImage('banner')}
               >
                 <Ionicons name="image-outline" size={20} color={theme.colors.background} />
@@ -649,22 +667,14 @@ export function ProfileScreen() {
               {profileData.banner && (
                 <>
                   <TouchableOpacity
-                    style={[
-                      styles.modalButton,
-                      { backgroundColor: theme.colors.secondary },
-                    ]}
+                    style={[styles.modalButton, { backgroundColor: theme.colors.secondary }]}
                     onPress={() => pickImage('banner')}
                   >
                     <Ionicons name="create-outline" size={20} color={theme.colors.text} />
-                    <Text style={[styles.modalButtonText, { color: theme.colors.text }]}>
-                      Edit
-                    </Text>
+                    <Text style={[styles.modalButtonText, { color: theme.colors.text }]}>Edit</Text>
                   </TouchableOpacity>
                   <TouchableOpacity
-                    style={[
-                      styles.modalButton,
-                      { backgroundColor: theme.colors.error },
-                    ]}
+                    style={[styles.modalButton, { backgroundColor: theme.colors.error }]}
                     onPress={() => removeImage('banner')}
                   >
                     <Ionicons name="trash-outline" size={20} color={theme.colors.background} />
@@ -679,235 +689,146 @@ export function ProfileScreen() {
         </BlurredModalOverlay>
       </Modal>
 
-      {/* Bio Modal */}
-      <Modal
-        visible={showBioModal}
-        animationType="slide"
-        transparent
-        onRequestClose={() => setShowBioModal(false)}
-      >
-        <BlurredModalOverlay
-          visible={showBioModal}
-          onClose={() => setShowBioModal(false)}
-        >
+      {/* Bio Modal - Sticky Input Bar */}
+      {showBioModal && (
+        <>
+          <TouchableOpacity
+            style={styles.inputOverlay}
+            activeOpacity={1}
+            onPress={() => {
+              setShowBioModal(false);
+              Keyboard.dismiss();
+            }}
+          />
           <View
             style={[
-              styles.modalContent,
+              styles.stickyInputBar,
+              styles.stickyInputBarMultiline,
               {
                 backgroundColor: theme.colors.surface,
-                minHeight: 200 + insets.bottom * 2,
+                borderColor: theme.colors.border,
+                bottom: keyboardVisible ? keyboardHeight : insets.bottom,
               },
             ]}
           >
-            <View style={styles.modalHeader}>
-              <LinearGradient
-                colors={
-                  isDark
-                    ? ['rgba(30, 30, 30, 1)', 'rgba(30, 30, 30, 0)']
-                    : ['rgba(245, 245, 220, 1)', 'rgba(245, 245, 220, 0)']
-                }
-                style={styles.modalHeaderGradient}
-                pointerEvents="none"
-              />
-              <Text style={[styles.modalTitle, { color: theme.colors.text }]}>Edit Bio</Text>
-              <TouchableOpacity onPress={() => setShowBioModal(false)}>
-                <Ionicons name="close" size={24} color={theme.colors.text} />
-              </TouchableOpacity>
-            </View>
-            <ScrollView
-              style={styles.modalBody}
-              contentContainerStyle={[
-                styles.modalBodyContent,
-                { paddingBottom: insets.bottom * 2 },
-              ]}
-              showsVerticalScrollIndicator={false}
-            >
-              <TextInput
-                style={[
-                  styles.textInput,
-                  {
-                    backgroundColor: theme.colors.surfaceVariant,
-                    borderColor: theme.colors.border,
-                    color: theme.colors.text,
-                  },
-                ]}
-                value={editingBio}
-                onChangeText={setEditingBio}
-                placeholder="Write your bio..."
-                placeholderTextColor={theme.colors.textTertiary}
-                multiline
-                maxLength={120}
-                autoFocus
-              />
+            <View style={styles.stickyInputHeader}>
+              <Text style={[styles.stickyInputLabel, { color: theme.colors.text }]}>Bio</Text>
               <Text style={[styles.charCount, { color: theme.colors.textTertiary }]}>
                 {editingBio.length}/120
               </Text>
-              <TouchableOpacity
-                style={[
-                  styles.saveButton,
-                  { backgroundColor: theme.colors.primary },
-                ]}
-                onPress={saveBio}
-              >
-                <Ionicons name="checkmark" size={20} color={theme.colors.background} />
-                <Text style={[styles.saveButtonText, { color: theme.colors.background }]}>
-                  Save
-                </Text>
+            </View>
+            <TextInput
+              style={[
+                styles.stickyInput,
+                styles.stickyInputMultiline,
+                { color: theme.colors.text },
+              ]}
+              placeholder="Write your bio..."
+              placeholderTextColor={theme.colors.textTertiary}
+              value={editingBio}
+              onChangeText={setEditingBio}
+              multiline
+              maxLength={120}
+              autoFocus
+              onBlur={() => {
+                setShowBioModal(false);
+                saveBio();
+              }}
+            />
+            {editingBio.length > 0 && (
+              <TouchableOpacity onPress={() => setEditingBio('')} style={styles.clearButton}>
+                <Ionicons name="close-circle" size={20} color={theme.colors.textTertiary} />
               </TouchableOpacity>
-            </ScrollView>
+            )}
           </View>
-        </BlurredModalOverlay>
-      </Modal>
+        </>
+      )}
 
-      {/* Name Modal */}
-      <Modal
-        visible={showNameModal}
-        animationType="slide"
-        transparent
-        onRequestClose={() => setShowNameModal(false)}
-      >
-        <BlurredModalOverlay
-          visible={showNameModal}
-          onClose={() => setShowNameModal(false)}
-        >
+      {/* Name Modal - Sticky Input Bar */}
+      {showNameModal && (
+        <>
+          <TouchableOpacity
+            style={styles.inputOverlay}
+            activeOpacity={1}
+            onPress={() => {
+              setShowNameModal(false);
+              Keyboard.dismiss();
+            }}
+          />
           <View
             style={[
-              styles.modalContent,
+              styles.stickyInputBar,
               {
                 backgroundColor: theme.colors.surface,
-                minHeight: 200 + insets.bottom * 2,
+                borderColor: theme.colors.border,
+                bottom: keyboardVisible ? keyboardHeight : insets.bottom,
               },
             ]}
           >
-            <View style={styles.modalHeader}>
-              <LinearGradient
-                colors={
-                  isDark
-                    ? ['rgba(30, 30, 30, 1)', 'rgba(30, 30, 30, 0)']
-                    : ['rgba(245, 245, 220, 1)', 'rgba(245, 245, 220, 0)']
-                }
-                style={styles.modalHeaderGradient}
-                pointerEvents="none"
-              />
-              <Text style={[styles.modalTitle, { color: theme.colors.text }]}>Edit Name</Text>
-              <TouchableOpacity onPress={() => setShowNameModal(false)}>
-                <Ionicons name="close" size={24} color={theme.colors.text} />
+            <Text style={[styles.stickyInputLabel, { color: theme.colors.text }]}>Name</Text>
+            <TextInput
+              style={[styles.stickyInput, { color: theme.colors.text }]}
+              placeholder="Enter your name"
+              placeholderTextColor={theme.colors.textTertiary}
+              value={editingName}
+              onChangeText={setEditingName}
+              autoFocus
+              onBlur={() => {
+                setShowNameModal(false);
+                saveName();
+              }}
+            />
+            {editingName.length > 0 && (
+              <TouchableOpacity onPress={() => setEditingName('')} style={styles.clearButton}>
+                <Ionicons name="close-circle" size={20} color={theme.colors.textTertiary} />
               </TouchableOpacity>
-            </View>
-            <ScrollView
-              style={styles.modalBody}
-              contentContainerStyle={[
-                styles.modalBodyContent,
-                { paddingBottom: insets.bottom * 2 },
-              ]}
-              showsVerticalScrollIndicator={false}
-            >
-              <TextInput
-                style={[
-                  styles.textInput,
-                  {
-                    backgroundColor: theme.colors.surfaceVariant,
-                    borderColor: theme.colors.border,
-                    color: theme.colors.text,
-                  },
-                ]}
-                value={editingName}
-                onChangeText={setEditingName}
-                placeholder="Enter your name"
-                placeholderTextColor={theme.colors.textTertiary}
-                autoFocus
-              />
-              <TouchableOpacity
-                style={[
-                  styles.saveButton,
-                  { backgroundColor: theme.colors.primary },
-                ]}
-                onPress={saveName}
-              >
-                <Ionicons name="checkmark" size={20} color={theme.colors.background} />
-                <Text style={[styles.saveButtonText, { color: theme.colors.background }]}>
-                  Save
-                </Text>
-              </TouchableOpacity>
-            </ScrollView>
+            )}
           </View>
-        </BlurredModalOverlay>
-      </Modal>
+        </>
+      )}
 
-      {/* Username Modal */}
-      <Modal
-        visible={showUsernameModal}
-        animationType="slide"
-        transparent
-        onRequestClose={() => setShowUsernameModal(false)}
-      >
-        <BlurredModalOverlay
-          visible={showUsernameModal}
-          onClose={() => setShowUsernameModal(false)}
-        >
+      {/* Username Modal - Sticky Input Bar */}
+      {showUsernameModal && (
+        <>
+          <TouchableOpacity
+            style={styles.inputOverlay}
+            activeOpacity={1}
+            onPress={() => {
+              setShowUsernameModal(false);
+              Keyboard.dismiss();
+            }}
+          />
           <View
             style={[
-              styles.modalContent,
+              styles.stickyInputBar,
               {
                 backgroundColor: theme.colors.surface,
-                minHeight: 200 + insets.bottom * 2,
+                borderColor: theme.colors.border,
+                bottom: keyboardVisible ? keyboardHeight : insets.bottom,
               },
             ]}
           >
-            <View style={styles.modalHeader}>
-              <LinearGradient
-                colors={
-                  isDark
-                    ? ['rgba(30, 30, 30, 1)', 'rgba(30, 30, 30, 0)']
-                    : ['rgba(245, 245, 220, 1)', 'rgba(245, 245, 220, 0)']
-                }
-                style={styles.modalHeaderGradient}
-                pointerEvents="none"
-              />
-              <Text style={[styles.modalTitle, { color: theme.colors.text }]}>Edit Username</Text>
-              <TouchableOpacity onPress={() => setShowUsernameModal(false)}>
-                <Ionicons name="close" size={24} color={theme.colors.text} />
+            <Text style={[styles.stickyInputLabel, { color: theme.colors.text }]}>Username</Text>
+            <TextInput
+              style={[styles.stickyInput, { color: theme.colors.text }]}
+              placeholder="@username"
+              placeholderTextColor={theme.colors.textTertiary}
+              value={editingUsername}
+              onChangeText={setEditingUsername}
+              autoFocus
+              onBlur={() => {
+                setShowUsernameModal(false);
+                saveUsername();
+              }}
+            />
+            {editingUsername.length > 0 && (
+              <TouchableOpacity onPress={() => setEditingUsername('')} style={styles.clearButton}>
+                <Ionicons name="close-circle" size={20} color={theme.colors.textTertiary} />
               </TouchableOpacity>
-            </View>
-            <ScrollView
-              style={styles.modalBody}
-              contentContainerStyle={[
-                styles.modalBodyContent,
-                { paddingBottom: insets.bottom * 2 },
-              ]}
-              showsVerticalScrollIndicator={false}
-            >
-              <TextInput
-                style={[
-                  styles.textInput,
-                  {
-                    backgroundColor: theme.colors.surfaceVariant,
-                    borderColor: theme.colors.border,
-                    color: theme.colors.text,
-                  },
-                ]}
-                value={editingUsername}
-                onChangeText={setEditingUsername}
-                placeholder="@username"
-                placeholderTextColor={theme.colors.textTertiary}
-                autoFocus
-              />
-              <TouchableOpacity
-                style={[
-                  styles.saveButton,
-                  { backgroundColor: theme.colors.primary },
-                ]}
-                onPress={saveUsername}
-              >
-                <Ionicons name="checkmark" size={20} color={theme.colors.background} />
-                <Text style={[styles.saveButtonText, { color: theme.colors.background }]}>
-                  Save
-                </Text>
-              </TouchableOpacity>
-            </ScrollView>
+            )}
           </View>
-        </BlurredModalOverlay>
-      </Modal>
+        </>
+      )}
 
       {/* Social Links Modal */}
       <SocialLinksModal
@@ -924,10 +845,7 @@ export function ProfileScreen() {
         transparent
         onRequestClose={() => setShowPointsModal(false)}
       >
-        <BlurredModalOverlay
-          visible={showPointsModal}
-          onClose={() => setShowPointsModal(false)}
-        >
+        <BlurredModalOverlay visible={showPointsModal} onClose={() => setShowPointsModal(false)}>
           <View
             style={[
               styles.modalContent,
@@ -1102,11 +1020,7 @@ export function ProfileScreen() {
                 pointerEvents="none"
               />
               <Text style={[styles.modalTitle, { color: theme.colors.text }]}>
-                {showFollowersModal
-                  ? 'Followers'
-                  : showFollowingModal
-                    ? 'Following'
-                    : 'Posts'}
+                {showFollowersModal ? 'Followers' : showFollowingModal ? 'Following' : 'Posts'}
               </Text>
               <TouchableOpacity
                 onPress={() => {
@@ -1174,17 +1088,13 @@ function SettingsSection({
             style={[
               styles.settingsItemText,
               {
-                color: item.destructive
-                  ? theme.colors.error
-                  : theme.colors.text,
+                color: item.destructive ? theme.colors.error : theme.colors.text,
               },
             ]}
           >
             {item.label}
           </Text>
-          {item.selected && (
-            <Ionicons name="checkmark" size={20} color={theme.colors.primary} />
-          )}
+          {item.selected && <Ionicons name="checkmark" size={20} color={theme.colors.primary} />}
         </TouchableOpacity>
       ))}
     </View>
@@ -1450,6 +1360,61 @@ const styles = StyleSheet.create({
     fontSize: 12,
     textAlign: 'right',
     marginBottom: 16,
+  },
+  inputOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'transparent',
+    zIndex: 998,
+  },
+  stickyInputBar: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderTopWidth: 1,
+    zIndex: 999,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: -2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 5,
+  },
+  stickyInputBarMultiline: {
+    paddingBottom: 16,
+  },
+  stickyInputHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  stickyInputLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  stickyInput: {
+    flex: 1,
+    fontSize: 16,
+    padding: 0,
+    minHeight: 20,
+  },
+  stickyInputMultiline: {
+    minHeight: 60,
+    textAlignVertical: 'top',
+  },
+  clearButton: {
+    marginLeft: 8,
+    padding: 4,
   },
   saveButton: {
     flexDirection: 'row',

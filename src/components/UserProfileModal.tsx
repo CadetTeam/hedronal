@@ -20,10 +20,23 @@ import { getProfileById } from '../services/profileService';
 import { useAuth } from '@clerk/clerk-expo';
 import { EmptyState } from './EmptyState';
 
+const SOCIAL_ICONS: { [key: string]: keyof typeof Ionicons.glyphMap } = {
+  twitter: 'logo-twitter',
+  linkedin: 'logo-linkedin',
+  github: 'logo-github',
+  instagram: 'logo-instagram',
+  website: 'globe-outline',
+  email: 'mail-outline',
+};
+
+function getSocialIcon(type: string): keyof typeof Ionicons.glyphMap {
+  return SOCIAL_ICONS[type.toLowerCase()] || 'globe-outline';
+}
+
 interface UserProfileModalProps {
   visible: boolean;
   onClose: () => void;
-  userId: string;
+  userId?: string;
 }
 
 export function UserProfileModal({ visible, onClose, userId }: UserProfileModalProps) {
@@ -44,12 +57,17 @@ export function UserProfileModal({ visible, onClose, userId }: UserProfileModalP
     }
   }, [visible, userId]);
 
+  // Don't render if no userId provided
+  if (!userId) {
+    return null;
+  }
+
   async function loadProfile() {
     try {
       setLoading(true);
       setError(null);
       const token = await getToken();
-      const result = await getProfileById(userId, token || undefined);
+      const result = await getProfileById(userId!, token || undefined);
 
       if (result.success && result.profile) {
         setProfile(result.profile);
@@ -69,22 +87,31 @@ export function UserProfileModal({ visible, onClose, userId }: UserProfileModalP
   }
 
   return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+    <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
       <BlurredModalOverlay visible={visible} onClose={onClose}>
         <View
           style={[
-            styles.modalContainer,
+            styles.modalContent,
             {
-              backgroundColor: theme.colors.background,
-              paddingTop: insets.top + 20,
-              paddingBottom: insets.bottom + 20,
+              backgroundColor: theme.colors.surface,
+              minHeight: 500 + insets.bottom * 2,
+              maxHeight: 650 + insets.bottom * 2,
             },
           ]}
         >
           {/* Header */}
-          <View style={styles.header}>
-            <Text style={[styles.headerTitle, { color: theme.colors.text }]}>PROFILE</Text>
-            <TouchableOpacity onPress={onClose} style={styles.closeButton}>
+          <View style={styles.modalHeader}>
+            <LinearGradient
+              colors={
+                isDark
+                  ? [theme.colors.surface, `${theme.colors.surface}00`]
+                  : [theme.colors.surface, `${theme.colors.surface}00`]
+              }
+              style={styles.modalHeaderGradient}
+              pointerEvents="none"
+            />
+            <Text style={[styles.modalTitle, { color: theme.colors.text }]}>Profile</Text>
+            <TouchableOpacity onPress={onClose}>
               <Ionicons name="close" size={24} color={theme.colors.text} />
             </TouchableOpacity>
           </View>
@@ -92,7 +119,10 @@ export function UserProfileModal({ visible, onClose, userId }: UserProfileModalP
           {/* Content */}
           <ScrollView
             style={styles.scrollView}
-            contentContainerStyle={styles.scrollContent}
+            contentContainerStyle={[
+              styles.scrollContent,
+              { paddingBottom: insets.bottom * 2 },
+            ]}
             showsVerticalScrollIndicator={false}
           >
             {loading ? (
@@ -113,46 +143,50 @@ export function UserProfileModal({ visible, onClose, userId }: UserProfileModalP
             ) : (
               <>
                 {/* Banner */}
-                <View
-                  style={[
-                    styles.banner,
-                    {
-                      backgroundColor: profile.banner_url
-                        ? 'transparent'
-                        : theme.colors.primary,
-                    },
-                  ]}
-                >
-                  {profile.banner_url ? (
-                    <Image source={{ uri: profile.banner_url }} style={styles.bannerImage} />
-                  ) : (
-                    <View style={styles.bannerPlaceholder}>
-                      <Ionicons name="image-outline" size={32} color={theme.colors.background} />
-                    </View>
-                  )}
-                </View>
-
-                {/* Profile Info */}
-                <View style={styles.profileSection}>
+                <TouchableOpacity activeOpacity={0.8}>
                   <View
                     style={[
-                      styles.avatar,
+                      styles.banner,
                       {
-                        backgroundColor: profile.avatar_url
+                        backgroundColor: profile.banner_url
                           ? 'transparent'
                           : theme.colors.primary,
-                        borderColor: theme.colors.background,
                       },
                     ]}
                   >
-                    {profile.avatar_url ? (
-                      <Image source={{ uri: profile.avatar_url }} style={styles.avatarImage} />
+                    {profile.banner_url ? (
+                      <Image source={{ uri: profile.banner_url }} style={styles.bannerImage} />
                     ) : (
-                      <Text style={[styles.avatarText, { color: theme.colors.background }]}>
-                        {profile.full_name?.charAt(0).toUpperCase() || 'U'}
-                      </Text>
+                      <View style={styles.bannerPlaceholder}>
+                        <Ionicons name="image-outline" size={32} color={theme.colors.background} />
+                      </View>
                     )}
                   </View>
+                </TouchableOpacity>
+
+                {/* Profile Info */}
+                <View style={styles.profileSection}>
+                  <TouchableOpacity activeOpacity={0.8}>
+                    <View
+                      style={[
+                        styles.avatar,
+                        {
+                          backgroundColor: profile.avatar_url
+                            ? 'transparent'
+                            : theme.colors.primary,
+                          borderColor: theme.colors.background,
+                        },
+                      ]}
+                    >
+                      {profile.avatar_url ? (
+                        <Image source={{ uri: profile.avatar_url }} style={styles.avatarImage} />
+                      ) : (
+                        <Text style={[styles.avatarText, { color: theme.colors.background }]}>
+                          {profile.full_name?.charAt(0).toUpperCase() || 'U'}
+                        </Text>
+                      )}
+                    </View>
+                  </TouchableOpacity>
 
                   <Text style={[styles.name, { color: theme.colors.text }]}>
                     {profile.full_name || 'User'}
@@ -166,6 +200,34 @@ export function UserProfileModal({ visible, onClose, userId }: UserProfileModalP
 
                   {profile.bio && (
                     <Text style={[styles.bio, { color: theme.colors.text }]}>{profile.bio}</Text>
+                  )}
+
+                  {/* Social Links */}
+                  {profile.socialLinks && profile.socialLinks.length > 0 && (
+                    <View style={styles.socialLinks}>
+                      {profile.socialLinks.map((link: any, index: number) => {
+                        const iconName = getSocialIcon(link.type);
+                        return (
+                          <TouchableOpacity
+                            key={index}
+                            style={[
+                              styles.socialLink,
+                              {
+                                backgroundColor: theme.colors.surfaceVariant,
+                                borderColor: theme.colors.border,
+                              },
+                            ]}
+                            onPress={() => {
+                              if (link.url) {
+                                // Open URL
+                              }
+                            }}
+                          >
+                            <Ionicons name={iconName} size={20} color={theme.colors.text} />
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </View>
                   )}
 
                   {/* Stats */}
@@ -208,25 +270,36 @@ export function UserProfileModal({ visible, onClose, userId }: UserProfileModalP
 }
 
 const styles = StyleSheet.create({
-  modalContainer: {
-    flex: 1,
+  modalContent: {
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    width: '100%',
+    overflow: 'hidden',
   },
-  header: {
+  modalHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(0,0,0,0.1)',
+    padding: 16,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: 'rgba(0, 0, 0, 0.1)',
+    position: 'relative',
+    zIndex: 2,
   },
-  headerTitle: {
-    fontSize: 16,
+  modalHeaderGradient: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 80,
+    zIndex: 1,
+  },
+  modalTitle: {
+    fontSize: 20,
     fontWeight: '600',
-    letterSpacing: 1,
-  },
-  closeButton: {
-    padding: 4,
+    zIndex: 10,
+    flex: 1,
+    textAlign: 'center',
   },
   scrollView: {
     flex: 1,
@@ -254,32 +327,41 @@ const styles = StyleSheet.create({
   },
   banner: {
     width: '100%',
-    height: 200,
-    justifyContent: 'center',
+    height: 150,
     alignItems: 'center',
+    justifyContent: 'center',
+    position: 'relative',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    overflow: 'hidden',
   },
   bannerImage: {
     width: '100%',
     height: '100%',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
   },
   bannerPlaceholder: {
-    justifyContent: 'center',
+    flex: 1,
     alignItems: 'center',
+    justifyContent: 'center',
+    width: '100%',
+    height: '100%',
   },
   profileSection: {
     alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingTop: 20,
+    paddingHorizontal: 16,
+    paddingTop: 16,
+    marginTop: -50,
   },
   avatar: {
     width: 100,
     height: 100,
     borderRadius: 50,
+    overflow: 'hidden',
     borderWidth: 4,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginTop: -50,
-    marginBottom: 16,
+    marginBottom: 12,
+    position: 'relative',
   },
   avatarImage: {
     width: '100%',
@@ -287,23 +369,38 @@ const styles = StyleSheet.create({
     borderRadius: 46,
   },
   avatarText: {
-    fontSize: 36,
-    fontWeight: '600',
+    fontSize: 40,
+    fontWeight: '700',
   },
   name: {
     fontSize: 24,
-    fontWeight: '600',
+    fontWeight: '700',
     marginBottom: 4,
   },
   handle: {
     fontSize: 16,
-    marginBottom: 12,
+    marginBottom: 8,
   },
   bio: {
     fontSize: 14,
     textAlign: 'center',
-    marginBottom: 24,
+    marginBottom: 16,
     lineHeight: 20,
+    maxWidth: '90%',
+  },
+  socialLinks: {
+    flexDirection: 'row',
+    gap: 16,
+    marginBottom: 24,
+    alignItems: 'center',
+  },
+  socialLink: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
   },
   statsContainer: {
     flexDirection: 'row',

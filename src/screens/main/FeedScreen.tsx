@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -15,6 +15,15 @@ import { SkeletonCard } from '../../components/Skeleton';
 import { LoadingSpinner } from '../../components/LoadingSpinner';
 import { NotificationsModal } from '../../components/NotificationsModal';
 import { WalletModal } from '../../components/WalletModal';
+import { UserProfileModal } from '../../components/UserProfileModal';
+import { PostCreationModal } from '../../components/PostCreationModal';
+import { PostImageGallery } from '../../components/PostImageGallery';
+import { PostLikesModal } from '../../components/PostLikesModal';
+import { PostCommentsModal } from '../../components/PostCommentsModal';
+import { TouchableOpacity, Image } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import { fetchPosts, Post, togglePostLike } from '../../services/postService';
+import { useAuth } from '@clerk/clerk-expo';
 
 const MOCK_POSTS = [
   {
@@ -157,16 +166,56 @@ const MOCK_POSTS = [
 export function FeedScreen() {
   const { theme } = useTheme();
   const { triggerRefresh } = useTabBar();
+  const { getToken } = useAuth();
   const [refreshing, setRefreshing] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [posts, setPosts] = useState<any[]>(MOCK_POSTS);
+  const [posts, setPosts] = useState<Post[]>([]);
   const [showNotificationsModal, setShowNotificationsModal] = useState(false);
   const [showWalletModal, setShowWalletModal] = useState(false);
+  const [showUserProfileModal, setShowUserProfileModal] = useState(false);
+  const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
+  const [showPostCreationModal, setShowPostCreationModal] = useState(false);
+  const [showLikesModal, setShowLikesModal] = useState(false);
+  const [showCommentsModal, setShowCommentsModal] = useState(false);
+  const [selectedPostId, setSelectedPostId] = useState<string | null>(null);
+
+  // Load posts on mount - wait a bit to ensure Clerk is initialized
+  useEffect(() => {
+    // Add a small delay to ensure Clerk is fully initialized
+    const timer = setTimeout(() => {
+      loadPosts();
+    }, 200);
+
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  async function loadPosts() {
+    try {
+      setLoading(true);
+      // Safely get token - handle case where Clerk might not be ready
+      let token: string | null = null;
+      try {
+        token = await getToken();
+      } catch (tokenError: any) {
+        console.warn('[FeedScreen] Error getting token (non-fatal):', tokenError?.message);
+        // Continue without token - posts endpoint might work without auth
+      }
+      const fetchedPosts = await fetchPosts(50, 0, token || undefined);
+      setPosts(fetchedPosts);
+    } catch (error: any) {
+      console.error('[FeedScreen] Error loading posts:', error?.message);
+      // Fallback to empty array on error
+      setPosts([]);
+    } finally {
+      setLoading(false);
+    }
+  }
 
   async function onRefresh() {
     setRefreshing(true);
     triggerRefresh(); // Trigger bubble animation reload
-    await new Promise((resolve) => setTimeout(resolve, 1500));
+    await loadPosts();
     setRefreshing(false);
   }
 
@@ -182,17 +231,34 @@ export function FeedScreen() {
         ]}
       >
         <View style={styles.postHeader}>
-          <View style={styles.authorInfo}>
-            <View
-              style={[
-                styles.avatar,
-                { backgroundColor: theme.colors.primary },
-              ]}
-            >
-              <Text style={[styles.avatarText, { color: theme.colors.background }]}>
-                {item.author.charAt(0)}
-              </Text>
-            </View>
+          <TouchableOpacity
+            style={styles.authorInfo}
+            activeOpacity={0.7}
+            onPress={() => {
+              // Use authorId from the post
+              if (item.authorId) {
+                setSelectedUserId(item.authorId);
+                setShowUserProfileModal(true);
+              }
+            }}
+          >
+            {item.authorProfile?.avatar ? (
+              <Image
+                source={{ uri: item.authorProfile.avatar }}
+                style={styles.avatar}
+              />
+            ) : (
+              <View
+                style={[
+                  styles.avatar,
+                  { backgroundColor: theme.colors.primary },
+                ]}
+              >
+                <Text style={[styles.avatarText, { color: theme.colors.background }]}>
+                  {item.author.charAt(0)}
+                </Text>
+              </View>
+            )}
             <View>
               <Text style={[styles.authorName, { color: theme.colors.text }]}>
                 {item.author}
@@ -201,30 +267,84 @@ export function FeedScreen() {
                 {item.authorCompany}
               </Text>
             </View>
-          </View>
+          </TouchableOpacity>
           <Text style={[styles.timestamp, { color: theme.colors.textTertiary }]}>
             {item.timestamp}
           </Text>
         </View>
-        <Text style={[styles.postText, { color: theme.colors.text }]}>
-          {item.content}
-        </Text>
+        {item.content ? (
+          <Text style={[styles.postText, { color: theme.colors.text }]}>
+            {item.content}
+          </Text>
+        ) : null}
+        {item.images && item.images.length > 0 && (
+          <PostImageGallery images={item.images} />
+        )}
         <View
           style={[
             styles.postFooter,
             { borderTopColor: theme.colors.borderLight },
           ]}
         >
-          <View style={styles.postAction}>
-            <Text style={[styles.actionText, { color: theme.colors.textSecondary }]}>
-              ❤️ {item.likes}
+          <TouchableOpacity
+            style={styles.postAction}
+            onPress={async () => {
+              try {
+                const token = await getToken();
+                const result = await togglePostLike(item.id, token || undefined);
+                if (result) {
+                  // Update local state optimistically
+                  setPosts(prevPosts =>
+                    prevPosts.map(post =>
+                      post.id === item.id
+                        ? {
+                            ...post,
+                            isLiked: result.liked,
+                            likes: result.liked ? post.likes + 1 : Math.max(0, post.likes - 1),
+                          }
+                        : post
+                    )
+                  );
+                }
+              } catch (error: any) {
+                console.error('[FeedScreen] Error toggling like:', error);
+              }
+            }}
+          >
+            <Ionicons
+              name={item.isLiked ? 'heart' : 'heart-outline'}
+              size={20}
+              color={item.isLiked ? theme.colors.error : theme.colors.textSecondary}
+            />
+            <Text
+              style={[
+                styles.actionText,
+                {
+                  color: item.isLiked ? theme.colors.error : theme.colors.textSecondary,
+                  marginLeft: 4,
+                },
+              ]}
+            >
+              {item.likes}
             </Text>
-          </View>
-          <View style={styles.postAction}>
-            <Text style={[styles.actionText, { color: theme.colors.textSecondary }]}>
-              💬 {item.comments}
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.postAction}
+            onPress={() => {
+              setSelectedPostId(item.id);
+              setShowCommentsModal(true);
+            }}
+          >
+            <Ionicons name="chatbubble-outline" size={20} color={theme.colors.textSecondary} />
+            <Text
+              style={[
+                styles.actionText,
+                { color: theme.colors.textSecondary, marginLeft: 4 },
+              ]}
+            >
+              {item.comments}
             </Text>
-          </View>
+          </TouchableOpacity>
         </View>
       </View>
     );
@@ -259,6 +379,10 @@ export function FeedScreen() {
           icon: 'wallet-outline',
           onPress: () => setShowWalletModal(true),
         }}
+        rightAction={{
+          icon: 'add',
+          onPress: () => setShowPostCreationModal(true),
+        }}
         rightSideAction={{
           icon: 'notifications-outline',
           onPress: () => setShowNotificationsModal(true),
@@ -292,6 +416,46 @@ export function FeedScreen() {
         visible={showNotificationsModal}
         onClose={() => setShowNotificationsModal(false)}
       />
+
+      {selectedUserId && (
+        <UserProfileModal
+          visible={showUserProfileModal}
+          onClose={() => {
+            setShowUserProfileModal(false);
+            setSelectedUserId(null);
+          }}
+          userId={selectedUserId}
+        />
+      )}
+
+      <PostCreationModal
+        visible={showPostCreationModal}
+        onClose={() => setShowPostCreationModal(false)}
+        onComplete={() => {
+          loadPosts(); // Refresh posts after creation
+        }}
+      />
+
+      {selectedPostId && (
+        <>
+          <PostLikesModal
+            visible={showLikesModal}
+            onClose={() => {
+              setShowLikesModal(false);
+              setSelectedPostId(null);
+            }}
+            postId={selectedPostId}
+          />
+          <PostCommentsModal
+            visible={showCommentsModal}
+            onClose={() => {
+              setShowCommentsModal(false);
+              setSelectedPostId(null);
+            }}
+            postId={selectedPostId}
+          />
+        </>
+      )}
     </SafeAreaView>
   );
 }
@@ -333,6 +497,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 12,
+    overflow: 'hidden',
   },
   avatarText: {
     fontSize: 16,

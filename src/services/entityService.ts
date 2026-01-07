@@ -334,15 +334,47 @@ export function useEntityCreation() {
         throw new Error('Failed to create Clerk organization - no organization ID returned');
       }
 
-      // Wait a moment for Clerk to sync the organization
-      await new Promise(resolve => setTimeout(resolve, 500));
+      // Wait longer for Clerk to sync the organization and propagate to all services
+      console.log('[useEntityCreation] Waiting for Clerk organization sync...');
+      await new Promise(resolve => setTimeout(resolve, 1500));
 
       // Get a fresh token for backend authentication after org creation
-      // The token needs to include the new organization context
-      let token = await getToken({ template: 'default' });
+      // Try multiple methods to get a valid token with organization context
+      let token: string | null = null;
+      
+      // Method 1: Try with organization context
+      try {
+        token = await getToken({ template: 'default' });
+        if (token) {
+          console.log('[useEntityCreation] Token retrieved with template, length:', token.length);
+        }
+      } catch (templateError) {
+        console.log('[useEntityCreation] Template token failed:', templateError);
+      }
+
+      // Method 2: Try without template
       if (!token) {
-        console.log('[useEntityCreation] Token with template failed, trying without template...');
-        token = await getToken();
+        try {
+          token = await getToken();
+          if (token) {
+            console.log('[useEntityCreation] Token retrieved without template, length:', token.length);
+          }
+        } catch (defaultError) {
+          console.log('[useEntityCreation] Default token failed:', defaultError);
+        }
+      }
+
+      // Method 3: Try with skipCache to force fresh token
+      if (!token) {
+        try {
+          await new Promise(resolve => setTimeout(resolve, 500)); // Wait a bit more
+          token = await getToken({ template: 'default', skipCache: true });
+          if (token) {
+            console.log('[useEntityCreation] Token retrieved with skipCache, length:', token.length);
+          }
+        } catch (skipCacheError) {
+          console.log('[useEntityCreation] SkipCache token failed:', skipCacheError);
+        }
       }
 
       if (!token) {
@@ -395,20 +427,34 @@ export function useEntityCreation() {
       console.log('[useEntityCreation] Creating entity via backend API with org ID:', org.id);
 
       // Get fresh token right before entity creation to ensure it's valid
-      // Try with template first, then fallback to default
-      let createToken = await getToken({ template: 'default' });
+      // Use the token we already retrieved, or get a new one if needed
+      let createToken: string | null = token;
+      
+      // If we don't have a token, try to get one more time
       if (!createToken) {
-        console.log('[useEntityCreation] Token with template failed, trying without template...');
-        createToken = await getToken();
-      }
-
-      // If still no token, try to get a new session token
-      if (!createToken) {
-        console.log('[useEntityCreation] Attempting to get fresh session token...');
+        console.log('[useEntityCreation] Getting fresh token for entity creation...');
         try {
-          createToken = await getToken({ template: 'default', skipCache: true });
-        } catch (tokenError) {
-          console.error('[useEntityCreation] Token retrieval error:', tokenError);
+          const freshToken = await getToken({ template: 'default' });
+          createToken = freshToken || null;
+        } catch (e) {
+          console.log('[useEntityCreation] Template token failed, trying default...');
+          try {
+            const defaultToken = await getToken();
+            createToken = defaultToken || null;
+          } catch (defaultError) {
+            console.log('[useEntityCreation] Default token also failed');
+          }
+        }
+        
+        if (!createToken) {
+          // Last attempt with skipCache
+          try {
+            await new Promise(resolve => setTimeout(resolve, 300));
+            const skipCacheToken = await getToken({ template: 'default', skipCache: true });
+            createToken = skipCacheToken || null;
+          } catch (tokenError) {
+            console.error('[useEntityCreation] Token retrieval error:', tokenError);
+          }
         }
       }
 
@@ -416,7 +462,7 @@ export function useEntityCreation() {
         throw new Error('Unable to get authentication token. Please sign out and sign in again.');
       }
 
-      console.log('[useEntityCreation] Token retrieved, length:', createToken.length);
+      console.log('[useEntityCreation] Final token for entity creation, length:', createToken.length);
 
       // Create entity via backend API with organization ID and image URLs
       const result = await createEntity(entityDataWithUrls, userId, org.id, createToken);

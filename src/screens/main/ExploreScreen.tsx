@@ -27,6 +27,7 @@ import { BlurredModalOverlay } from '../../components/BlurredModalOverlay';
 import { LinearGradient } from 'expo-linear-gradient';
 import { NotificationsModal } from '../../components/NotificationsModal';
 import { WalletModal } from '../../components/WalletModal';
+import { UserProfileModal } from '../../components/UserProfileModal';
 import { fetchArticles, toggleArticleLike, Article } from '../../services/articleService';
 import { useAuth } from '@clerk/clerk-expo';
 import { useClerkContext } from '../../context/ClerkContext';
@@ -312,6 +313,8 @@ export function ExploreScreen() {
   const [keyboardHeight, setKeyboardHeight] = useState(0);
   const [showNotificationsModal, setShowNotificationsModal] = useState(false);
   const [showWalletModal, setShowWalletModal] = useState(false);
+  const [showUserProfileModal, setShowUserProfileModal] = useState(false);
+  const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
 
   // Load articles from backend API
   async function loadArticles(topicFilter?: string | null) {
@@ -800,9 +803,20 @@ export function ExploreScreen() {
               {selectedArticle && (
                 <>
                   <View style={styles.articleModalMeta}>
-                    <Text style={[styles.articleModalAuthor, { color: theme.colors.textSecondary }]}>
-                      By {selectedArticle.author}
-                    </Text>
+                    <TouchableOpacity
+                      onPress={() => {
+                        // Use authorId from the article
+                        if (selectedArticle.authorId) {
+                          setSelectedUserId(selectedArticle.authorId);
+                          setShowUserProfileModal(true);
+                        }
+                      }}
+                      activeOpacity={0.7}
+                    >
+                      <Text style={[styles.articleModalAuthor, { color: theme.colors.textSecondary }]}>
+                        By {selectedArticle.author}
+                      </Text>
+                    </TouchableOpacity>
                     <Text style={[styles.articleModalDate, { color: theme.colors.textTertiary }]}>
                       {new Date(selectedArticle.date).toLocaleDateString()} • {selectedArticle.read_time}
                     </Text>
@@ -838,6 +852,18 @@ export function ExploreScreen() {
         visible={showNotificationsModal}
         onClose={() => setShowNotificationsModal(false)}
       />
+
+      {/* User Profile Modal */}
+      {selectedUserId && (
+        <UserProfileModal
+          visible={showUserProfileModal}
+          onClose={() => {
+            setShowUserProfileModal(false);
+            setSelectedUserId(null);
+          }}
+          userId={selectedUserId}
+        />
+      )}
     </SafeAreaView>
   );
 }

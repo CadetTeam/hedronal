@@ -156,91 +156,115 @@ export function PeopleScreen() {
           },
         ]}
       >
-        <View style={styles.personHeader}>
+        <View style={styles.personRow}>
+          {/* Avatar */}
+          <View style={[styles.avatar, { backgroundColor: theme.colors.primary }]}>
+            <Text style={[styles.avatarText, { color: theme.colors.background }]}>
+              {item.name.charAt(0).toUpperCase()}
+            </Text>
+          </View>
+
+          {/* Info Section */}
           <View style={styles.personInfo}>
-            <View style={[styles.avatar, { backgroundColor: theme.colors.primary }]}>
-              <Text style={[styles.avatarText, { color: theme.colors.background }]}>
-                {item.name.charAt(0).toUpperCase()}
+            <View style={styles.personNameRow}>
+              <Text style={[styles.personName, { color: theme.colors.text }]} numberOfLines={1}>
+                {item.name}
               </Text>
-            </View>
-            <View style={styles.personDetails}>
-              <View style={styles.personNameRow}>
-                <Text style={[styles.personName, { color: theme.colors.text }]}>{item.name}</Text>
-                {item.status && (
-                  <View
+              {item.status && (
+                <View
+                  style={[
+                    styles.statusBadge,
+                    {
+                      backgroundColor: getStatusColor(item.status) + '20',
+                      borderColor: getStatusColor(item.status),
+                    },
+                  ]}
+                >
+                  <Text
                     style={[
-                      styles.statusBadge,
+                      styles.statusText,
                       {
-                        backgroundColor: getStatusColor(item.status) + '20',
-                        borderColor: getStatusColor(item.status),
+                        color: getStatusColor(item.status),
                       },
                     ]}
                   >
-                    <Text
-                      style={[
-                        styles.statusText,
-                        {
-                          color: getStatusColor(item.status),
-                        },
-                      ]}
-                    >
-                      {getStatusLabel(item.status)}
-                    </Text>
-                  </View>
-                )}
-              </View>
+                    {getStatusLabel(item.status)}
+                  </Text>
+                </View>
+              )}
+            </View>
+            <View style={styles.personMetaRow}>
               {item.company && (
-                <Text style={[styles.personCompany, { color: theme.colors.textSecondary }]}>
+                <Text
+                  style={[styles.personMeta, { color: theme.colors.textSecondary }]}
+                  numberOfLines={1}
+                >
                   {item.company}
                 </Text>
               )}
               {item.location && (
-                <Text style={[styles.personLocation, { color: theme.colors.textTertiary }]}>
-                  {item.location}
-                </Text>
+                <>
+                  {item.company && (
+                    <Text style={[styles.metaSeparator, { color: theme.colors.textTertiary }]}>
+                      •
+                    </Text>
+                  )}
+                  <Text
+                    style={[styles.personMeta, { color: theme.colors.textTertiary }]}
+                    numberOfLines={1}
+                  >
+                    {item.location}
+                  </Text>
+                </>
               )}
             </View>
           </View>
-          <TouchableOpacity onPress={() => handlePersonMenu(item)} style={styles.menuButton}>
-            <Ionicons name="ellipsis-horizontal" size={20} color={theme.colors.text} />
-          </TouchableOpacity>
-        </View>
 
-        <View style={styles.personActions}>
-          <TouchableOpacity
-            style={[
-              styles.personActionButton,
-              {
-                backgroundColor: theme.colors.primary,
-              },
-            ]}
-            onPress={() => handleChat(item)}
-          >
-            <Ionicons name="chatbubble-outline" size={18} color={theme.colors.background} />
-            <Text style={[styles.actionButtonText, { color: theme.colors.background }]}>Chat</Text>
-          </TouchableOpacity>
+          {/* Action Buttons */}
+          <View style={styles.personActions}>
+            <TouchableOpacity
+              style={[
+                styles.iconButton,
+                {
+                  backgroundColor: theme.colors.primary,
+                },
+              ]}
+              onPress={() => handleChat(item)}
+            >
+              <Ionicons name="chatbubble-outline" size={18} color={theme.colors.background} />
+            </TouchableOpacity>
 
-          <TouchableOpacity
-            style={[
-              styles.personActionButton,
-              {
-                backgroundColor: item.following
-                  ? theme.colors.surfaceVariant
-                  : theme.colors.secondary,
-                borderWidth: 1,
-                borderColor: theme.colors.border,
-              },
-            ]}
-          >
-            <Ionicons
-              name={item.following ? 'checkmark' : 'add'}
-              size={18}
-              color={theme.colors.text}
-            />
-            <Text style={[styles.actionButtonText, { color: theme.colors.text }]}>
-              {item.following ? 'Following' : 'Follow'}
-            </Text>
-          </TouchableOpacity>
+            <TouchableOpacity
+              style={[
+                styles.iconButton,
+                {
+                  backgroundColor: item.following
+                    ? theme.colors.surfaceVariant
+                    : theme.colors.secondary,
+                  borderWidth: 1,
+                  borderColor: theme.colors.border,
+                },
+              ]}
+            >
+              <Ionicons
+                name={item.following ? 'checkmark' : 'add'}
+                size={18}
+                color={theme.colors.text}
+              />
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              onPress={() => handlePersonMenu(item)}
+              style={[
+                styles.iconButton,
+                {
+                  backgroundColor: 'transparent',
+                },
+              ]}
+            >
+              <Ionicons name="ellipsis-horizontal" size={18} color={theme.colors.textTertiary} />
+            </TouchableOpacity>
+          </View>
         </View>
       </TouchableOpacity>
     );
@@ -258,123 +282,92 @@ export function PeopleScreen() {
           },
         ]}
       >
-        <View style={styles.personHeader}>
+        <View style={styles.personRow}>
+          {/* Avatar skeleton */}
+          <View
+            style={[
+              styles.avatar,
+              {
+                backgroundColor: theme.colors.surfaceVariant,
+              },
+            ]}
+          />
           <View style={styles.personInfo}>
-            {/* Avatar skeleton */}
+            {/* Name skeleton */}
             <View
               style={[
-                styles.avatar,
+                {
+                  height: 15,
+                  width: '60%',
+                  backgroundColor: theme.colors.surfaceVariant,
+                  borderRadius: 4,
+                  marginBottom: 6,
+                },
+              ]}
+            />
+            {/* Meta skeleton */}
+            <View
+              style={[
+                {
+                  height: 12,
+                  width: '50%',
+                  backgroundColor: theme.colors.surfaceVariant,
+                  borderRadius: 4,
+                },
+              ]}
+            />
+          </View>
+          {/* Action buttons skeleton */}
+          <View style={styles.personActions}>
+            <View
+              style={[
+                styles.iconButton,
                 {
                   backgroundColor: theme.colors.surfaceVariant,
                 },
               ]}
             />
-            <View style={styles.personDetails}>
-              {/* Name skeleton */}
-              <View
-                style={[
-                  {
-                    height: 16,
-                    width: '60%',
-                    backgroundColor: theme.colors.surfaceVariant,
-                    borderRadius: 4,
-                    marginBottom: 6,
-                  },
-                ]}
-              />
-              {/* Company skeleton */}
-              <View
-                style={[
-                  {
-                    height: 14,
-                    width: '50%',
-                    backgroundColor: theme.colors.surfaceVariant,
-                    borderRadius: 4,
-                    marginBottom: 4,
-                  },
-                ]}
-              />
-              {/* Location skeleton */}
-              <View
-                style={[
-                  {
-                    height: 12,
-                    width: '40%',
-                    backgroundColor: theme.colors.surfaceVariant,
-                    borderRadius: 4,
-                  },
-                ]}
-              />
-            </View>
+            <View
+              style={[
+                styles.iconButton,
+                {
+                  backgroundColor: theme.colors.surfaceVariant,
+                },
+              ]}
+            />
+            <View
+              style={[
+                styles.iconButton,
+                {
+                  backgroundColor: theme.colors.surfaceVariant,
+                },
+              ]}
+            />
           </View>
-          {/* Menu button skeleton */}
-          <View
-            style={[
-              {
-                width: 24,
-                height: 24,
-                backgroundColor: theme.colors.surfaceVariant,
-                borderRadius: 4,
-              },
-            ]}
-          />
-        </View>
-
-        {/* Action buttons skeleton */}
-        <View style={styles.personActions}>
-          <View
-            style={[
-              {
-                height: 40,
-                flex: 1,
-                backgroundColor: theme.colors.surfaceVariant,
-                borderRadius: 8,
-              },
-            ]}
-          />
-          <View
-            style={[
-              {
-                height: 40,
-                flex: 1,
-                backgroundColor: theme.colors.surfaceVariant,
-                borderRadius: 8,
-              },
-            ]}
-          />
         </View>
       </View>
     );
   }
 
   function renderEmpty() {
-    if (loading) {
-      return (
-        <View style={styles.loadingContainer}>
-          <SkeletonCard />
-          <SkeletonCard />
-        </View>
-      );
-    }
     return (
       <View style={styles.emptyContainer}>
-        {/* Profile skeletons in background */}
-        <View style={styles.listContent}>
-          {renderProfileSkeleton()}
-          {renderProfileSkeleton()}
-          {renderProfileSkeleton()}
-        </View>
-        {/* CTA overlay on top */}
+        {/* Skeleton cards */}
+        {[1, 2, 3].map(i => (
+          <View key={i}>{renderProfileSkeleton()}</View>
+        ))}
+        {/* CTA Overlay */}
         <View style={styles.emptyStateOverlay}>
           <TouchableOpacity
-            activeOpacity={0.7}
-            onPress={handleAddPerson}
             style={styles.ctaContainer}
+            activeOpacity={0.9}
+            onPress={() => setShowInviteModal(true)}
           >
             <EmptyState
-              title="No people yet"
-              message="Tap here to invite people"
-              transparent={true}
+              title="Start Building Your Network"
+              message="Invite people to connect and collaborate"
+              icon="people-outline"
+              transparent
             />
           </TouchableOpacity>
         </View>
@@ -445,12 +438,20 @@ export function PeopleScreen() {
       <FlatList
         data={people}
         renderItem={renderPerson}
-        keyExtractor={(item, index) => `person-${index}`}
+        keyExtractor={item => item.id}
         contentContainerStyle={[
           people.length === 0 ? styles.emptyContainer : styles.listContent,
           { paddingBottom: 100 },
         ]}
-        ListEmptyComponent={renderEmpty}
+        ListEmptyComponent={loading ? (
+          <View style={styles.loadingContainer}>
+            {[1, 2, 3].map(i => (
+              <View key={i}>{renderProfileSkeleton()}</View>
+            ))}
+          </View>
+        ) : (
+          renderEmpty()
+        )}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -461,6 +462,7 @@ export function PeopleScreen() {
         showsVerticalScrollIndicator={false}
       />
 
+      {/* Person Menu Modal */}
       <Modal
         visible={showPersonMenu}
         transparent
@@ -481,19 +483,29 @@ export function PeopleScreen() {
               },
             ]}
           >
-            <TouchableOpacity style={styles.menuItem} onPress={() => handleMenuAction('follow')}>
-              <Text style={[styles.menuItemText, { color: theme.colors.text }]}>
-                {selectedPerson?.following ? 'Unfollow' : 'Follow'}
-              </Text>
+            <TouchableOpacity
+              style={styles.menuItem}
+              onPress={() => {
+                handleMenuAction('follow');
+              }}
+            >
+              <Text style={[styles.menuItemText, { color: theme.colors.text }]}>Follow</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.menuItem} onPress={() => handleMenuAction('block')}>
+            <TouchableOpacity
+              style={styles.menuItem}
+              onPress={() => {
+                handleMenuAction('message');
+              }}
+            >
+              <Text style={[styles.menuItemText, { color: theme.colors.text }]}>Message</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.menuItem}
+              onPress={() => {
+                handleMenuAction('block');
+              }}
+            >
               <Text style={[styles.menuItemText, { color: theme.colors.error }]}>Block</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.menuItem} onPress={() => handleMenuAction('report')}>
-              <Text style={[styles.menuItemText, { color: theme.colors.warning }]}>Report</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.menuItem} onPress={() => handleMenuAction('delete')}>
-              <Text style={[styles.menuItemText, { color: theme.colors.error }]}>Delete</Text>
             </TouchableOpacity>
           </View>
         </TouchableOpacity>
@@ -555,6 +567,7 @@ const styles = StyleSheet.create({
   },
   connectionsValue: {
     alignItems: 'flex-end',
+    borderWidth: 0,
   },
   connectionsLabel: {
     fontSize: 11,
@@ -595,85 +608,82 @@ const styles = StyleSheet.create({
     padding: 16,
   },
   personCard: {
-    padding: 16,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
     borderRadius: 12,
     borderWidth: 1,
-    marginBottom: 16,
-  },
-  personHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
     marginBottom: 12,
   },
-  personInfo: {
+  personRow: {
     flexDirection: 'row',
-    flex: 1,
+    alignItems: 'center',
+    gap: 12,
   },
   avatar: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: 12,
+    flexShrink: 0,
   },
   avatarText: {
-    fontSize: 20,
+    fontSize: 16,
     fontWeight: '600',
   },
-  personDetails: {
+  personInfo: {
     flex: 1,
+    minWidth: 0, // Allows text truncation
   },
   personNameRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-    marginBottom: 4,
+    gap: 6,
+    marginBottom: 2,
   },
   personName: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '600',
+    flexShrink: 1,
   },
   statusBadge: {
-    paddingHorizontal: 8,
+    paddingHorizontal: 6,
     paddingVertical: 2,
     borderRadius: 4,
     borderWidth: 1,
+    flexShrink: 0,
   },
   statusText: {
-    fontSize: 10,
+    fontSize: 9,
     fontWeight: '600',
     textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
-  personCompany: {
-    fontSize: 14,
-    marginBottom: 2,
+  personMetaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
   },
-  personLocation: {
+  personMeta: {
     fontSize: 12,
+    flexShrink: 1,
   },
-  menuButton: {
-    padding: 4,
+  metaSeparator: {
+    fontSize: 12,
+    marginHorizontal: 2,
   },
   personActions: {
     flexDirection: 'row',
-    gap: 12,
-  },
-  personActionButton: {
-    flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 8,
-    gap: 8,
-    flex: 1,
-    justifyContent: 'center',
+    gap: 6,
+    flexShrink: 0,
   },
-  actionButtonText: {
-    fontSize: 14,
-    fontWeight: '500',
+  iconButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   modalOverlay: {
     flex: 1,

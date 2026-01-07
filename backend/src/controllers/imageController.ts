@@ -5,7 +5,7 @@ import { z } from 'zod';
 
 const uploadImageSchema = z.object({
   imageData: z.string(), // base64 encoded image
-  bucket: z.enum(['avatars', 'banners']),
+  bucket: z.enum(['avatars', 'banners', 'post-images']),
   fileName: z.string().optional(),
   contentType: z.string().optional(),
 });

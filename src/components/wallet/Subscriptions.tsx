@@ -19,7 +19,17 @@ export interface Subscription {
   autoRenew: boolean;
 }
 
+interface BankCard {
+  id: string;
+  bankName: string;
+  entityName: string;
+  cardNumber: string;
+  balance: number;
+  currency: string;
+}
+
 interface SubscriptionsProps {
+  selectedAccount?: BankCard | null;
   subscriptions?: Subscription[];
   onSubscriptionPress?: (subscription: Subscription) => void;
 }
@@ -103,6 +113,7 @@ const MOCK_SUBSCRIPTIONS: Subscription[] = [
 ];
 
 export function Subscriptions({
+  selectedAccount,
   subscriptions = MOCK_SUBSCRIPTIONS,
   onSubscriptionPress,
 }: SubscriptionsProps) {

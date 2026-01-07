@@ -18,7 +18,17 @@ export interface CreditAccount {
   status: 'active' | 'closed' | 'suspended';
 }
 
+interface BankCard {
+  id: string;
+  bankName: string;
+  entityName: string;
+  cardNumber: string;
+  balance: number;
+  currency: string;
+}
+
 interface CreditProps {
+  selectedAccount?: BankCard | null;
   accounts?: CreditAccount[];
   onAccountPress?: (account: CreditAccount) => void;
 }
@@ -65,7 +75,11 @@ const MOCK_CREDIT_ACCOUNTS: CreditAccount[] = [
   },
 ];
 
-export function Credit({ accounts = MOCK_CREDIT_ACCOUNTS, onAccountPress }: CreditProps) {
+export function Credit({
+  selectedAccount,
+  accounts = MOCK_CREDIT_ACCOUNTS,
+  onAccountPress,
+}: CreditProps) {
   const { theme } = useTheme();
 
   function formatCurrency(amount: number, currency: string) {

@@ -85,12 +85,39 @@ export const articleController = {
         }
       }
 
-      // Combine articles with like counts and user like status
-      const articlesWithLikeStatus = articles.map((article: any) => ({
-        ...article,
-        likes_count: likesCountMap[article.id] || 0,
-        isLiked: userLikedArticles.includes(article.id),
-      }));
+      // Fetch author profiles for all articles
+      const authorIds = [...new Set(articles.map((article: any) => article.created_by).filter(Boolean))];
+      const authorProfilesMap: { [key: string]: any } = {};
+      
+      if (authorIds.length > 0) {
+        const { data: profiles, error: profilesError } = await supabase
+          .from('profiles')
+          .select('id, full_name, username, avatar_url')
+          .in('id', authorIds);
+
+        if (!profilesError && profiles) {
+          profiles.forEach((profile: any) => {
+            authorProfilesMap[profile.id] = profile;
+          });
+        }
+      }
+
+      // Combine articles with like counts, user like status, and author profile ID
+      const articlesWithLikeStatus = articles.map((article: any) => {
+        const authorProfile = article.created_by ? authorProfilesMap[article.created_by] : null;
+        return {
+          ...article,
+          likes_count: likesCountMap[article.id] || 0,
+          isLiked: userLikedArticles.includes(article.id),
+          authorId: authorProfile?.id || null,
+          authorProfile: authorProfile ? {
+            id: authorProfile.id,
+            name: authorProfile.full_name,
+            username: authorProfile.username,
+            avatar: authorProfile.avatar_url,
+          } : null,
+        };
+      });
 
       return res.json({
         articles: articlesWithLikeStatus,
@@ -147,10 +174,31 @@ export const articleController = {
         }
       }
 
+      // Fetch author profile
+      let authorProfile = null;
+      if (article.created_by) {
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('id, full_name, username, avatar_url')
+          .eq('id', article.created_by)
+          .single();
+
+        if (profile) {
+          authorProfile = {
+            id: profile.id,
+            name: profile.full_name,
+            username: profile.username,
+            avatar: profile.avatar_url,
+          };
+        }
+      }
+
       return res.json({
         ...article,
         likes_count: likesCount || 0,
         isLiked,
+        authorId: authorProfile?.id || null,
+        authorProfile,
       });
     } catch (error: any) {
       console.error('[articleController] Error fetching article:', error);

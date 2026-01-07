@@ -26,12 +26,32 @@ export async function initializeRevenueCat(userId?: string): Promise<void> {
   try {
     // Configure RevenueCat with API key
     if (REVENUECAT_API_KEY) {
+      // Check if Purchases is available before configuring
+      if (!Purchases || typeof Purchases.configure !== 'function') {
+        console.warn('[RevenueCat] Purchases module not available, skipping initialization');
+        return;
+      }
+
       // Configure RevenueCat (synchronous operation)
-      Purchases.configure({ apiKey: REVENUECAT_API_KEY });
+      try {
+        Purchases.configure({ apiKey: REVENUECAT_API_KEY });
+      } catch (configureError: any) {
+        // If already configured, that's fine
+        if (configureError?.message?.includes('already configured')) {
+          console.log('[RevenueCat] Already configured');
+        } else {
+          throw configureError;
+        }
+      }
 
       // Set user ID if provided (usually Clerk user ID)
       if (userId) {
-        await Purchases.logIn(userId);
+        try {
+          await Purchases.logIn(userId);
+        } catch (loginError: any) {
+          // If login fails, log but don't throw - app can continue
+          console.warn('[RevenueCat] Login error (non-fatal):', loginError?.message);
+        }
       }
 
       isRevenueCatInitialized = true;
@@ -40,9 +60,10 @@ export async function initializeRevenueCat(userId?: string): Promise<void> {
       console.warn('[RevenueCat] API key not found, skipping initialization');
       isRevenueCatInitialized = false;
     }
-  } catch (error) {
-    console.error('[RevenueCat] Initialization error:', error);
-    throw error;
+  } catch (error: any) {
+    console.error('[RevenueCat] Initialization error (non-fatal):', error);
+    // Don't throw - allow app to continue without RevenueCat
+    isRevenueCatInitialized = false;
   }
 }
 

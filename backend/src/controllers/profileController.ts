@@ -9,6 +9,14 @@ const updateProfileSchema = z.object({
   bio: z.string().max(120).optional(),
   avatar_url: z.string().url().optional().nullable(),
   banner_url: z.string().url().optional().nullable(),
+  socialLinks: z
+    .array(
+      z.object({
+        type: z.string(),
+        url: z.string().url(),
+      })
+    )
+    .optional(),
 });
 
 export const profileController = {
@@ -37,7 +45,22 @@ export const profileController = {
         return res.status(404).json({ error: 'Profile not found' });
       }
 
-      res.json({ profile: data });
+      // Fetch social links
+      const { data: socialLinks, error: socialLinksError } = await supabase
+        .from('profile_social_links')
+        .select('*')
+        .eq('profile_id', data.id);
+
+      if (socialLinksError) {
+        console.error('[profileController] Error fetching social links:', socialLinksError);
+      }
+
+      res.json({
+        profile: {
+          ...data,
+          socialLinks: socialLinks || [],
+        },
+      });
     } catch (error: any) {
       console.error('[profileController] getMe error:', error);
       res.status(500).json({ error: error.message || 'Failed to get profile' });
@@ -55,25 +78,80 @@ export const profileController = {
       }
 
       const validatedData = updateProfileSchema.parse(req.body);
+      const { socialLinks, ...profileUpdateData } = validatedData;
 
+      // Get profile ID first
+      const { data: profile, error: profileError } = await supabase
+        .from('profiles')
+        .select('id')
+        .eq('clerk_user_id', req.userId)
+        .single();
+
+      if (profileError || !profile) {
+        console.error('[profileController] Error fetching profile:', profileError);
+        return res.status(500).json({ error: 'Failed to find profile' });
+      }
+
+      // Update profile data (excluding socialLinks)
       const updateData: any = {
-        ...validatedData,
+        ...profileUpdateData,
         updated_at: new Date().toISOString(),
       };
 
-      const { data, error } = await supabase
+      const { data: updatedProfile, error: updateError } = await supabase
         .from('profiles')
         .update(updateData)
         .eq('clerk_user_id', req.userId)
         .select()
         .single();
 
-      if (error) {
-        console.error('[profileController] Error updating profile:', error);
+      if (updateError) {
+        console.error('[profileController] Error updating profile:', updateError);
         return res.status(500).json({ error: 'Failed to update profile' });
       }
 
-      res.json({ profile: data });
+      // Update social links if provided
+      if (socialLinks !== undefined) {
+        // Delete existing social links
+        const { error: deleteError } = await supabase
+          .from('profile_social_links')
+          .delete()
+          .eq('profile_id', profile.id);
+
+        if (deleteError) {
+          console.error('[profileController] Error deleting social links:', deleteError);
+        }
+
+        // Insert new social links
+        if (socialLinks.length > 0) {
+          const { error: insertError } = await supabase
+            .from('profile_social_links')
+            .insert(
+              socialLinks.map(link => ({
+                profile_id: profile.id,
+                type: link.type.toLowerCase(),
+                url: link.url,
+              }))
+            );
+
+          if (insertError) {
+            console.error('[profileController] Error inserting social links:', insertError);
+          }
+        }
+      }
+
+      // Fetch updated profile with social links
+      const { data: socialLinksData } = await supabase
+        .from('profile_social_links')
+        .select('*')
+        .eq('profile_id', profile.id);
+
+      res.json({
+        profile: {
+          ...updatedProfile,
+          socialLinks: socialLinksData || [],
+        },
+      });
     } catch (error: any) {
       if (error instanceof z.ZodError) {
         return res.status(400).json({ error: error.errors[0].message });
@@ -106,7 +184,22 @@ export const profileController = {
         return res.status(404).json({ error: 'Profile not found' });
       }
 
-      res.json({ profile: data });
+      // Fetch social links
+      const { data: socialLinks, error: socialLinksError } = await supabase
+        .from('profile_social_links')
+        .select('*')
+        .eq('profile_id', data.id);
+
+      if (socialLinksError) {
+        console.error('[profileController] Error fetching social links:', socialLinksError);
+      }
+
+      res.json({
+        profile: {
+          ...data,
+          socialLinks: socialLinks || [],
+        },
+      });
     } catch (error: any) {
       console.error('[profileController] getById error:', error);
       res.status(500).json({ error: error.message || 'Failed to get profile' });

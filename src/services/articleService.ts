@@ -2,7 +2,8 @@
 import { useAuth } from '@clerk/clerk-expo';
 
 const API_BASE_URL =
-  process.env.EXPO_PUBLIC_API_URL || 'https://hedronal-production.up.railway.app/api';
+  process.env.EXPO_PUBLIC_API_URL ||
+  (__DEV__ ? 'http://localhost:3000/api' : 'https://hedronal-production.up.railway.app/api');
 
 export interface Article {
   id: string;
@@ -17,6 +18,13 @@ export interface Article {
   updated_at: string;
   likes_count: number;
   isLiked?: boolean;
+  authorId?: string | null;
+  authorProfile?: {
+    id: string;
+    name: string;
+    username: string;
+    avatar: string | null;
+  } | null;
 }
 
 export interface Topic {
@@ -51,9 +59,29 @@ export async function fetchArticles(
       },
     });
 
+    // Check if response is JSON before parsing
+    const contentType = response.headers.get('content-type');
+    if (!contentType || !contentType.includes('application/json')) {
+      const text = await response.text();
+      console.error('[fetchArticles] Non-JSON response:', {
+        status: response.status,
+        statusText: response.statusText,
+        contentType,
+        preview: text.substring(0, 200),
+      });
+      return [];
+    }
+
     if (!response.ok) {
-      const error = await response.json();
-      console.error('[fetchArticles] API error:', error);
+      try {
+        const error = await response.json();
+        console.error('[fetchArticles] API error:', error);
+      } catch (parseError) {
+        console.error('[fetchArticles] API error (non-JSON):', {
+          status: response.status,
+          statusText: response.statusText,
+        });
+      }
       return [];
     }
 
@@ -61,7 +89,7 @@ export async function fetchArticles(
     console.log('[fetchArticles] Success, articles count:', result.articles?.length || 0);
     return result.articles || [];
   } catch (error: any) {
-    console.error('[fetchArticles] Network error:', error);
+    console.error('[fetchArticles] Network error:', error?.message || error);
     console.error('[fetchArticles] Error details:', {
       message: error?.message,
       stack: error?.stack,

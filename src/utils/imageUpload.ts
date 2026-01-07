@@ -36,7 +36,7 @@ function decodeBase64(base64: string): string {
  */
 export async function uploadImageToSupabase(
   localUri: string,
-  bucket: 'avatars' | 'banners',
+  bucket: 'avatars' | 'banners' | 'post-images',
   fileName?: string,
   clerkToken?: string
 ): Promise<string> {

@@ -101,6 +101,7 @@ export function EntityCreationModal({ visible, onClose, onComplete }: EntityCrea
   const [brief, setBrief] = useState('');
   const [socialLinks, setSocialLinks] = useState<Array<{ type: string; url: string }>>([]);
   const [showSocialDropdown, setShowSocialDropdown] = useState<number | null>(null);
+  const [editingField, setEditingField] = useState<'name' | 'brief' | null>(null);
 
   // Step 2 state
   const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set());
@@ -517,197 +518,314 @@ export function EntityCreationModal({ visible, onClose, onComplete }: EntityCrea
 
   function renderStep1() {
     return (
-      <ScrollView
-        style={styles.stepContent}
-        contentContainerStyle={[styles.stepContentContainer, { paddingBottom: insets.bottom * 2 }]}
-        showsVerticalScrollIndicator={false}
-        onScroll={handleScroll}
-        scrollEventThrottle={16}
-      >
-        <Text style={[styles.stepTitle, { color: theme.colors.text }]}>Profile</Text>
-        <Text style={[styles.stepDescription, { color: theme.colors.textSecondary }]}>
-          Set up your entity's profile information
-        </Text>
-
-        {/* Banner */}
-        <TouchableOpacity activeOpacity={0.8} onPress={() => pickImage('banner')}>
-          <View
-            style={[
-              styles.banner,
-              { backgroundColor: banner ? theme.colors.background : theme.colors.primary },
-            ]}
-          >
-            {banner ? (
-              <Image source={{ uri: banner }} style={styles.bannerImage} />
-            ) : (
-              <View style={styles.bannerPlaceholder}>
-                <Ionicons name="image-outline" size={32} color={theme.colors.background} />
-              </View>
-            )}
-          </View>
-        </TouchableOpacity>
-
-        {/* Avatar */}
-        <TouchableOpacity
-          activeOpacity={0.8}
-          style={styles.avatarContainer}
-          onPress={() => pickImage('avatar')}
+      <View style={styles.stepContainer}>
+        <ScrollView
+          style={styles.stepContent}
+          contentContainerStyle={[
+            styles.stepContentContainer,
+            { paddingBottom: insets.bottom * 2 },
+          ]}
+          showsVerticalScrollIndicator={false}
+          onScroll={handleScroll}
+          scrollEventThrottle={16}
         >
-          <View style={[styles.avatar, { backgroundColor: theme.colors.background }]}>
-            {avatar ? (
-              <Image source={{ uri: avatar }} style={styles.avatarImage} />
-            ) : (
-              <View style={styles.avatarPlaceholder}>
-                <Ionicons name="person-outline" size={32} color={theme.colors.textTertiary} />
-              </View>
+          <Text style={[styles.stepTitle, { color: theme.colors.text }]}>Profile</Text>
+          <Text style={[styles.stepDescription, { color: theme.colors.textSecondary }]}>
+            Set up your entity's profile information
+          </Text>
+
+          {/* Banner */}
+          <TouchableOpacity activeOpacity={0.8} onPress={() => pickImage('banner')}>
+            <View
+              style={[
+                styles.banner,
+                { backgroundColor: banner ? theme.colors.background : theme.colors.primary },
+              ]}
+            >
+              {banner ? (
+                <Image source={{ uri: banner }} style={styles.bannerImage} />
+              ) : (
+                <View style={styles.bannerPlaceholder}>
+                  <Ionicons name="image-outline" size={32} color={theme.colors.background} />
+                </View>
+              )}
+            </View>
+          </TouchableOpacity>
+
+          {/* Avatar */}
+          <TouchableOpacity
+            activeOpacity={0.8}
+            style={styles.avatarContainer}
+            onPress={() => pickImage('avatar')}
+          >
+            <View style={[styles.avatar, { backgroundColor: theme.colors.background }]}>
+              {avatar ? (
+                <Image source={{ uri: avatar }} style={styles.avatarImage} />
+              ) : (
+                <View style={styles.avatarPlaceholder}>
+                  <Ionicons name="person-outline" size={32} color={theme.colors.textTertiary} />
+                </View>
+              )}
+            </View>
+          </TouchableOpacity>
+
+          {/* Name */}
+          <View style={styles.inputGroup}>
+            <Text style={[styles.label, { color: theme.colors.text }]}>
+              Name <Text style={{ color: theme.colors.error }}>*</Text>
+            </Text>
+            <TouchableOpacity
+              activeOpacity={0.7}
+              onPress={() => setEditingField('name')}
+              style={[
+                styles.input,
+                styles.inputTouchable,
+                {
+                  backgroundColor: theme.colors.surfaceVariant,
+                  borderColor: theme.colors.border,
+                },
+              ]}
+            >
+              <Text
+                style={[
+                  styles.inputText,
+                  { color: name ? theme.colors.text : theme.colors.textTertiary },
+                ]}
+              >
+                {name || 'Entity name'}
+              </Text>
+            </TouchableOpacity>
+            {handle && (
+              <Text style={[styles.handlePreview, { color: theme.colors.textSecondary }]}>
+                Handle: @{handle}
+              </Text>
             )}
           </View>
-        </TouchableOpacity>
 
-        {/* Name */}
-        <View style={styles.inputGroup}>
-          <Text style={[styles.label, { color: theme.colors.text }]}>
-            Name <Text style={{ color: theme.colors.error }}>*</Text>
-          </Text>
-          <TextInput
-            style={[
-              styles.input,
-              {
-                backgroundColor: theme.colors.surfaceVariant,
-                borderColor: theme.colors.border,
-                color: theme.colors.text,
-              },
-            ]}
-            value={name}
-            onChangeText={setName}
-            placeholder="Entity name"
-            placeholderTextColor={theme.colors.textTertiary}
-          />
-          {handle && (
-            <Text style={[styles.handlePreview, { color: theme.colors.textSecondary }]}>
-              Handle: @{handle}
+          {/* Brief */}
+          <View style={styles.inputGroup}>
+            <Text style={[styles.label, { color: theme.colors.text }]}>
+              Brief <Text style={{ color: theme.colors.error }}>*</Text>
             </Text>
-          )}
-        </View>
-
-        {/* Brief */}
-        <View style={styles.inputGroup}>
-          <Text style={[styles.label, { color: theme.colors.text }]}>
-            Brief <Text style={{ color: theme.colors.error }}>*</Text>
-          </Text>
-          <TextInput
-            style={[
-              styles.textArea,
-              {
-                backgroundColor: theme.colors.surfaceVariant,
-                borderColor: theme.colors.border,
-                color: theme.colors.text,
-              },
-            ]}
-            value={brief}
-            onChangeText={setBrief}
-            placeholder="Company bio"
-            placeholderTextColor={theme.colors.textTertiary}
-            multiline
-            numberOfLines={4}
-          />
-        </View>
-
-        {/* Social Links */}
-        <View style={styles.inputGroup}>
-          <View style={styles.socialLinksHeader}>
-            <Text style={[styles.label, { color: theme.colors.text }]}>Social Links</Text>
             <TouchableOpacity
+              activeOpacity={0.7}
+              onPress={() => setEditingField('brief')}
               style={[
-                styles.addSocialLinkIconButton,
-                { backgroundColor: theme.colors.surfaceVariant, borderColor: theme.colors.border },
+                styles.textArea,
+                styles.inputTouchable,
+                {
+                  backgroundColor: theme.colors.surfaceVariant,
+                  borderColor: theme.colors.border,
+                },
               ]}
-              onPress={() => {
-                setSocialLinks([...socialLinks, { type: 'twitter', url: '' }]);
-              }}
             >
-              <Ionicons name="add" size={20} color={theme.colors.primary} />
+              <Text
+                style={[
+                  styles.inputText,
+                  { color: brief ? theme.colors.text : theme.colors.textTertiary },
+                ]}
+              >
+                {brief || 'Company bio'}
+              </Text>
             </TouchableOpacity>
           </View>
-          {socialLinks.map((link, index) => {
-            const icon = SOCIAL_ICONS.find(s => s.type === link.type);
-            const isDropdownOpen = showSocialDropdown === index;
-            return (
-              <View key={index} style={styles.socialLinkRow}>
-                <View
-                  style={[
-                    styles.socialLinkItem,
-                    {
-                      backgroundColor: theme.colors.surfaceVariant,
-                      borderColor: theme.colors.border,
-                    },
-                  ]}
-                >
-                  <TouchableOpacity
-                    style={styles.socialIconButton}
-                    onPress={() => setShowSocialDropdown(isDropdownOpen ? null : index)}
-                  >
-                    <Ionicons name={icon?.name as any} size={20} color={theme.colors.text} />
-                    <Ionicons name="chevron-down" size={16} color={theme.colors.textTertiary} />
-                  </TouchableOpacity>
-                  <TextInput
-                    style={[styles.socialLinkInput, { color: theme.colors.text }]}
-                    value={link.url}
-                    onChangeText={url => {
-                      const updated = [...socialLinks];
-                      updated[index] = { ...updated[index], url };
-                      setSocialLinks(updated);
-                    }}
-                    placeholder="Enter URL"
-                    placeholderTextColor={theme.colors.textTertiary}
-                    keyboardType="url"
-                    autoCapitalize="none"
-                  />
-                  <TouchableOpacity
-                    onPress={() => setSocialLinks(socialLinks.filter((_, i) => i !== index))}
-                  >
-                    <Ionicons name="close-circle" size={20} color={theme.colors.error} />
-                  </TouchableOpacity>
-                </View>
-                {isDropdownOpen && (
+
+          {/* Social Links */}
+          <View style={styles.inputGroup}>
+            <View style={styles.socialLinksHeader}>
+              <Text style={[styles.label, { color: theme.colors.text }]}>Social Links</Text>
+              <TouchableOpacity
+                style={[
+                  styles.addSocialLinkIconButton,
+                  {
+                    backgroundColor: theme.colors.surfaceVariant,
+                    borderColor: theme.colors.border,
+                  },
+                ]}
+                onPress={() => {
+                  setSocialLinks([...socialLinks, { type: 'twitter', url: '' }]);
+                }}
+              >
+                <Ionicons name="add" size={20} color={theme.colors.primary} />
+              </TouchableOpacity>
+            </View>
+            {socialLinks.map((link, index) => {
+              const icon = SOCIAL_ICONS.find(s => s.type === link.type);
+              const isDropdownOpen = showSocialDropdown === index;
+              return (
+                <View key={index} style={styles.socialLinkRow}>
                   <View
                     style={[
-                      styles.socialDropdown,
-                      { backgroundColor: theme.colors.surface, borderColor: theme.colors.border },
+                      styles.socialLinkItem,
+                      {
+                        backgroundColor: theme.colors.surfaceVariant,
+                        borderColor: theme.colors.border,
+                      },
                     ]}
                   >
-                    {SOCIAL_ICONS.map(social => (
-                      <TouchableOpacity
-                        key={social.type}
-                        style={[
-                          styles.socialDropdownItem,
-                          {
-                            backgroundColor:
-                              link.type === social.type
-                                ? theme.colors.surfaceVariant
-                                : 'transparent',
-                          },
-                        ]}
-                        onPress={() => {
-                          const updated = [...socialLinks];
-                          updated[index] = { ...updated[index], type: social.type };
-                          setSocialLinks(updated);
-                          setShowSocialDropdown(null);
-                        }}
-                      >
-                        <Ionicons name={social.name as any} size={20} color={theme.colors.text} />
-                        <Text style={[styles.socialDropdownText, { color: theme.colors.text }]}>
-                          {social.type.charAt(0).toUpperCase() + social.type.slice(1)}
-                        </Text>
-                      </TouchableOpacity>
-                    ))}
+                    <TouchableOpacity
+                      style={styles.socialIconButton}
+                      onPress={() => setShowSocialDropdown(isDropdownOpen ? null : index)}
+                    >
+                      <Ionicons name={icon?.name as any} size={20} color={theme.colors.text} />
+                      <Ionicons name="chevron-down" size={16} color={theme.colors.textTertiary} />
+                    </TouchableOpacity>
+                    <TextInput
+                      style={[styles.socialLinkInput, { color: theme.colors.text }]}
+                      value={link.url}
+                      onChangeText={url => {
+                        const updated = [...socialLinks];
+                        updated[index] = { ...updated[index], url };
+                        setSocialLinks(updated);
+                      }}
+                      placeholder="Enter URL"
+                      placeholderTextColor={theme.colors.textTertiary}
+                      keyboardType="url"
+                      autoCapitalize="none"
+                    />
+                    <TouchableOpacity
+                      onPress={() => setSocialLinks(socialLinks.filter((_, i) => i !== index))}
+                    >
+                      <Ionicons name="close-circle" size={20} color={theme.colors.error} />
+                    </TouchableOpacity>
                   </View>
-                )}
-              </View>
-            );
-          })}
-        </View>
-      </ScrollView>
+                  {isDropdownOpen && (
+                    <View
+                      style={[
+                        styles.socialDropdown,
+                        { backgroundColor: theme.colors.surface, borderColor: theme.colors.border },
+                      ]}
+                    >
+                      {SOCIAL_ICONS.map(social => (
+                        <TouchableOpacity
+                          key={social.type}
+                          style={[
+                            styles.socialDropdownItem,
+                            {
+                              backgroundColor:
+                                link.type === social.type
+                                  ? theme.colors.surfaceVariant
+                                  : 'transparent',
+                            },
+                          ]}
+                          onPress={() => {
+                            const updated = [...socialLinks];
+                            updated[index] = { ...updated[index], type: social.type };
+                            setSocialLinks(updated);
+                            setShowSocialDropdown(null);
+                          }}
+                        >
+                          <Ionicons name={social.name as any} size={20} color={theme.colors.text} />
+                          <Text style={[styles.socialDropdownText, { color: theme.colors.text }]}>
+                            {social.type.charAt(0).toUpperCase() + social.type.slice(1)}
+                          </Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  )}
+                </View>
+              );
+            })}
+          </View>
+        </ScrollView>
+
+        {/* Sticky Input Bar for Name */}
+        {editingField === 'name' && (
+          <>
+            <TouchableOpacity
+              style={styles.inputOverlay}
+              activeOpacity={1}
+              onPress={() => {
+                setEditingField(null);
+                Keyboard.dismiss();
+              }}
+            />
+            <View
+              style={[
+                styles.stickyInputBar,
+                {
+                  backgroundColor: theme.colors.surface,
+                  borderColor: theme.colors.border,
+                  bottom: keyboardVisible ? keyboardHeight : insets.bottom,
+                },
+              ]}
+            >
+              <Text style={[styles.stickyInputLabel, { color: theme.colors.text }]}>Name</Text>
+              <TextInput
+                style={[styles.stickyInput, { color: theme.colors.text }]}
+                placeholder="Entity name"
+                placeholderTextColor={theme.colors.textTertiary}
+                value={name}
+                onChangeText={setName}
+                autoFocus
+                onBlur={() => {
+                  setEditingField(null);
+                }}
+              />
+              {name.length > 0 && (
+                <TouchableOpacity
+                  onPress={() => setName('')}
+                  style={styles.clearButton}
+                  hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                >
+                  <Ionicons name="close-circle" size={20} color={theme.colors.textTertiary} />
+                </TouchableOpacity>
+              )}
+            </View>
+          </>
+        )}
+
+        {/* Sticky Input Bar for Brief */}
+        {editingField === 'brief' && (
+          <>
+            <TouchableOpacity
+              style={styles.inputOverlay}
+              activeOpacity={1}
+              onPress={() => {
+                setEditingField(null);
+                Keyboard.dismiss();
+              }}
+            />
+            <View
+              style={[
+                styles.stickyInputBar,
+                {
+                  backgroundColor: theme.colors.surface,
+                  borderColor: theme.colors.border,
+                  bottom: keyboardVisible ? keyboardHeight : insets.bottom,
+                },
+              ]}
+            >
+              <Text style={[styles.stickyInputLabel, { color: theme.colors.text }]}>Brief</Text>
+              <TextInput
+                style={[
+                  styles.stickyInput,
+                  styles.stickyInputMultiline,
+                  { color: theme.colors.text },
+                ]}
+                placeholder="Company bio"
+                placeholderTextColor={theme.colors.textTertiary}
+                value={brief}
+                onChangeText={setBrief}
+                multiline
+                autoFocus
+                onBlur={() => {
+                  setEditingField(null);
+                }}
+              />
+              {brief.length > 0 && (
+                <TouchableOpacity
+                  onPress={() => setBrief('')}
+                  style={styles.clearButton}
+                  hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                >
+                  <Ionicons name="close-circle" size={20} color={theme.colors.textTertiary} />
+                </TouchableOpacity>
+              )}
+            </View>
+          </>
+        )}
+      </View>
     );
   }
 
@@ -1454,6 +1572,64 @@ const styles = StyleSheet.create({
     fontSize: 16,
     minHeight: 100,
     textAlignVertical: 'top',
+  },
+  stepContainer: {
+    flex: 1,
+    position: 'relative',
+  },
+  inputTouchable: {
+    minHeight: 48,
+    justifyContent: 'center',
+  },
+  inputText: {
+    fontSize: 16,
+  },
+  inputOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'transparent',
+    zIndex: 998,
+  },
+  stickyInputBar: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderTopWidth: 1,
+    zIndex: 999,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: -2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 5,
+  },
+  stickyInputLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    marginBottom: 8,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  stickyInput: {
+    flex: 1,
+    fontSize: 16,
+    padding: 0,
+    minHeight: 20,
+  },
+  stickyInputMultiline: {
+    minHeight: 60,
+    textAlignVertical: 'top',
+  },
+  clearButton: {
+    marginLeft: 8,
+    padding: 4,
   },
   handlePreview: {
     fontSize: 12,

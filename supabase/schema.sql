@@ -129,7 +129,7 @@ CREATE TABLE IF NOT EXISTS posts (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   author_id UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
   entity_id UUID REFERENCES entities(id) ON DELETE SET NULL, -- Optional: post from an entity
-  content TEXT NOT NULL,
+  content TEXT DEFAULT '', -- Can be empty for image-only posts (validation at application level)
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW(),
   -- Engagement stats
@@ -166,14 +166,16 @@ CREATE TABLE IF NOT EXISTS post_comments (
 
 -- Articles (Explore page content)
 CREATE TABLE IF NOT EXISTS articles (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id TEXT PRIMARY KEY, -- Using TEXT to match existing structure
   title TEXT NOT NULL,
   description TEXT NOT NULL,
   content TEXT NOT NULL,
   topic TEXT NOT NULL,
-  author_id UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+  author TEXT NOT NULL, -- Author name (denormalized)
+  date TEXT NOT NULL, -- ISO date string like '2024-01-15'
+  read_time TEXT NOT NULL, -- e.g., "5 min"
+  created_by UUID REFERENCES profiles(id) ON DELETE SET NULL, -- Profile ID of creator
   entity_id UUID REFERENCES entities(id) ON DELETE SET NULL,
-  read_time TEXT, -- e.g., "5 min"
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW(),
   published_at TIMESTAMPTZ,
@@ -278,16 +280,29 @@ CREATE INDEX IF NOT EXISTS idx_entities_created_by ON entities(created_by);
 CREATE INDEX IF NOT EXISTS idx_entity_members_entity_id ON entity_members(entity_id);
 CREATE INDEX IF NOT EXISTS idx_entity_members_profile_id ON entity_members(profile_id);
 
+-- Post images (for posts with multiple images)
+CREATE TABLE IF NOT EXISTS post_images (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  post_id UUID NOT NULL REFERENCES posts(id) ON DELETE CASCADE,
+  image_url TEXT NOT NULL,
+  display_order INTEGER NOT NULL DEFAULT 0,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(post_id, display_order)
+);
+
 -- Posts indexes
 CREATE INDEX IF NOT EXISTS idx_posts_author_id ON posts(author_id);
 CREATE INDEX IF NOT EXISTS idx_posts_entity_id ON posts(entity_id);
 CREATE INDEX IF NOT EXISTS idx_posts_created_at ON posts(created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_post_likes_post_id ON post_likes(post_id);
 CREATE INDEX IF NOT EXISTS idx_post_comments_post_id ON post_comments(post_id);
+CREATE INDEX IF NOT EXISTS idx_post_images_post_id ON post_images(post_id);
+CREATE INDEX IF NOT EXISTS idx_post_images_display_order ON post_images(post_id, display_order);
 
 -- Articles indexes
 CREATE INDEX IF NOT EXISTS idx_articles_topic ON articles(topic);
-CREATE INDEX IF NOT EXISTS idx_articles_author_id ON articles(author_id);
+CREATE INDEX IF NOT EXISTS idx_articles_created_by ON articles(created_by);
+CREATE INDEX IF NOT EXISTS idx_articles_date ON articles(date DESC);
 CREATE INDEX IF NOT EXISTS idx_articles_created_at ON articles(created_at DESC);
 
 -- Connections indexes
@@ -317,6 +332,7 @@ ALTER TABLE entity_invitations ENABLE ROW LEVEL SECURITY;
 ALTER TABLE posts ENABLE ROW LEVEL SECURITY;
 ALTER TABLE post_likes ENABLE ROW LEVEL SECURITY;
 ALTER TABLE post_comments ENABLE ROW LEVEL SECURITY;
+ALTER TABLE post_images ENABLE ROW LEVEL SECURITY;
 ALTER TABLE articles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE article_likes ENABLE ROW LEVEL SECURITY;
 ALTER TABLE connections ENABLE ROW LEVEL SECURITY;
@@ -325,10 +341,15 @@ ALTER TABLE saved_contacts ENABLE ROW LEVEL SECURITY;
 ALTER TABLE activities ENABLE ROW LEVEL SECURITY;
 
 -- Profiles policies
+DROP POLICY IF EXISTS "Users can view all profiles" ON profiles;
+DROP POLICY IF EXISTS "Users can update own profile" ON profiles;
 CREATE POLICY "Users can view all profiles" ON profiles FOR SELECT USING (true);
 CREATE POLICY "Users can update own profile" ON profiles FOR UPDATE USING (auth.uid() = id);
 
 -- Entities policies
+DROP POLICY IF EXISTS "Users can view all entities" ON entities;
+DROP POLICY IF EXISTS "Users can create entities" ON entities;
+DROP POLICY IF EXISTS "Entity owners can update their entities" ON entities;
 CREATE POLICY "Users can view all entities" ON entities FOR SELECT USING (true);
 CREATE POLICY "Users can create entities" ON entities FOR INSERT WITH CHECK (auth.uid() = created_by);
 CREATE POLICY "Entity owners can update their entities" ON entities FOR UPDATE 
@@ -340,6 +361,8 @@ CREATE POLICY "Entity owners can update their entities" ON entities FOR UPDATE
   ));
 
 -- Entity members policies
+DROP POLICY IF EXISTS "Users can view entity members" ON entity_members;
+DROP POLICY IF EXISTS "Entity owners/admins can manage members" ON entity_members;
 CREATE POLICY "Users can view entity members" ON entity_members FOR SELECT USING (true);
 CREATE POLICY "Entity owners/admins can manage members" ON entity_members FOR ALL
   USING (EXISTS (
@@ -350,17 +373,27 @@ CREATE POLICY "Entity owners/admins can manage members" ON entity_members FOR AL
   ));
 
 -- Posts policies
+DROP POLICY IF EXISTS "Users can view all posts" ON posts;
+DROP POLICY IF EXISTS "Users can create posts" ON posts;
+DROP POLICY IF EXISTS "Users can update own posts" ON posts;
+DROP POLICY IF EXISTS "Users can delete own posts" ON posts;
 CREATE POLICY "Users can view all posts" ON posts FOR SELECT USING (deleted_at IS NULL);
 CREATE POLICY "Users can create posts" ON posts FOR INSERT WITH CHECK (auth.uid() = author_id);
 CREATE POLICY "Users can update own posts" ON posts FOR UPDATE USING (auth.uid() = author_id);
 CREATE POLICY "Users can delete own posts" ON posts FOR UPDATE USING (auth.uid() = author_id);
 
 -- Articles policies
+DROP POLICY IF EXISTS "Users can view all articles" ON articles;
+DROP POLICY IF EXISTS "Users can create articles" ON articles;
+DROP POLICY IF EXISTS "Users can update own articles" ON articles;
 CREATE POLICY "Users can view all articles" ON articles FOR SELECT USING (true);
-CREATE POLICY "Users can create articles" ON articles FOR INSERT WITH CHECK (auth.uid() = author_id);
-CREATE POLICY "Users can update own articles" ON articles FOR UPDATE USING (auth.uid() = author_id);
+CREATE POLICY "Users can create articles" ON articles FOR INSERT WITH CHECK (auth.uid() = created_by OR created_by IS NULL);
+CREATE POLICY "Users can update own articles" ON articles FOR UPDATE USING (auth.uid() = created_by OR created_by IS NULL);
 
 -- Connections policies
+DROP POLICY IF EXISTS "Users can view connections" ON connections;
+DROP POLICY IF EXISTS "Users can create connections" ON connections;
+DROP POLICY IF EXISTS "Users can delete own connections" ON connections;
 CREATE POLICY "Users can view connections" ON connections FOR SELECT USING (
   follower_id = auth.uid() OR following_id = auth.uid()
 );
@@ -381,12 +414,15 @@ END;
 $$ LANGUAGE plpgsql;
 
 -- Triggers for updated_at
+DROP TRIGGER IF EXISTS update_profiles_updated_at ON profiles;
 CREATE TRIGGER update_profiles_updated_at BEFORE UPDATE ON profiles
   FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
+DROP TRIGGER IF EXISTS update_entities_updated_at ON entities;
 CREATE TRIGGER update_entities_updated_at BEFORE UPDATE ON entities
   FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
+DROP TRIGGER IF EXISTS update_entity_configurations_updated_at ON entity_configurations;
 CREATE TRIGGER update_entity_configurations_updated_at BEFORE UPDATE ON entity_configurations
   FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
@@ -405,6 +441,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+DROP TRIGGER IF EXISTS update_post_likes_count_trigger ON post_likes;
 CREATE TRIGGER update_post_likes_count_trigger
   AFTER INSERT OR DELETE ON post_likes
   FOR EACH ROW EXECUTE FUNCTION update_post_likes_count();
@@ -424,6 +461,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+DROP TRIGGER IF EXISTS update_post_comments_count_trigger ON post_comments;
 CREATE TRIGGER update_post_comments_count_trigger
   AFTER INSERT OR DELETE ON post_comments
   FOR EACH ROW EXECUTE FUNCTION update_post_comments_count();
@@ -447,6 +485,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+DROP TRIGGER IF EXISTS update_profile_stats_trigger ON connections;
 CREATE TRIGGER update_profile_stats_trigger
   AFTER INSERT OR DELETE ON connections
   FOR EACH ROW EXECUTE FUNCTION update_profile_stats();

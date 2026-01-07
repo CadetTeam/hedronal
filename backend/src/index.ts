@@ -8,6 +8,7 @@ import { imageRouter } from './routes/image';
 import { articleRouter } from './routes/article';
 import { profileRouter } from './routes/profile';
 import { inviteRouter } from './routes/invite';
+import { postRouter } from './routes/post';
 
 dotenv.config();
 
@@ -41,6 +42,7 @@ app.use('/api/entities', entityRouter);
 app.use('/api/webhooks', webhookRouter);
 app.use('/api/images', imageRouter);
 app.use('/api/articles', articleRouter);
+app.use('/api/posts', postRouter);
 app.use('/api/profiles', profileRouter);
 app.use('/api/invites', inviteRouter);
 

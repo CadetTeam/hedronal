@@ -54,23 +54,55 @@ export default function App() {
           tokenCache={{
             async getToken(key: string) {
               try {
-                return await SecureStore.getItemAsync(key);
-              } catch (err) {
-                return null;
+                // Double-check SecureStore is available and methods exist
+                if (
+                  SecureStore &&
+                  typeof SecureStore === 'object' &&
+                  typeof SecureStore.getItemAsync === 'function'
+                ) {
+                  const result = await SecureStore.getItemAsync(key);
+                  return result;
+                }
+              } catch (err: any) {
+                // Silently fail - token caching is optional, don't crash the app
+                if (__DEV__) {
+                  console.warn('[App] SecureStore getToken error (non-fatal):', err?.message);
+                }
               }
+              return null;
             },
             async saveToken(key: string, value: string) {
               try {
-                await SecureStore.setItemAsync(key, value);
-              } catch (err) {
-                // Handle error
+                // Double-check SecureStore is available and methods exist
+                if (
+                  SecureStore &&
+                  typeof SecureStore === 'object' &&
+                  typeof SecureStore.setItemAsync === 'function'
+                ) {
+                  await SecureStore.setItemAsync(key, value);
+                }
+              } catch (err: any) {
+                // Silently fail - token caching is optional, don't crash the app
+                if (__DEV__) {
+                  console.warn('[App] SecureStore saveToken error (non-fatal):', err?.message);
+                }
               }
             },
             async clearToken(key: string) {
               try {
-                await SecureStore.deleteItemAsync(key);
-              } catch (err) {
-                // Handle error
+                // Double-check SecureStore is available and methods exist
+                if (
+                  SecureStore &&
+                  typeof SecureStore === 'object' &&
+                  typeof SecureStore.deleteItemAsync === 'function'
+                ) {
+                  await SecureStore.deleteItemAsync(key);
+                }
+              } catch (err: any) {
+                // Silently fail - token caching is optional, don't crash the app
+                if (__DEV__) {
+                  console.warn('[App] SecureStore clearToken error (non-fatal):', err?.message);
+                }
               }
             },
           }}

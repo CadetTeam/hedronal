@@ -332,6 +332,27 @@ CREATE POLICY "post_comments_delete_author" ON post_comments
   USING (true);
 
 -- ============================================
+-- POST_IMAGES TABLE
+-- ============================================
+
+CREATE POLICY "post_images_select_public" ON post_images
+  FOR SELECT
+  USING (true);
+
+CREATE POLICY "post_images_insert_authenticated" ON post_images
+  FOR INSERT
+  WITH CHECK (true);
+
+CREATE POLICY "post_images_update_author" ON post_images
+  FOR UPDATE
+  USING (true)
+  WITH CHECK (true);
+
+CREATE POLICY "post_images_delete_author" ON post_images
+  FOR DELETE
+  USING (true);
+
+-- ============================================
 -- ARTICLES TABLE
 -- ============================================
 
@@ -532,4 +553,22 @@ CREATE POLICY "storage_posts_update_authenticated" ON storage.objects
 CREATE POLICY "storage_posts_delete_authenticated" ON storage.objects
   FOR DELETE
   USING (bucket_id = 'posts');
+
+-- Post-images bucket policies
+CREATE POLICY "storage_post_images_select_public" ON storage.objects
+  FOR SELECT
+  USING (bucket_id = 'post-images');
+
+CREATE POLICY "storage_post_images_insert_authenticated" ON storage.objects
+  FOR INSERT
+  WITH CHECK (bucket_id = 'post-images');
+
+CREATE POLICY "storage_post_images_update_authenticated" ON storage.objects
+  FOR UPDATE
+  USING (bucket_id = 'post-images')
+  WITH CHECK (bucket_id = 'post-images');
+
+CREATE POLICY "storage_post_images_delete_authenticated" ON storage.objects
+  FOR DELETE
+  USING (bucket_id = 'post-images');
 

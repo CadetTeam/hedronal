@@ -13,9 +13,20 @@ export interface Member {
   status: 'active' | 'pending' | 'inactive';
   joinedDate: string;
   permissions: string[];
+  profileId?: string; // Profile ID for opening user profile modal
+}
+
+interface BankCard {
+  id: string;
+  bankName: string;
+  entityName: string;
+  cardNumber: string;
+  balance: number;
+  currency: string;
 }
 
 interface MembersProps {
+  selectedAccount?: BankCard | null;
   members?: Member[];
   onMemberPress?: (member: Member) => void;
   onInvitePress?: () => void;
@@ -69,7 +80,12 @@ const MOCK_MEMBERS: Member[] = [
   },
 ];
 
-export function Members({ members = MOCK_MEMBERS, onMemberPress, onInvitePress }: MembersProps) {
+export function Members({
+  selectedAccount,
+  members = MOCK_MEMBERS,
+  onMemberPress,
+  onInvitePress,
+}: MembersProps) {
   const { theme } = useTheme();
 
   function formatDate(dateString: string) {

@@ -11,6 +11,7 @@ export interface ProfileData {
   bio?: string;
   avatar_url?: string | null;
   banner_url?: string | null;
+  socialLinks?: Array<{ type: string; url: string }>;
 }
 
 export async function getProfile(

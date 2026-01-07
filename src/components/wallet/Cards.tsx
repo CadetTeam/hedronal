@@ -21,7 +21,17 @@ export interface Card {
   cardDesign: 'default' | 'premium' | 'black';
 }
 
+interface BankCard {
+  id: string;
+  bankName: string;
+  entityName: string;
+  cardNumber: string;
+  balance: number;
+  currency: string;
+}
+
 interface CardsProps {
+  selectedAccount?: BankCard | null;
   cards?: Card[];
   onCardPress?: (card: Card) => void;
 }
@@ -67,8 +77,13 @@ const MOCK_CARDS: Card[] = [
   },
 ];
 
-export function Cards({ cards = MOCK_CARDS, onCardPress }: CardsProps) {
+export function Cards({ selectedAccount, cards = MOCK_CARDS, onCardPress }: CardsProps) {
   const { theme, isDark } = useTheme();
+
+  // Filter cards by selected account's bank
+  const filteredCards = selectedAccount
+    ? cards.filter(card => card.bankName === selectedAccount.bankName)
+    : cards;
 
   function formatCurrency(amount: number, currency: string) {
     return new Intl.NumberFormat('en-US', {
@@ -171,12 +186,16 @@ export function Cards({ cards = MOCK_CARDS, onCardPress }: CardsProps) {
     );
   }
 
-  if (cards.length === 0) {
+  if (filteredCards.length === 0) {
     return (
       <View style={styles.emptyContainer}>
         <EmptyState
           title="No cards"
-          message="Add a card to manage your payments and transactions"
+          message={
+            selectedAccount
+              ? `No cards found for ${selectedAccount.bankName}`
+              : 'Add a card to manage your payments and transactions'
+          }
           icon="card-outline"
         />
       </View>
@@ -193,7 +212,7 @@ export function Cards({ cards = MOCK_CARDS, onCardPress }: CardsProps) {
         snapToInterval={336}
         decelerationRate="fast"
       >
-        {cards.map(card => (
+        {filteredCards.map(card => (
           <View key={card.id}>{renderCard({ item: card })}</View>
         ))}
       </ScrollView>

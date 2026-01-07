@@ -18,6 +18,8 @@ import { Credit } from './wallet/Credit';
 import { Cards } from './wallet/Cards';
 import { Members } from './wallet/Members';
 import { Subscriptions } from './wallet/Subscriptions';
+import { PlaidModal } from './PlaidModal';
+import { UserProfileModal } from './UserProfileModal';
 
 interface BankCard {
   id: string;
@@ -33,7 +35,7 @@ interface WalletModalProps {
   onClose: () => void;
 }
 
-const MOCK_CARDS: BankCard[] = [
+const INITIAL_CARDS: BankCard[] = [
   {
     id: '1',
     bankName: 'Chase Bank',
@@ -58,6 +60,11 @@ export function WalletModal({ visible, onClose }: WalletModalProps) {
   const { theme, isDark } = useTheme();
   const insets = useSafeAreaInsets();
   const [activeTab, setActiveTab] = useState('Activity');
+  const [showPlaidModal, setShowPlaidModal] = useState(false);
+  const [accounts, setAccounts] = useState<BankCard[]>(INITIAL_CARDS);
+  const [selectedAccount, setSelectedAccount] = useState<BankCard | null>(INITIAL_CARDS[0] || null);
+  const [showUserProfileModal, setShowUserProfileModal] = useState(false);
+  const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
 
   function formatCurrency(amount: number, currency: string) {
     return new Intl.NumberFormat('en-US', {
@@ -66,14 +73,25 @@ export function WalletModal({ visible, onClose }: WalletModalProps) {
     }).format(amount);
   }
 
+  function handleAccountPress(account: BankCard) {
+    // Reorder accounts to put selected account first
+    const reorderedAccounts = [account, ...accounts.filter(acc => acc.id !== account.id)];
+    setAccounts(reorderedAccounts);
+    setSelectedAccount(account);
+  }
+
   function renderCard({ item }: { item: BankCard }) {
+    const isSelected = selectedAccount?.id === item.id;
     return (
-      <View
+      <TouchableOpacity
+        activeOpacity={0.7}
+        onPress={() => handleAccountPress(item)}
         style={[
           styles.cardContainer,
           {
             backgroundColor: theme.colors.surface,
-            borderColor: theme.colors.border,
+            borderColor: isSelected ? theme.colors.primary : theme.colors.border,
+            borderWidth: isSelected ? 2 : 1,
           },
         ]}
       >
@@ -92,15 +110,20 @@ export function WalletModal({ visible, onClose }: WalletModalProps) {
             {formatCurrency(item.balance, item.currency)}
           </Text>
         </View>
-      </View>
+      </TouchableOpacity>
     );
   }
 
   function renderTabContent() {
+    if (!selectedAccount) {
+      return null;
+    }
+
     switch (activeTab) {
       case 'Activity':
         return (
           <ActivityTransactions
+            selectedAccount={selectedAccount}
             onTransactionPress={transaction => {
               console.log('Transaction pressed:', transaction);
             }}
@@ -109,6 +132,7 @@ export function WalletModal({ visible, onClose }: WalletModalProps) {
       case 'Credit':
         return (
           <Credit
+            selectedAccount={selectedAccount}
             onAccountPress={account => {
               console.log('Credit account pressed:', account);
             }}
@@ -117,6 +141,7 @@ export function WalletModal({ visible, onClose }: WalletModalProps) {
       case 'Cards':
         return (
           <Cards
+            selectedAccount={selectedAccount}
             onCardPress={card => {
               console.log('Card pressed:', card);
             }}
@@ -125,8 +150,15 @@ export function WalletModal({ visible, onClose }: WalletModalProps) {
       case 'Members':
         return (
           <Members
+            selectedAccount={selectedAccount}
             onMemberPress={member => {
-              console.log('Member pressed:', member);
+              // If member has profileId, open user profile modal
+              if ((member as any).profileId) {
+                setSelectedUserId((member as any).profileId);
+                setShowUserProfileModal(true);
+              } else {
+                console.log('Member pressed:', member);
+              }
             }}
             onInvitePress={() => {
               console.log('Invite member pressed');
@@ -136,6 +168,7 @@ export function WalletModal({ visible, onClose }: WalletModalProps) {
       case 'Subscriptions':
         return (
           <Subscriptions
+            selectedAccount={selectedAccount}
             onSubscriptionPress={subscription => {
               console.log('Subscription pressed:', subscription);
             }}
@@ -177,14 +210,28 @@ export function WalletModal({ visible, onClose }: WalletModalProps) {
 
           {/* Bank Cards Row */}
           <View style={styles.cardsSection}>
-            <FlatList
-              data={MOCK_CARDS}
-              renderItem={renderCard}
-              keyExtractor={item => item.id}
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.cardsList}
-            />
+            <View style={styles.cardsRowContainer}>
+              <TouchableOpacity
+                style={[
+                  styles.addAccountButton,
+                  {
+                    backgroundColor: theme.colors.surfaceVariant,
+                    borderColor: theme.colors.border,
+                  },
+                ]}
+                onPress={() => setShowPlaidModal(true)}
+              >
+                <Ionicons name="add" size={24} color={theme.colors.primary} />
+              </TouchableOpacity>
+              <FlatList
+                data={accounts}
+                renderItem={renderCard}
+                keyExtractor={item => item.id}
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.cardsList}
+              />
+            </View>
           </View>
 
           {/* Tabs */}
@@ -227,6 +274,41 @@ export function WalletModal({ visible, onClose }: WalletModalProps) {
           <View style={styles.content}>{renderTabContent()}</View>
         </View>
       </BlurredModalOverlay>
+
+      {/* Plaid Modal */}
+      <PlaidModal
+        visible={showPlaidModal}
+        onClose={() => setShowPlaidModal(false)}
+        onSuccess={accountData => {
+          console.log('Account linked successfully:', accountData);
+          // Create new account from Plaid data
+          const newAccount: BankCard = {
+            id: Date.now().toString(),
+            bankName: accountData.bankName,
+            entityName: 'New Account', // TODO: Get from entity context
+            cardNumber: '**** ****',
+            balance: 0,
+            currency: 'USD',
+          };
+          // Add to accounts and select it
+          const updatedAccounts = [newAccount, ...accounts];
+          setAccounts(updatedAccounts);
+          setSelectedAccount(newAccount);
+          setShowPlaidModal(false);
+        }}
+      />
+
+      {/* User Profile Modal */}
+      {selectedUserId && (
+        <UserProfileModal
+          visible={showUserProfileModal}
+          onClose={() => {
+            setShowUserProfileModal(false);
+            setSelectedUserId(null);
+          }}
+          userId={selectedUserId}
+        />
+      )}
     </Modal>
   );
 }
@@ -268,8 +350,23 @@ const styles = StyleSheet.create({
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: 'rgba(0, 0, 0, 0.1)',
   },
+  cardsRowContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  addAccountButton: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginLeft: 16,
+    flexShrink: 0,
+  },
   cardsList: {
-    paddingHorizontal: 16,
+    paddingRight: 16,
     gap: 12,
   },
   cardContainer: {

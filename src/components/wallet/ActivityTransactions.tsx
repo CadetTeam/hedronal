@@ -16,7 +16,17 @@ export interface Transaction {
   status: 'completed' | 'pending' | 'failed';
 }
 
+interface BankCard {
+  id: string;
+  bankName: string;
+  entityName: string;
+  cardNumber: string;
+  balance: number;
+  currency: string;
+}
+
 interface ActivityTransactionsProps {
+  selectedAccount?: BankCard | null;
   transactions?: Transaction[];
   onTransactionPress?: (transaction: Transaction) => void;
 }
@@ -80,10 +90,16 @@ const MOCK_TRANSACTIONS: Transaction[] = [
 ];
 
 export function ActivityTransactions({
+  selectedAccount,
   transactions = MOCK_TRANSACTIONS,
   onTransactionPress,
 }: ActivityTransactionsProps) {
   const { theme } = useTheme();
+
+  // Filter transactions by selected account
+  const filteredTransactions = selectedAccount
+    ? transactions.filter(t => t.bankName === selectedAccount.bankName)
+    : transactions;
 
   function formatCurrency(amount: number, currency: string) {
     return new Intl.NumberFormat('en-US', {
@@ -217,12 +233,16 @@ export function ActivityTransactions({
     );
   }
 
-  if (transactions.length === 0) {
+  if (filteredTransactions.length === 0) {
     return (
       <View style={styles.emptyContainer}>
         <EmptyState
           title="No transactions yet"
-          message="Your transaction history will appear here"
+          message={
+            selectedAccount
+              ? `No transactions found for ${selectedAccount.bankName}`
+              : 'Your transaction history will appear here'
+          }
           icon="receipt-outline"
         />
       </View>
@@ -232,7 +252,7 @@ export function ActivityTransactions({
   return (
     <View style={styles.container}>
       <FlatList
-        data={transactions}
+        data={filteredTransactions}
         renderItem={renderTransaction}
         keyExtractor={item => item.id}
         showsVerticalScrollIndicator={false}
