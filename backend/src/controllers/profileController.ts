@@ -3,12 +3,22 @@ import { supabase, upsertProfile } from '../config/supabase';
 import { AuthenticatedRequest } from '../middleware/clerkAuth';
 import { z } from 'zod';
 
+// Helper function to normalize URLs by adding https:// if missing
+function normalizeUrl(url: string | null | undefined): string | null {
+  if (!url || !url.trim()) return null;
+  const trimmed = url.trim();
+  if (!/^https?:\/\//i.test(trimmed)) {
+    return `https://${trimmed}`;
+  }
+  return trimmed;
+}
+
 const updateProfileSchema = z.object({
   full_name: z.string().optional(),
   username: z.string().optional(),
   bio: z.string().max(750).optional(),
-  avatar_url: z.string().url().optional().nullable(),
-  banner_url: z.string().url().optional().nullable(),
+  avatar_url: z.string().optional().nullable(),
+  banner_url: z.string().optional().nullable(),
   // Allow flexible social link URLs; we'll validate and clean manually
   socialLinks: z
     .array(
@@ -110,6 +120,14 @@ export const profileController = {
       if (profileError || !profile) {
         console.error('[profileController] Error fetching profile:', profileError);
         return res.status(500).json({ error: 'Failed to find profile' });
+      }
+
+      // Normalize URLs (add https:// if missing)
+      if (profileUpdateData.avatar_url !== undefined) {
+        profileUpdateData.avatar_url = normalizeUrl(profileUpdateData.avatar_url);
+      }
+      if (profileUpdateData.banner_url !== undefined) {
+        profileUpdateData.banner_url = normalizeUrl(profileUpdateData.banner_url);
       }
 
       // Update profile data (excluding socialLinks)

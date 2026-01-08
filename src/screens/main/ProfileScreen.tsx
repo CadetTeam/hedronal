@@ -306,8 +306,23 @@ export function ProfileScreen() {
 
   async function handleSaveSocialLinks(socialLinks: Array<{ type: string; url: string }>) {
     try {
-      // Filter out social links with empty URLs before saving
-      const validSocialLinks = socialLinks.filter(link => link.url && link.url.trim().length > 0);
+      // Filter out social links with empty URLs and normalize URLs
+      const validSocialLinks = socialLinks
+        .filter(link => link.url && link.url.trim().length > 0)
+        .map(link => {
+          let url = link.url.trim();
+
+          // Automatically add https:// if missing
+          if (url && !/^https?:\/\//i.test(url)) {
+            url = `https://${url}`;
+          }
+
+          return {
+            ...link,
+            url,
+          };
+        });
+
       await saveProfileUpdate({ socialLinks: validSocialLinks });
       setProfileData({ ...profileData, socialLinks: validSocialLinks });
       setEditingSocialLinks(validSocialLinks);
@@ -788,7 +803,9 @@ export function ProfileScreen() {
             ]}
           >
             <View style={styles.stickyInputHeader}>
-              <Text style={[styles.stickyInputLabel, { color: theme.colors.text }]}>Bio</Text>
+              <View style={styles.bioHeaderLeft}>
+                <Text style={[styles.stickyInputLabel, { color: theme.colors.text }]}>Bio</Text>
+              </View>
               <View style={styles.bioHeaderCenter}>
                 {bioHasChanged && !bioSaving && !bioSaved && (
                   <TouchableOpacity onPress={saveBio} style={styles.saveBioButton}>
@@ -808,9 +825,11 @@ export function ProfileScreen() {
                   </View>
                 )}
               </View>
-              <Text style={[styles.charCount, { color: theme.colors.textTertiary }]}>
-                {editingBio.length}/750
-              </Text>
+              <View style={styles.bioHeaderRight}>
+                <Text style={[styles.charCount, { color: theme.colors.textTertiary }]}>
+                  {editingBio.length}/750
+                </Text>
+              </View>
             </View>
             <TextInput
               style={[
@@ -1575,17 +1594,21 @@ const styles = StyleSheet.create({
   },
   stickyInputHeader: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 8,
-    position: 'relative',
+  },
+  bioHeaderLeft: {
+    flex: 1,
+    alignItems: 'flex-start',
   },
   bioHeaderCenter: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
+    flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  bioHeaderRight: {
+    flex: 1,
+    alignItems: 'flex-end',
   },
   saveBioButton: {
     paddingHorizontal: 12,

@@ -36,7 +36,6 @@ echo "⚠️  The following variables need to be set manually (they contain sens
 echo ""
 echo "   npx eas env:create --scope project --name EXPO_PUBLIC_SUPABASE_URL --value 'your-supabase-url'"
 echo "   npx eas env:create --scope project --name EXPO_PUBLIC_SUPABASE_KEY --value 'your-supabase-anon-key'"
-echo "   npx eas env:create --scope project --name EXPO_PUBLIC_REVENUECAT_API_KEY --value 'your-revenuecat-key'"
 echo ""
 echo "Or set them via the EAS dashboard:"
 echo "   https://expo.dev/accounts/hedronal/projects/hedronal/secrets"
