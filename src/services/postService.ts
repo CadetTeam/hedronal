@@ -1,7 +1,9 @@
 // Post service for fetching posts from backend API
+// For React Native, localhost doesn't work on physical devices or simulators
+// Use production URL by default, or set EXPO_PUBLIC_API_URL for local development
+// For local dev, use your machine's IP: http://YOUR_LOCAL_IP:3000/api
 const API_BASE_URL =
-  process.env.EXPO_PUBLIC_API_URL ||
-  (__DEV__ ? 'http://localhost:3000/api' : 'https://hedronal-production.up.railway.app/api');
+  process.env.EXPO_PUBLIC_API_URL || 'https://hedronal-production.up.railway.app/api';
 
 export interface Post {
   id: string;
@@ -89,17 +91,19 @@ export async function fetchPosts(
 export async function fetchPostLikes(
   postId: string,
   clerkToken?: string
-): Promise<Array<{
-  id: string;
-  user_id: string;
-  profile: {
+): Promise<
+  Array<{
     id: string;
-    full_name: string;
-    username?: string;
-    avatar_url?: string;
-  } | null;
-  created_at: string;
-}>> {
+    user_id: string;
+    profile: {
+      id: string;
+      full_name: string;
+      username?: string;
+      avatar_url?: string;
+    } | null;
+    created_at: string;
+  }>
+> {
   try {
     const response = await fetch(`${API_BASE_URL}/posts/${postId}/likes`, {
       method: 'GET',
@@ -144,18 +148,20 @@ export async function fetchPostLikes(
 export async function fetchPostComments(
   postId: string,
   clerkToken?: string
-): Promise<Array<{
-  id: string;
-  user_id: string;
-  content: string;
-  profile: {
+): Promise<
+  Array<{
     id: string;
-    full_name: string;
-    username?: string;
-    avatar_url?: string;
-  } | null;
-  created_at: string;
-}>> {
+    user_id: string;
+    content: string;
+    profile: {
+      id: string;
+      full_name: string;
+      username?: string;
+      avatar_url?: string;
+    } | null;
+    created_at: string;
+  }>
+> {
   try {
     const response = await fetch(`${API_BASE_URL}/posts/${postId}/comments`, {
       method: 'GET',
@@ -317,8 +323,8 @@ export async function createPost(
       },
       body: JSON.stringify({
         content: content || '',
-        entity_id: entityId || null,
-        image_urls: imageUrls || [],
+        ...(entityId && { entity_id: entityId }),
+        ...(imageUrls && imageUrls.length > 0 && { image_urls: imageUrls }),
       }),
     });
 
@@ -356,3 +362,92 @@ export async function createPost(
   }
 }
 
+/**
+ * Updates an existing post
+ */
+export async function updatePost(
+  postId: string,
+  content: string,
+  entityId?: string,
+  imageUrls?: string[],
+  clerkToken?: string
+): Promise<Post | null> {
+  try {
+    const response = await fetch(`${API_BASE_URL}/posts/${postId}`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(clerkToken && { Authorization: `Bearer ${clerkToken}` }),
+      },
+      body: JSON.stringify({
+        content: content || '',
+        ...(entityId && { entity_id: entityId }),
+        ...(imageUrls && imageUrls.length > 0 && { image_urls: imageUrls }),
+      }),
+    });
+
+    const contentType = response.headers.get('content-type');
+    if (!contentType || !contentType.includes('application/json')) {
+      const text = await response.text();
+      console.error('[updatePost] Non-JSON response:', {
+        status: response.status,
+        statusText: response.statusText,
+        contentType,
+        preview: text.substring(0, 200),
+      });
+      return null;
+    }
+
+    if (!response.ok) {
+      try {
+        const error = await response.json();
+        console.error('[updatePost] API error:', error);
+      } catch (parseError) {
+        console.error('[updatePost] API error (non-JSON):', {
+          status: response.status,
+          statusText: response.statusText,
+        });
+      }
+      return null;
+    }
+
+    const result = await response.json();
+    return result;
+  } catch (error: any) {
+    console.error('[updatePost] Network error:', error?.message || error);
+    return null;
+  }
+}
+
+/**
+ * Deletes a post
+ */
+export async function deletePost(postId: string, clerkToken?: string): Promise<boolean> {
+  try {
+    const response = await fetch(`${API_BASE_URL}/posts/${postId}`, {
+      method: 'DELETE',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(clerkToken && { Authorization: `Bearer ${clerkToken}` }),
+      },
+    });
+
+    if (!response.ok) {
+      try {
+        const error = await response.json();
+        console.error('[deletePost] API error:', error);
+      } catch (parseError) {
+        console.error('[deletePost] API error (non-JSON):', {
+          status: response.status,
+          statusText: response.statusText,
+        });
+      }
+      return false;
+    }
+
+    return true;
+  } catch (error: any) {
+    console.error('[deletePost] Network error:', error?.message || error);
+    return false;
+  }
+}

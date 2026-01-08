@@ -4,9 +4,9 @@ import { AuthenticatedRequest } from '../middleware/clerkAuth';
 import { z } from 'zod';
 
 const createPostSchema = z.object({
-  content: z.string().min(1).optional(),
-  entity_id: z.string().uuid().optional(),
-  image_urls: z.array(z.string().url()).optional(),
+  content: z.string().optional().default(''),
+  entity_id: z.string().uuid().nullable().optional(),
+  image_urls: z.array(z.string().url()).optional().default([]),
 });
 
 export const postController = {
@@ -115,7 +115,7 @@ export const postController = {
         const postImages = (post.post_images || [])
           .sort((a: any, b: any) => a.display_order - b.display_order)
           .map((img: any) => img.image_url);
-        
+
         return {
           id: post.id,
           content: post.content,
@@ -172,14 +172,19 @@ export const postController = {
 
         if (profileError) {
           console.error('[postController] Error creating profile:', profileError);
-          return res.status(500).json({ error: `Failed to create profile: ${profileError.message}` });
+          return res
+            .status(500)
+            .json({ error: `Failed to create profile: ${profileError.message}` });
         }
 
         profile = newProfile;
       }
 
       // Validate that post has either content or images
-      if (!validatedData.content && (!validatedData.image_urls || validatedData.image_urls.length === 0)) {
+      if (
+        !validatedData.content &&
+        (!validatedData.image_urls || validatedData.image_urls.length === 0)
+      ) {
         return res.status(400).json({ error: 'Post must have content or at least one image' });
       }
 
@@ -207,9 +212,7 @@ export const postController = {
           display_order: index,
         }));
 
-        const { error: imagesError } = await supabase
-          .from('post_images')
-          .insert(postImages);
+        const { error: imagesError } = await supabase.from('post_images').insert(postImages);
 
         if (imagesError) {
           console.error('[postController] Error saving post images:', imagesError);
@@ -397,7 +400,9 @@ export const postController = {
 
         if (profileError) {
           console.error('[postController] Error creating profile:', profileError);
-          return res.status(500).json({ error: `Failed to create profile: ${profileError.message}` });
+          return res
+            .status(500)
+            .json({ error: `Failed to create profile: ${profileError.message}` });
         }
 
         profile = newProfile;
@@ -485,7 +490,9 @@ export const postController = {
 
         if (profileError) {
           console.error('[postController] Error creating profile:', profileError);
-          return res.status(500).json({ error: `Failed to create profile: ${profileError.message}` });
+          return res
+            .status(500)
+            .json({ error: `Failed to create profile: ${profileError.message}` });
         }
 
         profile = newProfile;
@@ -535,6 +542,144 @@ export const postController = {
       return res.status(500).json({ error: error.message || 'Failed to toggle like' });
     }
   },
+
+  // Update an existing post
+  update: async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      if (!req.userId) {
+        return res.status(401).json({ error: 'Unauthorized' });
+      }
+
+      const { id } = req.params;
+      const validatedData = createPostSchema.parse(req.body);
+
+      // Get profile
+      const profile = await getProfileByClerkId(req.userId);
+      if (!profile) {
+        return res.status(404).json({ error: 'Profile not found' });
+      }
+
+      // Check if post exists and belongs to user
+      const { data: existingPost, error: fetchError } = await supabase
+        .from('posts')
+        .select('author_id')
+        .eq('id', id)
+        .single();
+
+      if (fetchError || !existingPost) {
+        return res.status(404).json({ error: 'Post not found' });
+      }
+
+      if (existingPost.author_id !== profile.id) {
+        return res.status(403).json({ error: 'You can only edit your own posts' });
+      }
+
+      // Validate that post has either content or images
+      if (
+        !validatedData.content &&
+        (!validatedData.image_urls || validatedData.image_urls.length === 0)
+      ) {
+        return res.status(400).json({ error: 'Post must have content or at least one image' });
+      }
+
+      // Update post
+      const { data: updatedPost, error: updateError } = await supabase
+        .from('posts')
+        .update({
+          content: validatedData.content || '',
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', id)
+        .select()
+        .single();
+
+      if (updateError) {
+        console.error('[postController] Error updating post:', updateError);
+        return res.status(500).json({ error: `Failed to update post: ${updateError.message}` });
+      }
+
+      // Update post images if provided
+      if (validatedData.image_urls && validatedData.image_urls.length > 0) {
+        // Delete existing images
+        await supabase.from('post_images').delete().eq('post_id', id);
+
+        // Insert new images
+        const postImages = validatedData.image_urls.map((url, index) => ({
+          post_id: id,
+          image_url: url,
+          display_order: index,
+        }));
+
+        const { error: imagesError } = await supabase.from('post_images').insert(postImages);
+        if (imagesError) {
+          console.error('[postController] Error updating post images:', imagesError);
+        }
+      }
+
+      res.json(updatedPost);
+    } catch (error: any) {
+      console.error('[postController] update error:', error);
+      res.status(500).json({ error: error.message || 'Failed to update post' });
+    }
+  },
+
+  // Delete a post
+  delete: async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      if (!req.userId) {
+        return res.status(401).json({ error: 'Unauthorized' });
+      }
+
+      const { id } = req.params;
+
+      // Get profile
+      const profile = await getProfileByClerkId(req.userId);
+      if (!profile) {
+        return res.status(404).json({ error: 'Profile not found' });
+      }
+
+      // Check if post exists and belongs to user
+      const { data: existingPost, error: fetchError } = await supabase
+        .from('posts')
+        .select('author_id')
+        .eq('id', id)
+        .single();
+
+      if (fetchError || !existingPost) {
+        return res.status(404).json({ error: 'Post not found' });
+      }
+
+      if (existingPost.author_id !== profile.id) {
+        return res.status(403).json({ error: 'You can only delete your own posts' });
+      }
+
+      // Soft delete: set deleted_at timestamp
+      const { error: deleteError } = await supabase
+        .from('posts')
+        .update({ deleted_at: new Date().toISOString() })
+        .eq('id', id);
+
+      if (deleteError) {
+        console.error('[postController] Error deleting post:', deleteError);
+        return res.status(500).json({ error: `Failed to delete post: ${deleteError.message}` });
+      }
+
+      // Also delete associated images
+      await supabase.from('post_images').delete().eq('post_id', id);
+      // Delete likes
+      await supabase.from('post_likes').delete().eq('post_id', id);
+      // Delete comments (soft delete)
+      await supabase
+        .from('post_comments')
+        .update({ deleted_at: new Date().toISOString() })
+        .eq('post_id', id);
+
+      res.json({ success: true });
+    } catch (error: any) {
+      console.error('[postController] delete error:', error);
+      res.status(500).json({ error: error.message || 'Failed to delete post' });
+    }
+  },
 };
 
 // Helper function to format timestamp
@@ -558,4 +703,3 @@ function formatTimestamp(dateString: string): string {
     return date.toLocaleDateString();
   }
 }
-

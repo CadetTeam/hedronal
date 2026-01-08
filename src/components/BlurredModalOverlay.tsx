@@ -26,13 +26,13 @@ export function BlurredModalOverlay({ children, onClose, visible }: BlurredModal
 
   useEffect(() => {
     if (visible) {
-      // Start fade-in after modal has fully loaded (slide animation completes)
+      // Start fade-in 1s after modal has fully loaded (slide animation completes)
       const timer = setTimeout(() => {
         opacity.value = withTiming(1, {
-          duration: 500,
+          duration: 1000,
           easing: Easing.out(Easing.ease),
         });
-      }, 300); // Wait for slide animation to complete
+      }, 300); // Wait for slide animation to complete, then fade in over 1s
 
       return () => clearTimeout(timer);
     } else {
@@ -51,6 +51,10 @@ export function BlurredModalOverlay({ children, onClose, visible }: BlurredModal
       opacity: opacity.value,
     };
   });
+
+  if (!visible) {
+    return null;
+  }
 
   return (
     <View style={styles.container} pointerEvents="box-none">
@@ -101,8 +105,8 @@ const styles = StyleSheet.create({
   },
   contentContainer: {
     width: '100%',
-    position: 'relative',
-    alignSelf: 'flex-end',
+    alignItems: 'flex-end',
+    justifyContent: 'flex-end',
   },
   gradient: {
     position: 'absolute',

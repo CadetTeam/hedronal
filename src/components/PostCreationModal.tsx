@@ -11,6 +11,7 @@ import {
   Platform,
   Alert,
   Dimensions,
+  Modal,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -20,18 +21,19 @@ import { useAuth } from '@clerk/clerk-expo';
 import { BlurredModalOverlay } from './BlurredModalOverlay';
 import { LinearGradient } from 'expo-linear-gradient';
 import { uploadImageToSupabase } from '../utils/imageUpload';
-import { createPost } from '../services/postService';
+import { createPost, updatePost, Post } from '../services/postService';
 
 interface PostCreationModalProps {
   visible: boolean;
   onClose: () => void;
   onComplete: () => void;
+  editingPost?: Post | null;
 }
 
 const MAX_IMAGES = 10;
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
-export function PostCreationModal({ visible, onClose, onComplete }: PostCreationModalProps) {
+export function PostCreationModal({ visible, onClose, onComplete, editingPost }: PostCreationModalProps) {
   const { theme, isDark } = useTheme();
   const insets = useSafeAreaInsets();
   const { getToken } = useAuth();
@@ -40,6 +42,18 @@ export function PostCreationModal({ visible, onClose, onComplete }: PostCreation
   const [uploading, setUploading] = useState(false);
   const [keyboardVisible, setKeyboardVisible] = useState(false);
   const [keyboardHeight, setKeyboardHeight] = useState(0);
+
+  // Load editing post data when modal opens
+  useEffect(() => {
+    if (visible && editingPost) {
+      setContent(editingPost.content || '');
+      setImages(editingPost.images || []);
+    } else if (visible && !editingPost) {
+      // Reset for new post
+      setContent('');
+      setImages([]);
+    }
+  }, [visible, editingPost]);
 
   useEffect(() => {
     const keyboardWillShow = Keyboard.addListener(
@@ -110,37 +124,47 @@ export function PostCreationModal({ visible, onClose, onComplete }: PostCreation
       setUploading(true);
       const token = await getToken();
 
-      // Upload images to Supabase
+      // Upload new images to Supabase (only if they're local URIs)
       const imageUrls: string[] = [];
       for (const imageUri of images) {
-        try {
-          const url = await uploadImageToSupabase(
-            imageUri,
-            'post-images', // New bucket for post images
-            `post-${Date.now()}-${Math.random().toString(36).substring(7)}.jpg`,
-            token || undefined
-          );
-          imageUrls.push(url);
-        } catch (error: any) {
-          console.error('[PostCreationModal] Error uploading image:', error);
-          Alert.alert('Upload Error', `Failed to upload image: ${error.message}`);
-          setUploading(false);
-          return;
+        // Check if it's already a URL (from editing) or a local URI
+        if (imageUri.startsWith('http://') || imageUri.startsWith('https://')) {
+          imageUrls.push(imageUri);
+        } else {
+          try {
+            const url = await uploadImageToSupabase(
+              imageUri,
+              'post-images',
+              `post-${Date.now()}-${Math.random().toString(36).substring(7)}.jpg`,
+              token || undefined
+            );
+            imageUrls.push(url);
+          } catch (error: any) {
+            console.error('[PostCreationModal] Error uploading image:', error);
+            Alert.alert('Upload Error', `Failed to upload image: ${error.message}`);
+            setUploading(false);
+            return;
+          }
         }
       }
 
-      // Create post with content and image URLs
-      const post = await createPost(content.trim(), undefined, imageUrls, token || undefined);
+      // Update existing post or create new one
+      let post: Post | null = null;
+      if (editingPost) {
+        post = await updatePost(editingPost.id, content.trim(), undefined, imageUrls, token || undefined);
+      } else {
+        post = await createPost(content.trim(), undefined, imageUrls, token || undefined);
+      }
       
       if (post) {
         onComplete();
         onClose();
       } else {
-        Alert.alert('Error', 'Failed to create post. Please try again.');
+        Alert.alert('Error', `Failed to ${editingPost ? 'update' : 'create'} post. Please try again.`);
       }
     } catch (error: any) {
-      console.error('[PostCreationModal] Error creating post:', error);
-      Alert.alert('Error', error.message || 'Failed to create post. Please try again.');
+      console.error('[PostCreationModal] Error saving post:', error);
+      Alert.alert('Error', error.message || `Failed to ${editingPost ? 'update' : 'create'} post. Please try again.`);
     } finally {
       setUploading(false);
     }
@@ -149,60 +173,37 @@ export function PostCreationModal({ visible, onClose, onComplete }: PostCreation
   function renderImageGrid() {
     if (images.length === 0) return null;
 
+    // Plus button to add more images
+    const renderAddButton = () => {
+      if (images.length >= MAX_IMAGES) return null;
+      return (
+        <TouchableOpacity
+          style={[
+            styles.addImagePlusButton,
+            {
+              backgroundColor: theme.colors.surfaceVariant,
+              borderColor: theme.colors.border,
+            },
+          ]}
+          onPress={pickImages}
+        >
+          <Ionicons name="add" size={24} color={theme.colors.primary} />
+        </TouchableOpacity>
+      );
+    };
+
     // Layout rules based on image count
     if (images.length === 1) {
       return (
-        <TouchableOpacity
-          style={styles.singleImageContainer}
-          onPress={() => {
-            // TODO: Open full image viewer
-          }}
-        >
-          <Image source={{ uri: images[0] }} style={styles.singleImage} />
+        <View style={styles.singleImageWithButtonContainer}>
+          {renderAddButton()}
           <TouchableOpacity
-            style={styles.removeImageButton}
-            onPress={() => removeImage(0)}
-          >
-            <Ionicons name="close-circle" size={24} color={theme.colors.error} />
-          </TouchableOpacity>
-        </TouchableOpacity>
-      );
-    }
-
-    if (images.length === 2) {
-      return (
-        <View style={styles.twoImageContainer}>
-          {images.map((uri, index) => (
-            <TouchableOpacity
-              key={index}
-              style={styles.twoImage}
-              onPress={() => {
-                // TODO: Open full image viewer
-              }}
-            >
-              <Image source={{ uri }} style={styles.twoImage} />
-              <TouchableOpacity
-                style={styles.removeImageButton}
-                onPress={() => removeImage(index)}
-              >
-                <Ionicons name="close-circle" size={24} color={theme.colors.error} />
-              </TouchableOpacity>
-            </TouchableOpacity>
-          ))}
-        </View>
-      );
-    }
-
-    if (images.length === 3) {
-      return (
-        <View style={styles.threeImageContainer}>
-          <TouchableOpacity
-            style={styles.threeImageLeft}
+            style={styles.singleImageContainer}
             onPress={() => {
               // TODO: Open full image viewer
             }}
           >
-            <Image source={{ uri: images[0] }} style={styles.threeImageLeft} />
+            <Image source={{ uri: images[0] }} style={styles.singleImage} />
             <TouchableOpacity
               style={styles.removeImageButton}
               onPress={() => removeImage(0)}
@@ -210,19 +211,27 @@ export function PostCreationModal({ visible, onClose, onComplete }: PostCreation
               <Ionicons name="close-circle" size={24} color={theme.colors.error} />
             </TouchableOpacity>
           </TouchableOpacity>
-          <View style={styles.threeImageRight}>
-            {images.slice(1).map((uri, index) => (
+        </View>
+      );
+    }
+
+    if (images.length === 2) {
+      return (
+        <View style={styles.twoImageWithButtonContainer}>
+          {renderAddButton()}
+          <View style={styles.twoImageContainer}>
+            {images.map((uri, index) => (
               <TouchableOpacity
-                key={index + 1}
-                style={styles.threeImageRightItem}
+                key={index}
+                style={styles.twoImage}
                 onPress={() => {
                   // TODO: Open full image viewer
                 }}
               >
-                <Image source={{ uri }} style={styles.threeImageRightItem} />
+                <Image source={{ uri }} style={styles.twoImage} />
                 <TouchableOpacity
                   style={styles.removeImageButton}
-                  onPress={() => removeImage(index + 1)}
+                  onPress={() => removeImage(index)}
                 >
                   <Ionicons name="close-circle" size={24} color={theme.colors.error} />
                 </TouchableOpacity>
@@ -233,68 +242,131 @@ export function PostCreationModal({ visible, onClose, onComplete }: PostCreation
       );
     }
 
-    if (images.length === 4) {
+    if (images.length === 3) {
       return (
-        <View style={styles.fourImageContainer}>
-          {images.map((uri, index) => (
+        <View style={styles.threeImageWithButtonContainer}>
+          {renderAddButton()}
+          <View style={styles.threeImageContainer}>
             <TouchableOpacity
-              key={index}
-              style={styles.fourImageItem}
+              style={styles.threeImageLeft}
               onPress={() => {
                 // TODO: Open full image viewer
               }}
             >
-              <Image source={{ uri }} style={styles.fourImageItem} />
+              <Image source={{ uri: images[0] }} style={styles.threeImageLeft} />
               <TouchableOpacity
                 style={styles.removeImageButton}
-                onPress={() => removeImage(index)}
+                onPress={() => removeImage(0)}
               >
                 <Ionicons name="close-circle" size={24} color={theme.colors.error} />
               </TouchableOpacity>
             </TouchableOpacity>
-          ))}
+            <View style={styles.threeImageRight}>
+              {images.slice(1).map((uri, index) => (
+                <TouchableOpacity
+                  key={index + 1}
+                  style={styles.threeImageRightItem}
+                  onPress={() => {
+                    // TODO: Open full image viewer
+                  }}
+                >
+                  <Image source={{ uri }} style={styles.threeImageRightItem} />
+                  <TouchableOpacity
+                    style={styles.removeImageButton}
+                    onPress={() => removeImage(index + 1)}
+                  >
+                    <Ionicons name="close-circle" size={24} color={theme.colors.error} />
+                  </TouchableOpacity>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+        </View>
+      );
+    }
+
+    if (images.length === 4) {
+      return (
+        <View style={styles.fourImageWithButtonContainer}>
+          {renderAddButton()}
+          <View style={styles.fourImageContainer}>
+            {images.map((uri, index) => (
+              <TouchableOpacity
+                key={index}
+                style={styles.fourImageItem}
+                onPress={() => {
+                  // TODO: Open full image viewer
+                }}
+              >
+                <Image source={{ uri }} style={styles.fourImageItem} />
+                <TouchableOpacity
+                  style={styles.removeImageButton}
+                  onPress={() => removeImage(index)}
+                >
+                  <Ionicons name="close-circle" size={24} color={theme.colors.error} />
+                </TouchableOpacity>
+              </TouchableOpacity>
+            ))}
+          </View>
         </View>
       );
     }
 
     // 5+ images: carousel
     return (
-      <ScrollView
-        horizontal
-        pagingEnabled
-        showsHorizontalScrollIndicator={false}
-        style={styles.carouselContainer}
-      >
-        {images.map((uri, index) => (
-          <TouchableOpacity
-            key={index}
-            style={styles.carouselItem}
-            onPress={() => {
-              // TODO: Open full image viewer
-            }}
+      <View style={styles.carouselContainer}>
+        <View style={styles.carouselWithButtonContainer}>
+          {renderAddButton()}
+          <ScrollView
+            horizontal
+            pagingEnabled
+            showsHorizontalScrollIndicator={false}
+            style={styles.carouselScrollView}
+            contentContainerStyle={styles.carouselContent}
           >
-            <Image source={{ uri }} style={styles.carouselImage} />
-            <TouchableOpacity
-              style={styles.removeImageButton}
-              onPress={() => removeImage(index)}
-            >
-              <Ionicons name="close-circle" size={24} color={theme.colors.error} />
-            </TouchableOpacity>
-          </TouchableOpacity>
-        ))}
-      </ScrollView>
+            {images.map((uri, index) => (
+              <TouchableOpacity
+                key={index}
+                style={styles.carouselItem}
+                onPress={() => {
+                  // TODO: Open full image viewer
+                }}
+              >
+                <Image source={{ uri }} style={styles.carouselImage} />
+                <TouchableOpacity
+                  style={styles.removeImageButton}
+                  onPress={() => removeImage(index)}
+                >
+                  <Ionicons name="close-circle" size={24} color={theme.colors.error} />
+                </TouchableOpacity>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        </View>
+        <View style={styles.carouselIndicator}>
+          <Text style={[styles.carouselCountText, { color: theme.colors.text }]}>
+            {images.length} photos
+          </Text>
+        </View>
+      </View>
     );
   }
 
+  if (!visible) {
+    return null;
+  }
+
   return (
-    <BlurredModalOverlay visible={visible} onClose={onClose}>
+    <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
+      <BlurredModalOverlay visible={visible} onClose={onClose}>
       <View
         style={[
           styles.modalContent,
           {
             backgroundColor: theme.colors.surface,
-            paddingTop: insets.top + 20,
-            paddingBottom: keyboardVisible ? keyboardHeight : insets.bottom + 20,
+            paddingBottom: keyboardVisible ? keyboardHeight : insets.bottom + 40,
+            maxHeight: '85%',
+            minHeight: 500,
           },
         ]}
       >
@@ -303,7 +375,9 @@ export function PostCreationModal({ visible, onClose, onComplete }: PostCreation
           <TouchableOpacity onPress={onClose} style={styles.closeButton}>
             <Ionicons name="close" size={24} color={theme.colors.text} />
           </TouchableOpacity>
-          <Text style={[styles.headerTitle, { color: theme.colors.text }]}>Create Post</Text>
+          <Text style={[styles.headerTitle, { color: theme.colors.text }]}>
+            {editingPost ? 'Edit Post' : 'Create Post'}
+          </Text>
           <TouchableOpacity
             onPress={handlePost}
             disabled={uploading || (!content.trim() && images.length === 0)}
@@ -320,15 +394,19 @@ export function PostCreationModal({ visible, onClose, onComplete }: PostCreation
                 { color: uploading ? theme.colors.textSecondary : theme.colors.primary },
               ]}
             >
-              {uploading ? 'Posting...' : 'Post'}
+              {uploading ? (editingPost ? 'Saving...' : 'Posting...') : (editingPost ? 'Save' : 'Post')}
             </Text>
           </TouchableOpacity>
         </View>
 
         <ScrollView
           style={styles.scrollView}
-          contentContainerStyle={styles.scrollContent}
+          contentContainerStyle={[
+            styles.scrollContent,
+            { paddingBottom: 20 },
+          ]}
           keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
         >
           {/* Text Input */}
           <TextInput
@@ -344,8 +422,8 @@ export function PostCreationModal({ visible, onClose, onComplete }: PostCreation
           {/* Image Grid */}
           {renderImageGrid()}
 
-          {/* Add Images Button */}
-          {images.length < MAX_IMAGES && (
+          {/* Add Images Button - only show when no images */}
+          {images.length === 0 && images.length < MAX_IMAGES && (
             <TouchableOpacity
               style={[
                 styles.addImageButton,
@@ -364,16 +442,19 @@ export function PostCreationModal({ visible, onClose, onComplete }: PostCreation
           )}
         </ScrollView>
       </View>
-    </BlurredModalOverlay>
+      </BlurredModalOverlay>
+    </Modal>
   );
 }
 
 const styles = StyleSheet.create({
   modalContent: {
-    flex: 1,
+    width: '100%',
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     overflow: 'hidden',
+    alignSelf: 'flex-end',
+    flexDirection: 'column',
   },
   header: {
     flexDirection: 'row',
@@ -383,6 +464,7 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: 'rgba(0,0,0,0.1)',
+    flexShrink: 0,
   },
   closeButton: {
     padding: 4,
@@ -400,9 +482,11 @@ const styles = StyleSheet.create({
   },
   scrollView: {
     flex: 1,
+    flexShrink: 1,
   },
   scrollContent: {
     padding: 16,
+    flexGrow: 1,
   },
   textInput: {
     fontSize: 16,
@@ -468,15 +552,33 @@ const styles = StyleSheet.create({
   },
   carouselContainer: {
     marginBottom: 16,
+    position: 'relative',
+  },
+  carouselScrollView: {
+    marginBottom: 8,
+  },
+  carouselContent: {
+    paddingRight: 8,
   },
   carouselItem: {
-    width: SCREEN_WIDTH - 32,
+    width: (SCREEN_WIDTH - 48) / 2 - 4, // Same size as 4-image grid items
     marginRight: 8,
+    position: 'relative',
   },
   carouselImage: {
     width: '100%',
     aspectRatio: 1,
     borderRadius: 12,
+    overflow: 'hidden',
+  },
+  carouselIndicator: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 8,
+  },
+  carouselCountText: {
+    fontSize: 14,
+    fontWeight: '500',
   },
   removeImageButton: {
     position: 'absolute',
@@ -497,6 +599,40 @@ const styles = StyleSheet.create({
   addImageText: {
     fontSize: 16,
     fontWeight: '500',
+  },
+  addImagePlusButton: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 8,
+    flexShrink: 0,
+  },
+  singleImageWithButtonContainer: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    marginBottom: 16,
+  },
+  twoImageWithButtonContainer: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    marginBottom: 16,
+  },
+  threeImageWithButtonContainer: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    marginBottom: 16,
+  },
+  fourImageWithButtonContainer: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    marginBottom: 16,
+  },
+  carouselWithButtonContainer: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
   },
 });
 

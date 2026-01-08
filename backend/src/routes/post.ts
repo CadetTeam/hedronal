@@ -22,3 +22,9 @@ postRouter.post('/:id/comments', clerkAuthMiddleware, postController.createComme
 // Protected route for liking/unliking posts
 postRouter.post('/:id/like', clerkAuthMiddleware, postController.toggleLike);
 
+// Protected route for updating posts
+postRouter.patch('/:id', clerkAuthMiddleware, postController.update);
+
+// Protected route for deleting posts
+postRouter.delete('/:id', clerkAuthMiddleware, postController.delete);
+

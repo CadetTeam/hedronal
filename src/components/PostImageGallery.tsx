@@ -322,7 +322,7 @@ const styles = StyleSheet.create({
     paddingRight: 8,
   },
   carouselItem: {
-    width: SCREEN_WIDTH - 32,
+    width: (SCREEN_WIDTH - 48) / 2 - 4, // Same size as 4-image grid items
     marginRight: 8,
     position: 'relative',
   },

@@ -1,10 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   FlatList,
   RefreshControl,
+  Dimensions,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '../../context/ThemeContext';
@@ -20,10 +21,15 @@ import { PostCreationModal } from '../../components/PostCreationModal';
 import { PostImageGallery } from '../../components/PostImageGallery';
 import { PostLikesModal } from '../../components/PostLikesModal';
 import { PostCommentsModal } from '../../components/PostCommentsModal';
+import { PostMenuPopover } from '../../components/PostMenuPopover';
+import { ShareModal } from '../../components/ShareModal';
 import { TouchableOpacity, Image } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { fetchPosts, Post, togglePostLike } from '../../services/postService';
+import { fetchPosts, Post, togglePostLike, deletePost } from '../../services/postService';
 import { useAuth } from '@clerk/clerk-expo';
+import { getProfile } from '../../services/profileService';
+
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 const MOCK_POSTS = [
   {
@@ -178,6 +184,13 @@ export function FeedScreen() {
   const [showLikesModal, setShowLikesModal] = useState(false);
   const [showCommentsModal, setShowCommentsModal] = useState(false);
   const [selectedPostId, setSelectedPostId] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<'foryou' | 'following'>('foryou');
+  const [currentUserProfileId, setCurrentUserProfileId] = useState<string | null>(null);
+  const [showPostMenu, setShowPostMenu] = useState(false);
+  const [menuAnchorPosition, setMenuAnchorPosition] = useState({ x: 0, y: 0 });
+  const [selectedPostForMenu, setSelectedPostForMenu] = useState<Post | null>(null);
+  const [editingPost, setEditingPost] = useState<Post | null>(null);
+  const [showShareModal, setShowShareModal] = useState(false);
 
   // Load posts on mount - wait a bit to ensure Clerk is initialized
   useEffect(() => {
@@ -201,8 +214,18 @@ export function FeedScreen() {
         console.warn('[FeedScreen] Error getting token (non-fatal):', tokenError?.message);
         // Continue without token - posts endpoint might work without auth
       }
+      
       const fetchedPosts = await fetchPosts(50, 0, token || undefined);
-      setPosts(fetchedPosts);
+      
+      // Filter posts based on active tab
+      if (activeTab === 'following') {
+        // TODO: Filter to only show posts from users the current user is following
+        // For now, show empty array until backend supports following filter
+        setPosts([]);
+      } else {
+        // "For you" - show all public posts
+        setPosts(fetchedPosts);
+      }
     } catch (error: any) {
       console.error('[FeedScreen] Error loading posts:', error?.message);
       // Fallback to empty array on error
@@ -211,12 +234,68 @@ export function FeedScreen() {
       setLoading(false);
     }
   }
+  
+  // Reload posts when tab changes
+  useEffect(() => {
+    loadPosts();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab]);
 
   async function onRefresh() {
     setRefreshing(true);
     triggerRefresh(); // Trigger bubble animation reload
     await loadPosts();
     setRefreshing(false);
+  }
+
+  const isOwnPost = (post: Post) => {
+    return currentUserProfileId && post.authorId === currentUserProfileId;
+  };
+
+  async function handleEditPost() {
+    if (selectedPostForMenu) {
+      setEditingPost(selectedPostForMenu);
+      setShowPostCreationModal(true);
+    }
+  }
+
+  function handleSharePost() {
+    if (selectedPostForMenu) {
+      setShowShareModal(true);
+    }
+  }
+
+  async function handleDeletePost() {
+    if (!selectedPostForMenu) return;
+    
+    try {
+      const token = await getToken();
+      const success = await deletePost(selectedPostForMenu.id, token || undefined);
+      if (success) {
+        // Remove post from local state
+        setPosts(posts.filter(p => p.id !== selectedPostForMenu.id));
+      }
+    } catch (error: any) {
+      console.error('[FeedScreen] Error deleting post:', error);
+    }
+  }
+
+  async function handleHidePost() {
+    if (!selectedPostForMenu) return;
+    // TODO: Implement hide post functionality
+    setPosts(posts.filter(p => p.id !== selectedPostForMenu.id));
+  }
+
+  async function handleBlockUser() {
+    if (!selectedPostForMenu?.authorId) return;
+    // TODO: Implement block user functionality
+    setPosts(posts.filter(p => p.authorId !== selectedPostForMenu.authorId));
+  }
+
+  async function handleReportPost() {
+    if (!selectedPostForMenu) return;
+    // TODO: Implement report post functionality
+    console.log('Report post:', selectedPostForMenu.id);
   }
 
   function renderItem({ item }: { item: any }) {
@@ -268,9 +347,39 @@ export function FeedScreen() {
               </Text>
             </View>
           </TouchableOpacity>
-          <Text style={[styles.timestamp, { color: theme.colors.textTertiary }]}>
-            {item.timestamp}
-          </Text>
+          <View style={styles.postHeaderRight}>
+            <Text style={[styles.timestamp, { color: theme.colors.textTertiary }]}>
+              {item.timestamp}
+            </Text>
+            <View
+              ref={(ref) => {
+                if (ref) {
+                  (item as any)._ellipsisRef = ref;
+                }
+              }}
+            >
+              <TouchableOpacity
+                style={styles.ellipsisButton}
+                onPress={() => {
+                  const ref = (item as any)._ellipsisRef;
+                  if (ref) {
+                    ref.measureInWindow((x: number, y: number, width: number, height: number) => {
+                      setMenuAnchorPosition({ x: x + width, y: y });
+                      setSelectedPostForMenu(item);
+                      setShowPostMenu(true);
+                    });
+                  } else {
+                    // Fallback: estimate position
+                    setMenuAnchorPosition({ x: SCREEN_WIDTH - 50, y: 100 });
+                    setSelectedPostForMenu(item);
+                    setShowPostMenu(true);
+                  }
+                }}
+              >
+                <Ionicons name="ellipsis-horizontal" size={20} color={theme.colors.text} />
+              </TouchableOpacity>
+            </View>
+          </View>
         </View>
         {item.content ? (
           <Text style={[styles.postText, { color: theme.colors.text }]}>
@@ -388,6 +497,63 @@ export function FeedScreen() {
           onPress: () => setShowNotificationsModal(true),
         }}
       />
+      
+      {/* Tabs */}
+      <View
+        style={[
+          styles.tabsContainer,
+          {
+            backgroundColor: theme.colors.background,
+            borderBottomColor: theme.colors.border,
+          },
+        ]}
+      >
+        <TouchableOpacity
+          style={[
+            styles.tab,
+            activeTab === 'foryou' && {
+              borderBottomWidth: 2,
+              borderBottomColor: theme.colors.primary,
+            },
+          ]}
+          onPress={() => setActiveTab('foryou')}
+        >
+          <Text
+            style={[
+              styles.tabText,
+              {
+                color: activeTab === 'foryou' ? theme.colors.primary : theme.colors.textSecondary,
+                fontWeight: activeTab === 'foryou' ? '600' : '400',
+              },
+            ]}
+          >
+            For you
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[
+            styles.tab,
+            activeTab === 'following' && {
+              borderBottomWidth: 2,
+              borderBottomColor: theme.colors.primary,
+            },
+          ]}
+          onPress={() => setActiveTab('following')}
+        >
+          <Text
+            style={[
+              styles.tabText,
+              {
+                color: activeTab === 'following' ? theme.colors.primary : theme.colors.textSecondary,
+                fontWeight: activeTab === 'following' ? '600' : '400',
+              },
+            ]}
+          >
+            Following
+          </Text>
+        </TouchableOpacity>
+      </View>
+      
       <FlatList
         data={posts}
         renderItem={renderItem}
@@ -430,10 +596,37 @@ export function FeedScreen() {
 
       <PostCreationModal
         visible={showPostCreationModal}
-        onClose={() => setShowPostCreationModal(false)}
+        onClose={() => {
+          setShowPostCreationModal(false);
+          setEditingPost(null);
+        }}
         onComplete={() => {
           loadPosts(); // Refresh posts after creation
+          setEditingPost(null);
         }}
+        editingPost={editingPost}
+      />
+
+      <PostMenuPopover
+        visible={showPostMenu}
+        onClose={() => {
+          setShowPostMenu(false);
+          setSelectedPostForMenu(null);
+        }}
+        anchorPosition={menuAnchorPosition}
+        isOwnPost={selectedPostForMenu ? isOwnPost(selectedPostForMenu) : false}
+        onEdit={handleEditPost}
+        onShare={handleSharePost}
+        onDelete={handleDeletePost}
+        onHide={handleHidePost}
+        onBlock={handleBlockUser}
+        onReport={handleReportPost}
+      />
+
+      <ShareModal
+        visible={showShareModal}
+        onClose={() => setShowShareModal(false)}
+        post={selectedPostForMenu}
       />
 
       {selectedPostId && (
@@ -531,5 +724,27 @@ const styles = StyleSheet.create({
   },
   actionText: {
     fontSize: 14,
+  },
+  tabsContainer: {
+    flexDirection: 'row',
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    paddingHorizontal: 16,
+  },
+  tab: {
+    flex: 1,
+    paddingVertical: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  tabText: {
+    fontSize: 16,
+  },
+  postHeaderRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  ellipsisButton: {
+    padding: 4,
   },
 });
