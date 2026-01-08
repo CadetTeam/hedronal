@@ -6,7 +6,7 @@ import { z } from 'zod';
 const updateProfileSchema = z.object({
   full_name: z.string().optional(),
   username: z.string().optional(),
-  bio: z.string().max(120).optional(),
+  bio: z.string().max(750).optional(),
   avatar_url: z.string().url().optional().nullable(),
   banner_url: z.string().url().optional().nullable(),
   // Allow flexible social link URLs; we'll validate and clean manually
@@ -43,13 +43,32 @@ export const profileController = {
       }
 
       if (!data) {
-        return res.status(404).json({ error: 'Profile not found' });
+        // Create profile if it doesn't exist
+        const { data: newProfile, error: createError } = await supabase
+          .from('profiles')
+          .insert({
+            clerk_user_id: req.userId,
+          })
+          .select()
+          .single();
+
+        if (createError || !newProfile) {
+          console.error('[profileController] Error creating profile:', createError);
+          return res.status(500).json({ error: 'Failed to create profile' });
+        }
+
+        return res.json({
+          profile: {
+            ...newProfile,
+            socialLinks: [],
+          },
+        });
       }
 
       // Fetch social links
       const { data: socialLinks, error: socialLinksError } = await supabase
         .from('profile_social_links')
-        .select('*')
+        .select('type, url')
         .eq('profile_id', data.id);
 
       if (socialLinksError) {
@@ -94,10 +113,16 @@ export const profileController = {
       }
 
       // Update profile data (excluding socialLinks)
+      // Explicitly include bio even if it's an empty string
       const updateData: any = {
         ...profileUpdateData,
         updated_at: new Date().toISOString(),
       };
+
+      // Ensure bio is included if it was provided (even if empty string)
+      if ('bio' in validatedData) {
+        updateData.bio = validatedData.bio || null;
+      }
 
       const { data: updatedProfile, error: updateError } = await supabase
         .from('profiles')
@@ -172,7 +197,7 @@ export const profileController = {
       // Fetch updated profile with social links
       const { data: socialLinksData } = await supabase
         .from('profile_social_links')
-        .select('*')
+        .select('type, url')
         .eq('profile_id', profile.id);
 
       res.json({
@@ -212,7 +237,7 @@ export const profileController = {
       // Fetch social links
       const { data: socialLinks, error: socialLinksError } = await supabase
         .from('profile_social_links')
-        .select('*')
+        .select('type, url')
         .eq('profile_id', data.id);
 
       if (socialLinksError) {
