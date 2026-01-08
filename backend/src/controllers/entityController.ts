@@ -340,6 +340,7 @@ export const entityController = {
       }
 
       // Filter entities by clerk_organization_id matching user's organizations
+      // Exclude archived entities from the main list
       const { data: entities, error } = await supabase
         .from('entities')
         .select(
@@ -358,8 +359,12 @@ export const entityController = {
         return res.status(400).json({ error: error.message });
       }
 
-      console.log('[entityController] Found entities:', entities?.length || 0);
-      return res.json({ entities: entities || [] });
+      // Filter out archived entities (handles both cases: column exists or doesn't exist)
+      // If column doesn't exist, is_archived will be undefined, so !undefined = true (entity shown)
+      const filteredEntities = entities?.filter((e: any) => !e.is_archived) || [];
+
+      console.log('[entityController] Found entities:', filteredEntities?.length || 0);
+      return res.json({ entities: filteredEntities || [] });
     } catch (error: any) {
       console.error('[entityController] List error:', error);
       console.error('[entityController] Error stack:', error.stack);
@@ -377,7 +382,7 @@ export const entityController = {
       }
 
       const { id } = req.params;
-      const updateData = req.body;
+      const { step2Data, completedItems, ...entityUpdate } = req.body || {};
 
       // Verify user has permission (owner or admin)
       const profile = await getProfileByClerkId(req.userId);
@@ -409,20 +414,245 @@ export const entityController = {
         return res.status(403).json({ error: 'Insufficient permissions' });
       }
 
-      const { data: updatedEntity, error } = await supabase
-        .from('entities')
-        .update(updateData)
-        .eq('id', id)
-        .select()
-        .single();
+      let updatedEntity = null;
 
-      if (error) {
-        return res.status(400).json({ error: error.message });
+      // Update base entity fields if provided
+      if (entityUpdate && Object.keys(entityUpdate).length > 0) {
+        const { data, error } = await supabase
+          .from('entities')
+          .update(entityUpdate)
+          .eq('id', id)
+          .select()
+          .single();
+
+        if (error) {
+          return res.status(400).json({ error: error.message });
+        }
+
+        updatedEntity = data;
+      }
+
+      // Upsert configuration data (step2Data / provider selections) if provided
+      if (step2Data && typeof step2Data === 'object') {
+        const entries = Object.entries(step2Data).map(([configType, configValue]) => ({
+          entity_id: id,
+          config_type: configType,
+          config_data: configValue,
+          is_completed: Array.isArray(completedItems) ? completedItems.includes(configType) : false,
+        }));
+
+        if (entries.length > 0) {
+          const { error: configError } = await supabase
+            .from('entity_configurations')
+            .upsert(entries, {
+              onConflict: 'entity_id,config_type',
+            });
+
+          if (configError) {
+            console.error('[entityController] Error updating configurations:', configError);
+            return res.status(500).json({ error: 'Failed to update configurations' });
+          }
+        }
+      }
+
+      // If we only updated configurations, fetch the latest entity row to return
+      if (!updatedEntity) {
+        const { data, error } = await supabase.from('entities').select('*').eq('id', id).single();
+
+        if (error) {
+          return res.status(400).json({ error: error.message });
+        }
+
+        updatedEntity = data;
       }
 
       return res.json({ entity: updatedEntity });
     } catch (error: any) {
       return res.status(500).json({ error: error.message });
+    }
+  },
+
+  archive: async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      if (!req.userId) {
+        return res.status(401).json({ error: 'Unauthorized' });
+      }
+
+      const { id } = req.params;
+
+      // Verify user has permission (owner or admin)
+      const profile = await getProfileByClerkId(req.userId);
+      if (!profile) {
+        return res.status(401).json({ error: 'Profile not found' });
+      }
+
+      const { data: member } = await supabase
+        .from('entity_members')
+        .select('role')
+        .eq('entity_id', id)
+        .eq('profile_id', profile.id)
+        .single();
+
+      const { data: entity } = await supabase
+        .from('entities')
+        .select('created_by')
+        .eq('id', id)
+        .single();
+
+      if (!entity) {
+        return res.status(404).json({ error: 'Entity not found' });
+      }
+
+      const isOwner = entity.created_by === profile.id;
+      const isAdmin = member?.role === 'owner' || member?.role === 'admin';
+
+      if (!isOwner && !isAdmin) {
+        return res.status(403).json({ error: 'Insufficient permissions' });
+      }
+
+      // Update entity to set is_archived = true
+      // Note: This requires the is_archived column to exist in the database
+      const { data: updatedEntity, error: updateError } = await supabase
+        .from('entities')
+        .update({ is_archived: true })
+        .eq('id', id)
+        .select()
+        .single();
+
+      if (
+        updateError &&
+        updateError.message?.includes('column') &&
+        updateError.message?.includes('is_archived')
+      ) {
+        return res.status(500).json({
+          error:
+            'Archive feature requires database migration. Please add is_archived column to entities table.',
+        });
+      }
+
+      if (updateError) {
+        return res.status(400).json({ error: updateError.message });
+      }
+
+      return res.json({ entity: updatedEntity });
+    } catch (error: any) {
+      return res.status(500).json({ error: error.message });
+    }
+  },
+
+  unarchive: async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      if (!req.userId) {
+        return res.status(401).json({ error: 'Unauthorized' });
+      }
+
+      const { id } = req.params;
+
+      // Verify user has permission (owner or admin)
+      const profile = await getProfileByClerkId(req.userId);
+      if (!profile) {
+        return res.status(401).json({ error: 'Profile not found' });
+      }
+
+      const { data: member } = await supabase
+        .from('entity_members')
+        .select('role')
+        .eq('entity_id', id)
+        .eq('profile_id', profile.id)
+        .single();
+
+      const { data: entity } = await supabase
+        .from('entities')
+        .select('created_by')
+        .eq('id', id)
+        .single();
+
+      if (!entity) {
+        return res.status(404).json({ error: 'Entity not found' });
+      }
+
+      const isOwner = entity.created_by === profile.id;
+      const isAdmin = member?.role === 'owner' || member?.role === 'admin';
+
+      if (!isOwner && !isAdmin) {
+        return res.status(403).json({ error: 'Insufficient permissions' });
+      }
+
+      // Update entity to set is_archived = false
+      const { data: updatedEntity, error: updateError } = await supabase
+        .from('entities')
+        .update({ is_archived: false })
+        .eq('id', id)
+        .select()
+        .single();
+
+      if (updateError) {
+        return res.status(400).json({ error: updateError.message });
+      }
+
+      return res.json({ entity: updatedEntity });
+    } catch (error: any) {
+      return res.status(500).json({ error: error.message });
+    }
+  },
+
+  listArchived: async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      console.log('[entityController] Listing archived entities for user:', req.userId);
+
+      if (!req.userId) {
+        return res.status(401).json({ error: 'Unauthorized' });
+      }
+
+      const { limit = 50, offset = 0 } = req.query;
+
+      // Get user's Clerk organizations
+      let organizationIds: string[] = [];
+      try {
+        const userOrganizations = await clerk.users.getOrganizationList({
+          userId: req.userId,
+        });
+        organizationIds = userOrganizations.data.map((org: any) => org.id);
+        console.log('[entityController] User organizations:', organizationIds);
+      } catch (orgError) {
+        console.error('[entityController] Error fetching user organizations:', orgError);
+        return res.json({ entities: [] });
+      }
+
+      // Filter entities by clerk_organization_id matching user's organizations
+      const { data: entities, error } = await supabase
+        .from('entities')
+        .select(
+          `
+          *,
+          entity_social_links (*),
+          entity_configurations (*)
+        `
+        )
+        .in('clerk_organization_id', organizationIds)
+        .order('created_at', { ascending: false })
+        .range(Number(offset), Number(offset) + Number(limit) - 1);
+
+      if (error) {
+        console.error('[entityController] Supabase error:', error);
+        return res.status(400).json({ error: error.message });
+      }
+
+      // Filter to only archived entities (handles both cases: column exists or doesn't exist)
+      const archivedEntities = entities?.filter((e: any) => e.is_archived === true) || [];
+
+      if (error) {
+        console.error('[entityController] Supabase error:', error);
+        return res.status(400).json({ error: error.message });
+      }
+
+      console.log('[entityController] Found archived entities:', archivedEntities?.length || 0);
+      return res.json({ entities: archivedEntities || [] });
+    } catch (error: any) {
+      console.error('[entityController] List archived error:', error);
+      return res.status(500).json({
+        error: error.message || 'Failed to fetch archived entities',
+      });
     }
   },
 };

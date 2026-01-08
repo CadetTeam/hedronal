@@ -246,6 +246,9 @@ export async function updateEntity(
         banner_url: updateData.banner || null,
         avatar_url: updateData.avatar || null,
         type: updateData.type || null,
+        // Persist configuration data (including provider selections) to Supabase
+        step2Data: updateData.step2Data,
+        completedItems: updateData.completedItems,
       }),
     });
 
@@ -280,6 +283,123 @@ export async function updateEntity(
       success: false,
       error: error?.message || 'Failed to update entity',
     };
+  }
+}
+
+/**
+ * Archives an entity via backend API
+ */
+export async function archiveEntity(
+  entityId: string,
+  clerkToken?: string
+): Promise<{ success: boolean; entity?: any; error?: string }> {
+  try {
+    if (!clerkToken) {
+      console.warn('[archiveEntity] No token provided - request may fail');
+    }
+
+    const response = await fetch(`${API_BASE_URL}/entities/${entityId}/archive`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(clerkToken && { Authorization: `Bearer ${clerkToken}` }),
+      },
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      console.error('[archiveEntity] API error:', error);
+      return {
+        success: false,
+        error: error.error || error.message || 'Failed to archive entity',
+      };
+    }
+
+    const result = await response.json();
+    return {
+      success: true,
+      entity: result.entity,
+    };
+  } catch (error: any) {
+    console.error('[archiveEntity] Network error:', error);
+    return {
+      success: false,
+      error: error?.message || 'Failed to archive entity',
+    };
+  }
+}
+
+/**
+ * Unarchives an entity via backend API
+ */
+export async function unarchiveEntity(
+  entityId: string,
+  clerkToken?: string
+): Promise<{ success: boolean; entity?: any; error?: string }> {
+  try {
+    if (!clerkToken) {
+      console.warn('[unarchiveEntity] No token provided - request may fail');
+    }
+
+    const response = await fetch(`${API_BASE_URL}/entities/${entityId}/unarchive`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(clerkToken && { Authorization: `Bearer ${clerkToken}` }),
+      },
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      console.error('[unarchiveEntity] API error:', error);
+      return {
+        success: false,
+        error: error.error || error.message || 'Failed to unarchive entity',
+      };
+    }
+
+    const result = await response.json();
+    return {
+      success: true,
+      entity: result.entity,
+    };
+  } catch (error: any) {
+    console.error('[unarchiveEntity] Network error:', error);
+    return {
+      success: false,
+      error: error?.message || 'Failed to unarchive entity',
+    };
+  }
+}
+
+/**
+ * Fetches archived entities from the backend API
+ */
+export async function fetchArchivedEntities(clerkToken?: string): Promise<any[]> {
+  try {
+    if (!clerkToken) {
+      console.warn('[fetchArchivedEntities] No token provided - request may fail');
+    }
+
+    const response = await fetch(`${API_BASE_URL}/entities/archived`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(clerkToken && { Authorization: `Bearer ${clerkToken}` }),
+      },
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      console.error('[fetchArchivedEntities] API error:', error);
+      return [];
+    }
+
+    const result = await response.json();
+    return result.entities || [];
+  } catch (error: any) {
+    console.error('[fetchArchivedEntities] Network error:', error);
+    return [];
   }
 }
 
@@ -341,7 +461,7 @@ export function useEntityCreation() {
       // Get a fresh token for backend authentication after org creation
       // Try multiple methods to get a valid token with organization context
       let token: string | null = null;
-      
+
       // Method 1: Try with organization context
       try {
         token = await getToken({ template: 'default' });
@@ -357,7 +477,10 @@ export function useEntityCreation() {
         try {
           token = await getToken();
           if (token) {
-            console.log('[useEntityCreation] Token retrieved without template, length:', token.length);
+            console.log(
+              '[useEntityCreation] Token retrieved without template, length:',
+              token.length
+            );
           }
         } catch (defaultError) {
           console.log('[useEntityCreation] Default token failed:', defaultError);
@@ -370,7 +493,10 @@ export function useEntityCreation() {
           await new Promise(resolve => setTimeout(resolve, 500)); // Wait a bit more
           token = await getToken({ template: 'default', skipCache: true });
           if (token) {
-            console.log('[useEntityCreation] Token retrieved with skipCache, length:', token.length);
+            console.log(
+              '[useEntityCreation] Token retrieved with skipCache, length:',
+              token.length
+            );
           }
         } catch (skipCacheError) {
           console.log('[useEntityCreation] SkipCache token failed:', skipCacheError);
@@ -429,7 +555,7 @@ export function useEntityCreation() {
       // Get fresh token right before entity creation to ensure it's valid
       // Use the token we already retrieved, or get a new one if needed
       let createToken: string | null = token;
-      
+
       // If we don't have a token, try to get one more time
       if (!createToken) {
         console.log('[useEntityCreation] Getting fresh token for entity creation...');
@@ -445,7 +571,7 @@ export function useEntityCreation() {
             console.log('[useEntityCreation] Default token also failed');
           }
         }
-        
+
         if (!createToken) {
           // Last attempt with skipCache
           try {
@@ -462,7 +588,10 @@ export function useEntityCreation() {
         throw new Error('Unable to get authentication token. Please sign out and sign in again.');
       }
 
-      console.log('[useEntityCreation] Final token for entity creation, length:', createToken.length);
+      console.log(
+        '[useEntityCreation] Final token for entity creation, length:',
+        createToken.length
+      );
 
       // Create entity via backend API with organization ID and image URLs
       const result = await createEntity(entityDataWithUrls, userId, org.id, createToken);

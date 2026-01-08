@@ -9,11 +9,12 @@ const updateProfileSchema = z.object({
   bio: z.string().max(120).optional(),
   avatar_url: z.string().url().optional().nullable(),
   banner_url: z.string().url().optional().nullable(),
+  // Allow flexible social link URLs; we'll validate and clean manually
   socialLinks: z
     .array(
       z.object({
         type: z.string(),
-        url: z.string().url(),
+        url: z.string(),
       })
     )
     .optional(),
@@ -112,6 +113,40 @@ export const profileController = {
 
       // Update social links if provided
       if (socialLinks !== undefined) {
+        // Clean and validate social links before saving
+        const cleanedLinks = socialLinks
+          .filter(link => link.url && link.url.trim().length > 0)
+          .map(link => {
+            let url = link.url.trim();
+
+            // If URL is missing scheme, default to https://
+            if (!/^https?:\/\//i.test(url)) {
+              url = `https://${url}`;
+            }
+
+            // Best-effort validation using URL constructor; skip invalid URLs
+            try {
+              // This will throw if invalid; we only care that it parses
+              // eslint-disable-next-line no-new
+              new URL(url);
+            } catch {
+              console.warn(
+                '[profileController] Skipping invalid social link URL for type',
+                link.type,
+                'url:',
+                link.url
+              );
+              return null;
+            }
+
+            return {
+              profile_id: profile.id,
+              type: link.type.toLowerCase(),
+              url,
+            };
+          })
+          .filter(Boolean) as Array<{ profile_id: string; type: string; url: string }>;
+
         // Delete existing social links
         const { error: deleteError } = await supabase
           .from('profile_social_links')
@@ -123,14 +158,10 @@ export const profileController = {
         }
 
         // Insert new social links
-        if (socialLinks.length > 0) {
-          const { error: insertError } = await supabase.from('profile_social_links').insert(
-            socialLinks.map(link => ({
-              profile_id: profile.id,
-              type: link.type.toLowerCase(),
-              url: link.url,
-            }))
-          );
+        if (cleanedLinks.length > 0) {
+          const { error: insertError } = await supabase
+            .from('profile_social_links')
+            .insert(cleanedLinks);
 
           if (insertError) {
             console.error('[profileController] Error inserting social links:', insertError);

@@ -9,4 +9,4 @@ inviteRouter.use(clerkAuthMiddleware);
 
 inviteRouter.post('/', inviteController.create);
 inviteRouter.get('/', inviteController.list);
-
+inviteRouter.delete('/:id', inviteController.delete);

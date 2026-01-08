@@ -25,6 +25,7 @@ import { EmptyState } from '../../components/EmptyState';
 import { BlurredModalOverlay } from '../../components/BlurredModalOverlay';
 import { Logo } from '../../components/Logo';
 import { SocialLinksModal } from '../../components/SocialLinksModal';
+import { ArchivedEntitiesModal } from '../../components/ArchivedEntitiesModal';
 import { getProfile, updateProfile } from '../../services/profileService';
 import { uploadProfileImages } from '../../utils/imageUpload';
 
@@ -46,6 +47,7 @@ export function ProfileScreen() {
   const [loading, setLoading] = useState(true);
   const [showPointsModal, setShowPointsModal] = useState(false);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
+  const [showArchivedEntitiesModal, setShowArchivedEntitiesModal] = useState(false);
   const [showFollowersModal, setShowFollowersModal] = useState(false);
   const [showFollowingModal, setShowFollowingModal] = useState(false);
   const [showPostsModal, setShowPostsModal] = useState(false);
@@ -1031,6 +1033,13 @@ export function ProfileScreen() {
               <SettingsSection
                 title="Data Management"
                 items={[
+                  {
+                    label: 'Archived',
+                    onPress: () => {
+                      setShowSettingsModal(false);
+                      setShowArchivedEntitiesModal(true);
+                    },
+                  },
                   { label: 'Export Data', onPress: () => {} },
                   { label: 'Delete Account', onPress: () => {}, destructive: true },
                 ]}
@@ -1147,6 +1156,15 @@ export function ProfileScreen() {
           </View>
         </BlurredModalOverlay>
       </Modal>
+
+      {/* Archived Entities Modal */}
+      <ArchivedEntitiesModal
+        visible={showArchivedEntitiesModal}
+        onClose={() => setShowArchivedEntitiesModal(false)}
+        onUnarchive={() => {
+          // Refresh could be handled here if needed
+        }}
+      />
     </SafeAreaView>
   );
 }

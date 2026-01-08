@@ -95,3 +95,43 @@ export async function getInvites(
     };
   }
 }
+
+export async function deleteInvite(
+  inviteId: string,
+  clerkToken?: string
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const response = await fetch(`${API_URL}/invites/${inviteId}`, {
+      method: 'DELETE',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(clerkToken && { Authorization: `Bearer ${clerkToken}` }),
+      },
+    });
+
+    if (!response.ok) {
+      let errorMessage = 'Failed to delete invite';
+      try {
+        const error = await response.json();
+        errorMessage = error.error || error.message || JSON.stringify(error);
+      } catch (parseError) {
+        const text = await response.text();
+        errorMessage = text || `HTTP ${response.status}: ${response.statusText}`;
+      }
+      return {
+        success: false,
+        error: errorMessage,
+      };
+    }
+
+    return {
+      success: true,
+    };
+  } catch (error: any) {
+    console.error('[inviteService] deleteInvite error:', error);
+    return {
+      success: false,
+      error: error?.message || 'Failed to delete invite',
+    };
+  }
+}

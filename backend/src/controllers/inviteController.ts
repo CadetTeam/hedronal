@@ -145,4 +145,58 @@ export const inviteController = {
       res.status(500).json({ error: error.message || 'Failed to list invites' });
     }
   },
+
+  /**
+   * Delete an invite
+   * DELETE /api/invites/:id
+   */
+  delete: async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      if (!req.userId) {
+        return res.status(401).json({ error: 'Unauthorized' });
+      }
+
+      const { id } = req.params;
+
+      // Get current user's profile
+      const profile = await getProfileByClerkId(req.userId);
+      if (!profile) {
+        return res.status(404).json({ error: 'Profile not found' });
+      }
+
+      // Fetch entity IDs created by this user to ensure they own the invite
+      const { data: userEntities, error: entitiesError } = await supabase
+        .from('entities')
+        .select('id')
+        .eq('created_by', profile.id);
+
+      if (entitiesError) {
+        console.error('[inviteController] Error fetching user entities:', entitiesError);
+        return res.status(500).json({ error: 'Failed to delete invite' });
+      }
+
+      const entityIds = userEntities ? userEntities.map(e => e.id) : [];
+
+      if (entityIds.length === 0) {
+        return res.status(403).json({ error: 'You do not have permission to delete this invite' });
+      }
+
+      // Delete invite only if it belongs to one of the user's entities
+      const { error: deleteError } = await supabase
+        .from('entity_invitations')
+        .delete()
+        .eq('id', id)
+        .in('entity_id', entityIds);
+
+      if (deleteError) {
+        console.error('[inviteController] Error deleting invite:', deleteError);
+        return res.status(500).json({ error: 'Failed to delete invite' });
+      }
+
+      return res.json({ success: true });
+    } catch (error: any) {
+      console.error('[inviteController] delete error:', error);
+      res.status(500).json({ error: error.message || 'Failed to delete invite' });
+    }
+  },
 };

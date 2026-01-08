@@ -20,6 +20,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { EntityCreationModal } from './EntityCreationModal';
 import { updateEntity } from '../services/entityService';
 import { useAuth } from '@clerk/clerk-expo';
+import { fetchProvidersByCategory, Provider } from '../services/providerService';
 
 const ACCORDION_ITEMS = [
   { key: 'Domain', description: "Configure your entity's domain name and website settings" },
@@ -68,6 +69,8 @@ export function EntityProfileModal({
   const briefInputRef = useRef<TextInput>(null);
   const scrollViewRef = useRef<ScrollView>(null);
   const [keyboardHeight, setKeyboardHeight] = useState(0);
+  const [providers, setProviders] = useState<{ [key: string]: Provider[] }>({});
+  const [loadingProviders, setLoadingProviders] = useState<{ [key: string]: boolean }>({});
 
   React.useEffect(() => {
     if (entity) {
@@ -192,14 +195,72 @@ export function EntityProfileModal({
     }
   }
 
-  function toggleAccordionItem(item: string) {
+  async function toggleAccordionItem(item: string) {
     const newExpanded = new Set(expandedItems);
     if (newExpanded.has(item)) {
       newExpanded.delete(item);
     } else {
       newExpanded.add(item);
+      // Fetch providers when expanding
+      if (!providers[item] && !loadingProviders[item]) {
+        setLoadingProviders({ ...loadingProviders, [item]: true });
+        try {
+          const token = await getToken();
+          const categoryProviders = await fetchProvidersByCategory(item, token || undefined);
+          setProviders({ ...providers, [item]: categoryProviders });
+        } catch (error) {
+          console.error(`[EntityProfileModal] Error fetching providers for ${item}:`, error);
+        } finally {
+          setLoadingProviders({ ...loadingProviders, [item]: false });
+        }
+      }
     }
     setExpandedItems(newExpanded);
+  }
+
+  async function saveConfigurationToBackend(
+    updatedStep2Data: { [key: string]: any },
+    updatedCompletedItems: Set<string>
+  ) {
+    if (!entity?.id) return;
+
+    try {
+      setSaving(true);
+      const token = await getToken();
+      if (!token) {
+        Alert.alert('Error', 'Please sign in again to save configuration changes');
+        setSaving(false);
+        return;
+      }
+
+      const result = await updateEntity(
+        entity.id,
+        {
+          step2Data: updatedStep2Data,
+          completedItems: Array.from(updatedCompletedItems),
+        },
+        token
+      );
+
+      if (!result.success) {
+        console.error('[EntityProfileModal] Failed to update configuration:', result.error);
+        Alert.alert('Error', result.error || 'Failed to save configuration changes');
+        return;
+      }
+
+      if (onUpdate) {
+        onUpdate({
+          ...entity,
+          step2Data: updatedStep2Data,
+          completedItems: Array.from(updatedCompletedItems),
+        });
+      }
+    } catch (error: any) {
+      console.error('[EntityProfileModal] Error saving configuration:', error);
+      Alert.alert('Error', 'Failed to save configuration changes. Please try again.');
+    } finally {
+      setSaving(false);
+    }
   }
 
   function toggleCompletedItem(item: string) {
@@ -210,13 +271,8 @@ export function EntityProfileModal({
       newCompleted.add(item);
     }
     setCompletedItems(newCompleted);
-    if (onUpdate) {
-      onUpdate({
-        ...entity,
-        completedItems: Array.from(newCompleted),
-        step2Data,
-      });
-    }
+    // Persist completion state (including any provider selections/notes)
+    saveConfigurationToBackend(step2Data, newCompleted);
   }
 
   function handleAccordionUpdate(updatedEntity: any) {
@@ -498,6 +554,86 @@ export function EntityProfileModal({
                             >
                               {item.description}
                             </Text>
+
+                            {/* Provider Selection */}
+                            {loadingProviders[item.key] ? (
+                              <Text
+                                style={[styles.loadingText, { color: theme.colors.textSecondary }]}
+                              >
+                                Loading providers...
+                              </Text>
+                            ) : providers[item.key] && providers[item.key].length > 0 ? (
+                              <View style={styles.providersContainer}>
+                                <Text style={[styles.providersLabel, { color: theme.colors.text }]}>
+                                  Select a Provider
+                                </Text>
+                                {providers[item.key].map(provider => {
+                                  const selectedProvider =
+                                    step2Data[item.key]?.providerId === provider.id;
+                                  return (
+                                    <TouchableOpacity
+                                      key={provider.id}
+                                      style={[
+                                        styles.providerItem,
+                                        {
+                                          backgroundColor: selectedProvider
+                                            ? theme.colors.primary + '20'
+                                            : theme.colors.surfaceVariant,
+                                          borderColor: selectedProvider
+                                            ? theme.colors.primary
+                                            : theme.colors.border,
+                                        },
+                                      ]}
+                                      onPress={() => {
+                                        const updated = {
+                                          ...step2Data,
+                                          [item.key]: {
+                                            ...(step2Data[item.key] || {}),
+                                            providerId: provider.id,
+                                            providerName: provider.company_name,
+                                            providerUrl: provider.url,
+                                            pricingPageUrl: provider.pricing_page_url,
+                                            pricing: provider.pricing,
+                                          },
+                                        };
+                                        setStep2Data(updated);
+                                        saveConfigurationToBackend(updated, completedItems);
+                                      }}
+                                    >
+                                      <View style={styles.providerInfo}>
+                                        <Text
+                                          style={[
+                                            styles.providerName,
+                                            { color: theme.colors.text },
+                                          ]}
+                                        >
+                                          {provider.company_name}
+                                        </Text>
+                                        {provider.pricing && (
+                                          <Text
+                                            style={[
+                                              styles.providerPricing,
+                                              { color: theme.colors.textSecondary },
+                                            ]}
+                                          >
+                                            {provider.pricing}
+                                          </Text>
+                                        )}
+                                      </View>
+                                      {selectedProvider && (
+                                        <Ionicons
+                                          name="checkmark-circle"
+                                          size={20}
+                                          color={theme.colors.primary}
+                                        />
+                                      )}
+                                    </TouchableOpacity>
+                                  );
+                                })}
+                              </View>
+                            ) : null}
+
+                            {/* Notes/Additional Information */}
                             <TextInput
                               style={[
                                 styles.input,
@@ -505,23 +641,26 @@ export function EntityProfileModal({
                                   backgroundColor: theme.colors.surface,
                                   borderColor: theme.colors.border,
                                   color: theme.colors.text,
+                                  marginTop: 12,
                                 },
                               ]}
-                              placeholder={`Enter ${item.key.toLowerCase()} information`}
+                              placeholder={`Add notes or additional ${item.key.toLowerCase()} information`}
                               placeholderTextColor={theme.colors.textTertiary}
-                              value={step2Data[item.key] || ''}
-                              onChangeText={value => {
-                                const updated = { ...step2Data, [item.key]: value };
+                              value={step2Data[item.key]?.notes || ''}
+                              onChangeText={notes => {
+                                const updated = {
+                                  ...step2Data,
+                                  [item.key]: {
+                                    ...(step2Data[item.key] || {}),
+                                    notes,
+                                  },
+                                };
                                 setStep2Data(updated);
-                                if (onUpdate) {
-                                  onUpdate({
-                                    ...entity,
-                                    step2Data: updated,
-                                  });
-                                }
+                                saveConfigurationToBackend(updated, completedItems);
                               }}
                               multiline
                             />
+
                             <TouchableOpacity
                               style={[
                                 styles.completeButton,
@@ -828,5 +967,38 @@ const styles = StyleSheet.create({
   completeButtonText: {
     fontSize: 16,
     fontWeight: '600',
+  },
+  loadingText: {
+    fontSize: 14,
+    textAlign: 'center',
+    padding: 16,
+  },
+  providersContainer: {
+    marginBottom: 12,
+  },
+  providersLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    marginBottom: 8,
+  },
+  providerItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: 12,
+    borderRadius: 8,
+    borderWidth: 1,
+    marginBottom: 8,
+  },
+  providerInfo: {
+    flex: 1,
+  },
+  providerName: {
+    fontSize: 16,
+    fontWeight: '600',
+    marginBottom: 4,
+  },
+  providerPricing: {
+    fontSize: 12,
   },
 });

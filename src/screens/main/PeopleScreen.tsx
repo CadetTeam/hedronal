@@ -21,7 +21,7 @@ import { InvitePeopleModal } from '../../components/InvitePeopleModal';
 import { WalletModal } from '../../components/WalletModal';
 import { NotificationsModal } from '../../components/NotificationsModal';
 import { UserProfileModal } from '../../components/UserProfileModal';
-import { getInvites } from '../../services/inviteService';
+import { getInvites, deleteInvite } from '../../services/inviteService';
 
 export function PeopleScreen() {
   const { theme } = useTheme();
@@ -38,6 +38,11 @@ export function PeopleScreen() {
   const [showWalletModal, setShowWalletModal] = useState(false);
   const [showNotificationsModal, setShowNotificationsModal] = useState(false);
   const [showUserProfileModal, setShowUserProfileModal] = useState(false);
+  const [showSortModal, setShowSortModal] = useState(false);
+  const [filterStatus, setFilterStatus] = useState<'all' | 'active'>('all');
+  const [filterLocation, setFilterLocation] = useState<string | null>(null);
+  const [filterRole, setFilterRole] = useState<string | null>(null);
+  const [sortOption, setSortOption] = useState<'alphabetical' | 'date' | 'nearest'>('alphabetical');
 
   useEffect(() => {
     loadPeople();
@@ -53,17 +58,20 @@ export function PeopleScreen() {
         const peopleList = result.invites
           .filter((invite: any) => invite && invite.id) // Filter out invalid items
           .map((invite: any) => {
-            // Ensure name is always a valid string (use email as fallback if name is missing)
-            const name = invite.name || invite.email?.split('@')[0] || 'Unknown';
+            // Map from backend invite shape
+            const name =
+              invite.recipient_name || invite.recipient_email?.split('@')[0] || 'Unknown';
             return {
               id: invite.id || '',
               name: name,
-              email: invite.email || '',
-              phone: invite.phone || '',
+              email: invite.recipient_email || '',
+              phone: invite.recipient_phone_number || '',
               company: invite.company || '',
               location: invite.location || '',
               status: invite.status || 'pending', // pending, accepted, rejected
-              profileId: invite.profile_id || null, // If they have a profile
+              profileId: invite.recipient_profile_id || null, // If they have a profile
+              createdAt: invite.created_at || null,
+              role: invite.role || '',
             };
           });
         setPeople(peopleList);
@@ -123,7 +131,7 @@ export function PeopleScreen() {
   }
 
   function handleSort() {
-    // Show sort options
+    setShowSortModal(true);
   }
 
   const handleChat = useCallback((person: any) => {
@@ -132,11 +140,34 @@ export function PeopleScreen() {
     console.log('[PeopleScreen] Chat with person:', person.name || person.email);
   }, []);
 
-  const handleMenuAction = useCallback((action: string) => {
-    // Handle follow/unfollow, block, report, delete
-    setShowPersonMenu(false);
-    setSelectedPerson(null);
-  }, []);
+  const handleMenuAction = useCallback(
+    async (action: string) => {
+      if (!selectedPerson) {
+        setShowPersonMenu(false);
+        return;
+      }
+
+      if (action === 'remove') {
+        try {
+          const token = await getToken();
+          const result = await deleteInvite(selectedPerson.id, token || undefined);
+          if (!result.success) {
+            Alert.alert('Error', result.error || 'Failed to remove person');
+          } else {
+            setPeople(prev => prev.filter(p => p.id !== selectedPerson.id));
+          }
+        } catch (error: any) {
+          console.error('[PeopleScreen] Error removing person:', error);
+          Alert.alert('Error', 'Failed to remove person. Please try again.');
+        }
+      }
+
+      // Other actions (follow/message/block) can be implemented later
+      setShowPersonMenu(false);
+      setSelectedPerson(null);
+    },
+    [getToken, selectedPerson]
+  );
 
   function getStatusColor(status: string) {
     switch (status) {
@@ -402,6 +433,57 @@ export function PeopleScreen() {
     );
   }
 
+  const filteredAndSortedPeople = useMemo(() => {
+    let list = [...people];
+
+    // Filter by status (active = accepted)
+    if (filterStatus === 'active') {
+      list = list.filter(person => person.status === 'accepted');
+    }
+
+    // Filter by location
+    if (filterLocation) {
+      list = list.filter(person => person.location === filterLocation);
+    }
+
+    // Filter by role
+    if (filterRole) {
+      list = list.filter(person => person.role === filterRole);
+    }
+
+    // Sort
+    if (sortOption === 'alphabetical') {
+      list.sort((a, b) =>
+        (a.name || '').localeCompare(b.name || '', undefined, { sensitivity: 'base' })
+      );
+    } else if (sortOption === 'date') {
+      list.sort((a, b) => {
+        const aTime = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+        const bTime = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+        return bTime - aTime; // Newest first
+      });
+    } else if (sortOption === 'nearest') {
+      // Approximation: sort by location string to create a deterministic order
+      list.sort((a, b) =>
+        (a.location || '').localeCompare(b.location || '', undefined, { sensitivity: 'base' })
+      );
+    }
+
+    return list;
+  }, [people, filterStatus, filterLocation, filterRole, sortOption]);
+
+  const uniqueLocations = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          people
+            .map(p => p.location)
+            .filter((loc: string | undefined) => loc && loc.trim().length > 0)
+        )
+      ),
+    [people]
+  );
+
   return (
     <SafeAreaView
       edges={[]}
@@ -463,7 +545,7 @@ export function PeopleScreen() {
       </View>
 
       <FlatList
-        data={people}
+        data={filteredAndSortedPeople}
         renderItem={renderPerson}
         keyExtractor={item => item.id}
         contentContainerStyle={[
@@ -535,6 +617,257 @@ export function PeopleScreen() {
               }}
             >
               <Text style={[styles.menuItemText, { color: theme.colors.error }]}>Block</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.menuItem}
+              onPress={() => {
+                handleMenuAction('remove');
+              }}
+            >
+              <Text style={[styles.menuItemText, { color: theme.colors.error }]}>Remove</Text>
+            </TouchableOpacity>
+          </View>
+        </TouchableOpacity>
+      </Modal>
+
+      {/* Filter Modal */}
+      <Modal
+        visible={showFilters}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowFilters(false)}
+      >
+        <TouchableOpacity
+          style={styles.modalOverlay}
+          activeOpacity={1}
+          onPress={() => setShowFilters(false)}
+        >
+          <View
+            style={[
+              styles.filterContainer,
+              {
+                backgroundColor: theme.colors.surface,
+                borderColor: theme.colors.border,
+              },
+            ]}
+          >
+            <Text style={[styles.filterTitle, { color: theme.colors.text }]}>Filter By</Text>
+
+            <Text style={[styles.filterSectionLabel, { color: theme.colors.textSecondary }]}>
+              Status
+            </Text>
+            <View style={styles.filterChipsRow}>
+              <TouchableOpacity
+                style={[
+                  styles.filterChip,
+                  {
+                    backgroundColor:
+                      filterStatus === 'all' ? theme.colors.primary : theme.colors.surfaceVariant,
+                    borderColor:
+                      filterStatus === 'all' ? theme.colors.primary : theme.colors.border,
+                  },
+                ]}
+                onPress={() => setFilterStatus('all')}
+              >
+                <Text
+                  style={[
+                    styles.filterChipText,
+                    {
+                      color:
+                        filterStatus === 'all'
+                          ? theme.colors.background
+                          : theme.colors.textSecondary,
+                    },
+                  ]}
+                >
+                  All
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[
+                  styles.filterChip,
+                  {
+                    backgroundColor:
+                      filterStatus === 'active'
+                        ? theme.colors.primary
+                        : theme.colors.surfaceVariant,
+                    borderColor:
+                      filterStatus === 'active' ? theme.colors.primary : theme.colors.border,
+                  },
+                ]}
+                onPress={() => setFilterStatus('active')}
+              >
+                <Text
+                  style={[
+                    styles.filterChipText,
+                    {
+                      color:
+                        filterStatus === 'active'
+                          ? theme.colors.background
+                          : theme.colors.textSecondary,
+                    },
+                  ]}
+                >
+                  Active
+                </Text>
+              </TouchableOpacity>
+            </View>
+
+            {uniqueLocations.length > 0 && (
+              <>
+                <Text style={[styles.filterSectionLabel, { color: theme.colors.textSecondary }]}>
+                  Location
+                </Text>
+                <View style={styles.filterChipsRow}>
+                  <TouchableOpacity
+                    style={[
+                      styles.filterChip,
+                      {
+                        backgroundColor: !filterLocation
+                          ? theme.colors.primary
+                          : theme.colors.surfaceVariant,
+                        borderColor: !filterLocation ? theme.colors.primary : theme.colors.border,
+                      },
+                    ]}
+                    onPress={() => setFilterLocation(null)}
+                  >
+                    <Text
+                      style={[
+                        styles.filterChipText,
+                        {
+                          color: !filterLocation
+                            ? theme.colors.background
+                            : theme.colors.textSecondary,
+                        },
+                      ]}
+                    >
+                      Any
+                    </Text>
+                  </TouchableOpacity>
+                  {uniqueLocations.map(location => (
+                    <TouchableOpacity
+                      key={location}
+                      style={[
+                        styles.filterChip,
+                        {
+                          backgroundColor:
+                            filterLocation === location
+                              ? theme.colors.primary
+                              : theme.colors.surfaceVariant,
+                          borderColor:
+                            filterLocation === location
+                              ? theme.colors.primary
+                              : theme.colors.border,
+                        },
+                      ]}
+                      onPress={() => setFilterLocation(location)}
+                    >
+                      <Text
+                        style={[
+                          styles.filterChipText,
+                          {
+                            color:
+                              filterLocation === location
+                                ? theme.colors.background
+                                : theme.colors.textSecondary,
+                          },
+                        ]}
+                      >
+                        {location}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </>
+            )}
+
+            {/* Role filter placeholder for future role data */}
+            <Text style={[styles.filterSectionLabel, { color: theme.colors.textSecondary }]}>
+              Role
+            </Text>
+            <View style={styles.filterChipsRow}>
+              <TouchableOpacity
+                style={[
+                  styles.filterChip,
+                  {
+                    backgroundColor: !filterRole
+                      ? theme.colors.primary
+                      : theme.colors.surfaceVariant,
+                    borderColor: !filterRole ? theme.colors.primary : theme.colors.border,
+                  },
+                ]}
+                onPress={() => setFilterRole(null)}
+              >
+                <Text
+                  style={[
+                    styles.filterChipText,
+                    {
+                      color: !filterRole ? theme.colors.background : theme.colors.textSecondary,
+                    },
+                  ]}
+                >
+                  Any
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </TouchableOpacity>
+      </Modal>
+
+      {/* Sort Modal */}
+      <Modal
+        visible={showSortModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowSortModal(false)}
+      >
+        <TouchableOpacity
+          style={styles.modalOverlay}
+          activeOpacity={1}
+          onPress={() => setShowSortModal(false)}
+        >
+          <View
+            style={[
+              styles.filterContainer,
+              {
+                backgroundColor: theme.colors.surface,
+                borderColor: theme.colors.border,
+              },
+            ]}
+          >
+            <Text style={[styles.filterTitle, { color: theme.colors.text }]}>Sort By</Text>
+            <TouchableOpacity
+              style={styles.menuItem}
+              onPress={() => {
+                setSortOption('alphabetical');
+                setShowSortModal(false);
+              }}
+            >
+              <Text style={[styles.menuItemText, { color: theme.colors.text }]}>
+                Alphabetical (A–Z)
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.menuItem}
+              onPress={() => {
+                setSortOption('date');
+                setShowSortModal(false);
+              }}
+            >
+              <Text style={[styles.menuItemText, { color: theme.colors.text }]}>
+                Date Added (Newest)
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.menuItem}
+              onPress={() => {
+                setSortOption('nearest');
+                setShowSortModal(false);
+              }}
+            >
+              <Text style={[styles.menuItemText, { color: theme.colors.text }]}>
+                Nearest (by location)
+              </Text>
             </TouchableOpacity>
           </View>
         </TouchableOpacity>
@@ -733,5 +1066,40 @@ const styles = StyleSheet.create({
   },
   menuItemText: {
     fontSize: 16,
+  },
+  filterContainer: {
+    borderRadius: 12,
+    borderWidth: 1,
+    padding: 16,
+    minWidth: 260,
+  },
+  filterTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    marginBottom: 12,
+  },
+  filterSectionLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginTop: 8,
+    marginBottom: 4,
+  },
+  filterChipsRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginBottom: 8,
+  },
+  filterChip: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 16,
+    borderWidth: 1,
+  },
+  filterChipText: {
+    fontSize: 12,
+    fontWeight: '500',
   },
 });

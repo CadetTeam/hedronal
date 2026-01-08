@@ -9,11 +9,12 @@ import { articleRouter } from './routes/article';
 import { profileRouter } from './routes/profile';
 import { inviteRouter } from './routes/invite';
 import { postRouter } from './routes/post';
+import { providerRouter } from './routes/provider';
 
 dotenv.config();
 
 // Handle uncaught errors
-process.on('uncaughtException', (error) => {
+process.on('uncaughtException', error => {
   console.error('Uncaught Exception:', error);
   process.exit(1);
 });
@@ -45,6 +46,7 @@ app.use('/api/articles', articleRouter);
 app.use('/api/posts', postRouter);
 app.use('/api/profiles', profileRouter);
 app.use('/api/invites', inviteRouter);
+app.use('/api/providers', providerRouter);
 
 // Error handling middleware
 app.use((err: Error, req: express.Request, res: express.Response, next: express.NextFunction) => {

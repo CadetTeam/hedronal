@@ -49,11 +49,7 @@ export function PostImageGallery({ images, onImagePress }: PostImageGalleryProps
           <Image source={{ uri: images[0] }} style={styles.singleImage} />
         </TouchableOpacity>
         {fullImageIndex !== null && (
-          <FullImageViewer
-            images={images}
-            initialIndex={fullImageIndex}
-            onClose={closeFullImage}
-          />
+          <FullImageViewer images={images} initialIndex={fullImageIndex} onClose={closeFullImage} />
         )}
       </>
     );
@@ -76,11 +72,7 @@ export function PostImageGallery({ images, onImagePress }: PostImageGalleryProps
           ))}
         </View>
         {fullImageIndex !== null && (
-          <FullImageViewer
-            images={images}
-            initialIndex={fullImageIndex}
-            onClose={closeFullImage}
-          />
+          <FullImageViewer images={images} initialIndex={fullImageIndex} onClose={closeFullImage} />
         )}
       </>
     );
@@ -112,11 +104,7 @@ export function PostImageGallery({ images, onImagePress }: PostImageGalleryProps
           </View>
         </View>
         {fullImageIndex !== null && (
-          <FullImageViewer
-            images={images}
-            initialIndex={fullImageIndex}
-            onClose={closeFullImage}
-          />
+          <FullImageViewer images={images} initialIndex={fullImageIndex} onClose={closeFullImage} />
         )}
       </>
     );
@@ -130,7 +118,12 @@ export function PostImageGallery({ images, onImagePress }: PostImageGalleryProps
           {images.map((uri, index) => (
             <TouchableOpacity
               key={index}
-              style={styles.fourImageItem}
+              style={[
+                styles.fourImageItem,
+                index % 2 === 0 && styles.fourImageItemLeft, // Left column
+                index % 2 === 1 && styles.fourImageItemRight, // Right column
+                index >= images.length - 2 && styles.fourImageItemBottom, // Bottom row
+              ]}
               onPress={() => handleImagePress(index)}
               activeOpacity={0.9}
             >
@@ -139,11 +132,7 @@ export function PostImageGallery({ images, onImagePress }: PostImageGalleryProps
           ))}
         </View>
         {fullImageIndex !== null && (
-          <FullImageViewer
-            images={images}
-            initialIndex={fullImageIndex}
-            onClose={closeFullImage}
-          />
+          <FullImageViewer images={images} initialIndex={fullImageIndex} onClose={closeFullImage} />
         )}
       </>
     );
@@ -169,23 +158,13 @@ export function PostImageGallery({ images, onImagePress }: PostImageGalleryProps
             <Image source={{ uri }} style={styles.carouselImage} />
             {images.length > 5 && (
               <View style={styles.carouselOverlay}>
-                <View
-                  style={[
-                    styles.carouselIndicator,
-                    { backgroundColor: theme.colors.surface },
-                  ]}
-                >
+                <View style={[styles.carouselIndicator, { backgroundColor: theme.colors.surface }]}>
                   <Ionicons name="images" size={16} color={theme.colors.text} />
                   <View style={styles.carouselCount}>
                     <View
-                      style={[
-                        styles.carouselCountBadge,
-                        { backgroundColor: theme.colors.primary },
-                      ]}
+                      style={[styles.carouselCountBadge, { backgroundColor: theme.colors.primary }]}
                     >
-                      <Text style={styles.carouselCountText}>
-                        {images.length}
-                      </Text>
+                      <Text style={styles.carouselCountText}>{images.length}</Text>
                     </View>
                   </View>
                 </View>
@@ -195,11 +174,7 @@ export function PostImageGallery({ images, onImagePress }: PostImageGalleryProps
         ))}
       </ScrollView>
       {fullImageIndex !== null && (
-        <FullImageViewer
-          images={images}
-          initialIndex={fullImageIndex}
-          onClose={closeFullImage}
-        />
+        <FullImageViewer images={images} initialIndex={fullImageIndex} onClose={closeFullImage} />
       )}
     </>
   );
@@ -239,10 +214,7 @@ function FullImageViewer({ images, initialIndex, onClose }: FullImageViewerProps
         </ScrollView>
         <View style={styles.fullImageIndicator}>
           <View
-            style={[
-              styles.fullImageIndicatorDot,
-              { backgroundColor: theme.colors.background },
-            ]}
+            style={[styles.fullImageIndicatorDot, { backgroundColor: theme.colors.background }]}
           >
             <Text style={styles.fullImageIndicatorText}>
               {currentIndex + 1} / {images.length}
@@ -305,14 +277,24 @@ const styles = StyleSheet.create({
   fourImageContainer: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 8,
     marginTop: 12,
+    width: '100%',
   },
   fourImageItem: {
-    width: (SCREEN_WIDTH - 48) / 2 - 4, // Account for padding and gap
+    width: (SCREEN_WIDTH - 64 - 8) / 2, // Account for list padding (32) + post padding (32) = 64, plus gap (8), divided by 2
     aspectRatio: 1,
     borderRadius: 12,
     overflow: 'hidden',
+    marginBottom: 8,
+  },
+  fourImageItemLeft: {
+    marginRight: 8,
+  },
+  fourImageItemRight: {
+    marginRight: 0,
+  },
+  fourImageItemBottom: {
+    marginBottom: 0,
   },
   // Carousel (5+ images)
   carouselContainer: {
@@ -399,4 +381,3 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
 });
-

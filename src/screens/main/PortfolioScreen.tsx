@@ -20,7 +20,8 @@ import { EntityCreationModal } from '../../components/EntityCreationModal';
 import { EntityProfileModal } from '../../components/EntityProfileModal';
 import { WalletModal } from '../../components/WalletModal';
 import { NotificationsModal } from '../../components/NotificationsModal';
-import { fetchEntities, fetchEntityById } from '../../services/entityService';
+import { SwipeableEntityCard } from '../../components/SwipeableEntityCard';
+import { fetchEntities, fetchEntityById, archiveEntity } from '../../services/entityService';
 import { useClerkContext } from '../../context/ClerkContext';
 import { useAuth } from '@clerk/clerk-expo';
 import { formatPortfolioValue } from '../../utils/currencyFormatter';
@@ -467,61 +468,29 @@ export function PortfolioScreen() {
     // Show sort options
   }
 
+  async function handleArchive(entity: any) {
+    try {
+      const token = await getToken();
+      if (!token) {
+        console.error('[handleArchive] No token available');
+        return;
+      }
+
+      const result = await archiveEntity(entity.id, token);
+      if (result.success) {
+        // Remove from list
+        setEntities(entities.filter(e => e.id !== entity.id));
+      } else {
+        console.error('[handleArchive] Failed to archive:', result.error);
+      }
+    } catch (error) {
+      console.error('[handleArchive] Error archiving entity:', error);
+    }
+  }
+
   function renderEntity({ item }: { item: any }) {
     return (
-      <TouchableOpacity
-        style={[
-          styles.entityCard,
-          {
-            backgroundColor: theme.colors.surface,
-            borderColor: theme.colors.border,
-          },
-        ]}
-        activeOpacity={0.7}
-        onPress={() => handleEntityPress(item)}
-      >
-        {item.banner && (
-          <Image source={{ uri: item.banner }} style={styles.entityBanner} resizeMode="cover" />
-        )}
-        <View style={styles.entityCardContent}>
-          {item.avatar ? (
-            <Image source={{ uri: item.avatar }} style={styles.entityAvatar} />
-          ) : (
-            <View
-              style={[
-                styles.entityAvatar,
-                styles.entityAvatarPlaceholder,
-                { backgroundColor: theme.colors.primary },
-              ]}
-            >
-              <Text style={[styles.entityAvatarText, { color: theme.colors.background }]}>
-                {item.name.charAt(0).toUpperCase()}
-              </Text>
-            </View>
-          )}
-          <View style={styles.entityInfo}>
-            <Text style={[styles.entityName, { color: theme.colors.text }]}>{item.name}</Text>
-            {item.handle && (
-              <Text style={[styles.entityHandle, { color: theme.colors.textSecondary }]}>
-                @{item.handle}
-              </Text>
-            )}
-            {item.brief && (
-              <Text
-                style={[styles.entityBrief, { color: theme.colors.textSecondary }]}
-                numberOfLines={2}
-              >
-                {item.brief}
-              </Text>
-            )}
-            {item.type && (
-              <Text style={[styles.entityType, { color: theme.colors.textTertiary }]}>
-                {item.type}
-              </Text>
-            )}
-          </View>
-        </View>
-      </TouchableOpacity>
+      <SwipeableEntityCard entity={item} onPress={handleEntityPress} onArchive={handleArchive} />
     );
   }
 
@@ -799,11 +768,13 @@ export function PortfolioScreen() {
       )}
 
       <FlatList
-        data={entities}
+        data={entities.filter(e => !e.is_archived)}
         renderItem={renderEntity}
         keyExtractor={item => item.id || `entity-${item.name}`}
         contentContainerStyle={[
-          entities.length === 0 ? styles.emptyContainer : styles.listContent,
+          entities.filter(e => !e.is_archived).length === 0
+            ? styles.emptyContainer
+            : styles.listContent,
           { paddingBottom: 100 },
         ]}
         ListEmptyComponent={renderEmpty}
