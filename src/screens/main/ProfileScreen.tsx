@@ -26,6 +26,7 @@ import { BlurredModalOverlay } from '../../components/BlurredModalOverlay';
 import { Logo } from '../../components/Logo';
 import { SocialLinksModal } from '../../components/SocialLinksModal';
 import { ArchivedEntitiesModal } from '../../components/ArchivedEntitiesModal';
+import { LoadingSpinner } from '../../components/LoadingSpinner';
 import { getProfile, updateProfile } from '../../services/profileService';
 import { uploadProfileImages } from '../../utils/imageUpload';
 
@@ -76,6 +77,9 @@ export function ProfileScreen() {
   const [showSocialLinksModal, setShowSocialLinksModal] = useState(false);
   const [showFullBioModal, setShowFullBioModal] = useState(false);
   const [bioExpanded, setBioExpanded] = useState(false);
+  const [bioHasChanged, setBioHasChanged] = useState(false);
+  const [bioSaving, setBioSaving] = useState(false);
+  const [bioSaved, setBioSaved] = useState(false);
 
   // Edit states
   const [editingBio, setEditingBio] = useState(profileData.bio);
@@ -124,18 +128,23 @@ export function ProfileScreen() {
       const result = await getProfile(token || undefined);
       if (result.success && result.profile) {
         const loadedSocialLinks = result.profile.socialLinks || [];
+        // Preserve bio value (including empty string, null, or undefined)
+        const bioValue =
+          result.profile.bio !== undefined && result.profile.bio !== null ? result.profile.bio : '';
         setProfileData({
           name: result.profile.full_name || 'User Name',
           username: result.profile.username || '@username',
-          bio: result.profile.bio || '',
+          bio: bioValue,
           avatar: result.profile.avatar_url || null,
           banner: result.profile.banner_url || null,
           socialLinks: loadedSocialLinks,
         });
         setEditingName(result.profile.full_name || 'User Name');
         setEditingUsername(result.profile.username || '@username');
-        setEditingBio(result.profile.bio || '');
+        setEditingBio(bioValue);
         setEditingSocialLinks(loadedSocialLinks);
+        setBioHasChanged(false);
+        setBioSaved(false);
       }
     } catch (error) {
       console.error('[ProfileScreen] Error loading profile:', error);
@@ -248,15 +257,24 @@ export function ProfileScreen() {
   }
 
   async function saveBio() {
-    if (editingBio.length > 120) {
-      Alert.alert('Error', 'Bio must be 120 characters or less.');
+    if (editingBio.length > 750) {
+      Alert.alert('Error', 'Bio must be 750 characters or less.');
       return;
     }
+    setBioSaving(true);
+    setBioSaved(false);
     try {
       await saveProfileUpdate({ bio: editingBio });
       setProfileData({ ...profileData, bio: editingBio });
-      setShowBioModal(false);
+      setBioHasChanged(false);
+      setBioSaved(true);
+      // Hide checkmark after 2 seconds
+      setTimeout(() => {
+        setBioSaved(false);
+        setShowBioModal(false);
+      }, 2000);
     } catch (error: any) {
+      setBioSaving(false);
       Alert.alert('Error', 'Failed to save bio. Please try again.');
     }
   }
@@ -453,35 +471,39 @@ export function ProfileScreen() {
               // Use editingBio if available, otherwise use profileData.bio
               const currentBio = editingBio || profileData.bio || '';
               setEditingBio(currentBio);
+              setBioHasChanged(false);
+              setBioSaved(false);
+              setBioSaving(false);
               setShowBioModal(true);
             }}
           >
             <View style={styles.editableField}>
               {profileData.bio || editingBio ? (
-                <Text
-                  style={[styles.bio, { color: theme.colors.textSecondary }]}
-                  numberOfLines={2}
-                  ellipsizeMode="tail"
-                >
-                  {profileData.bio || editingBio}
-                </Text>
+                <>
+                  <Text
+                    style={[styles.bio, { color: theme.colors.textSecondary }]}
+                    numberOfLines={2}
+                    ellipsizeMode="tail"
+                  >
+                    {profileData.bio || editingBio}
+                  </Text>
+                  {(profileData.bio || editingBio || '').length > 80 && (
+                    <TouchableOpacity
+                      onPress={e => {
+                        e.stopPropagation();
+                        setShowFullBioModal(true);
+                      }}
+                      style={styles.readMoreButton}
+                    >
+                      <Text style={[styles.readMoreText, { color: theme.colors.primary }]}>
+                        Read more
+                      </Text>
+                    </TouchableOpacity>
+                  )}
+                </>
               ) : (
                 <Text style={[styles.bio, { color: theme.colors.textTertiary }]}>Add a bio...</Text>
               )}
-              {(profileData.bio || editingBio) &&
-                (profileData.bio || editingBio || '').length > 100 && (
-                  <TouchableOpacity
-                    onPress={e => {
-                      e.stopPropagation();
-                      setShowFullBioModal(true);
-                    }}
-                    style={styles.readMoreButton}
-                  >
-                    <Text style={[styles.readMoreText, { color: theme.colors.primary }]}>
-                      Read more
-                    </Text>
-                  </TouchableOpacity>
-                )}
             </View>
           </TouchableOpacity>
 
@@ -508,8 +530,10 @@ export function ProfileScreen() {
               <Ionicons name="add" size={20} color={theme.colors.text} />
             </TouchableOpacity>
           </View>
+        </View>
 
-          {/* Stats */}
+        {/* Stats Section */}
+        <View style={styles.statsSection}>
           <View style={styles.stats}>
             <TouchableOpacity
               style={[
@@ -765,8 +789,27 @@ export function ProfileScreen() {
           >
             <View style={styles.stickyInputHeader}>
               <Text style={[styles.stickyInputLabel, { color: theme.colors.text }]}>Bio</Text>
+              <View style={styles.bioHeaderCenter}>
+                {bioHasChanged && !bioSaving && !bioSaved && (
+                  <TouchableOpacity onPress={saveBio} style={styles.saveBioButton}>
+                    <Text style={[styles.saveBioButtonText, { color: theme.colors.primary }]}>
+                      Save
+                    </Text>
+                  </TouchableOpacity>
+                )}
+                {bioSaving && (
+                  <View style={styles.bioStatusIcon}>
+                    <LoadingSpinner size="small" />
+                  </View>
+                )}
+                {bioSaved && (
+                  <View style={styles.bioStatusIcon}>
+                    <Ionicons name="checkmark-circle" size={20} color="#4CAF50" />
+                  </View>
+                )}
+              </View>
               <Text style={[styles.charCount, { color: theme.colors.textTertiary }]}>
-                {editingBio.length}/120
+                {editingBio.length}/750
               </Text>
             </View>
             <TextInput
@@ -778,14 +821,14 @@ export function ProfileScreen() {
               placeholder="Write your bio..."
               placeholderTextColor={theme.colors.textTertiary}
               value={editingBio}
-              onChangeText={setEditingBio}
-              multiline
-              maxLength={120}
-              autoFocus
-              onBlur={() => {
-                setShowBioModal(false);
-                saveBio();
+              onChangeText={text => {
+                setEditingBio(text);
+                setBioHasChanged(text !== (profileData.bio || ''));
+                setBioSaved(false);
               }}
+              multiline
+              maxLength={750}
+              autoFocus
             />
             {editingBio.length > 0 && (
               <TouchableOpacity onPress={() => setEditingBio('')} style={styles.clearButton}>
@@ -1305,11 +1348,14 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginBottom: 8,
     lineHeight: 20,
-    maxWidth: '90%',
+    width: '100%',
+    paddingHorizontal: 36,
   },
   readMoreButton: {
     marginTop: 4,
     alignItems: 'center',
+    padding: 0,
+    backgroundColor: 'transparent',
   },
   readMoreText: {
     fontSize: 14,
@@ -1329,12 +1375,15 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     backgroundColor: 'transparent',
   },
+  statsSection: {
+    width: '100%',
+    paddingHorizontal: 20,
+    marginBottom: 24,
+  },
   stats: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     width: '100%',
-    paddingHorizontal: 16,
-    marginBottom: 24,
     gap: 12,
   },
   statItem: {
@@ -1529,6 +1578,30 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 8,
+    position: 'relative',
+  },
+  bioHeaderCenter: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  saveBioButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 6,
+    backgroundColor: 'transparent',
+  },
+  saveBioButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  bioStatusIcon: {
+    width: 20,
+    height: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   stickyInputLabel: {
     fontSize: 12,

@@ -2,8 +2,7 @@
 import { useAuth } from '@clerk/clerk-expo';
 
 const API_BASE_URL =
-  process.env.EXPO_PUBLIC_API_URL ||
-  (__DEV__ ? 'http://localhost:3000/api' : 'https://hedronal-production.up.railway.app/api');
+  process.env.EXPO_PUBLIC_API_URL || 'https://hedronal-production.up.railway.app/api';
 
 export interface Article {
   id: string;
