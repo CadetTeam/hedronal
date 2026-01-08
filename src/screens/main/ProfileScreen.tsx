@@ -72,6 +72,8 @@ export function ProfileScreen() {
   const [showNameModal, setShowNameModal] = useState(false);
   const [showUsernameModal, setShowUsernameModal] = useState(false);
   const [showSocialLinksModal, setShowSocialLinksModal] = useState(false);
+  const [showFullBioModal, setShowFullBioModal] = useState(false);
+  const [bioExpanded, setBioExpanded] = useState(false);
 
   // Edit states
   const [editingBio, setEditingBio] = useState(profileData.bio);
@@ -284,9 +286,11 @@ export function ProfileScreen() {
 
   async function handleSaveSocialLinks(socialLinks: Array<{ type: string; url: string }>) {
     try {
-      await saveProfileUpdate({ socialLinks });
-      setProfileData({ ...profileData, socialLinks });
-      setEditingSocialLinks(socialLinks);
+      // Filter out social links with empty URLs before saving
+      const validSocialLinks = socialLinks.filter(link => link.url && link.url.trim().length > 0);
+      await saveProfileUpdate({ socialLinks: validSocialLinks });
+      setProfileData({ ...profileData, socialLinks: validSocialLinks });
+      setEditingSocialLinks(validSocialLinks);
       setShowSocialLinksModal(false);
     } catch (error: any) {
       console.error('[ProfileScreen] Error saving social links:', error);
@@ -451,9 +455,31 @@ export function ProfileScreen() {
             }}
           >
             <View style={styles.editableField}>
-              <Text style={[styles.bio, { color: theme.colors.textSecondary }]}>
-                {profileData.bio || editingBio || 'Add a bio...'}
-              </Text>
+              {profileData.bio || editingBio ? (
+                <Text
+                  style={[styles.bio, { color: theme.colors.textSecondary }]}
+                  numberOfLines={2}
+                  ellipsizeMode="tail"
+                >
+                  {profileData.bio || editingBio}
+                </Text>
+              ) : (
+                <Text style={[styles.bio, { color: theme.colors.textTertiary }]}>Add a bio...</Text>
+              )}
+              {(profileData.bio || editingBio) &&
+                (profileData.bio || editingBio || '').length > 100 && (
+                  <TouchableOpacity
+                    onPress={e => {
+                      e.stopPropagation();
+                      setShowFullBioModal(true);
+                    }}
+                    style={styles.readMoreButton}
+                  >
+                    <Text style={[styles.readMoreText, { color: theme.colors.primary }]}>
+                      Read more
+                    </Text>
+                  </TouchableOpacity>
+                )}
             </View>
           </TouchableOpacity>
 
@@ -483,23 +509,47 @@ export function ProfileScreen() {
 
           {/* Stats */}
           <View style={styles.stats}>
-            <TouchableOpacity style={styles.statItem} onPress={() => setShowFollowersModal(true)}>
+            <TouchableOpacity
+              style={[
+                styles.statItem,
+                { backgroundColor: 'transparent', borderColor: theme.colors.border },
+              ]}
+              onPress={() => setShowFollowersModal(true)}
+            >
               <Text style={[styles.statNumber, { color: theme.colors.text }]}>0</Text>
               <Text style={[styles.statLabel, { color: theme.colors.textSecondary }]}>
                 Followers
               </Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.statItem} onPress={() => setShowFollowingModal(true)}>
+            <TouchableOpacity
+              style={[
+                styles.statItem,
+                { backgroundColor: 'transparent', borderColor: theme.colors.border },
+              ]}
+              onPress={() => setShowFollowingModal(true)}
+            >
               <Text style={[styles.statNumber, { color: theme.colors.text }]}>0</Text>
               <Text style={[styles.statLabel, { color: theme.colors.textSecondary }]}>
                 Following
               </Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.statItem} onPress={() => setShowPostsModal(true)}>
+            <TouchableOpacity
+              style={[
+                styles.statItem,
+                { backgroundColor: 'transparent', borderColor: theme.colors.border },
+              ]}
+              onPress={() => setShowPostsModal(true)}
+            >
               <Text style={[styles.statNumber, { color: theme.colors.text }]}>0</Text>
               <Text style={[styles.statLabel, { color: theme.colors.textSecondary }]}>Posts</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.statItem} onPress={() => setShowPointsModal(true)}>
+            <TouchableOpacity
+              style={[
+                styles.statItem,
+                { backgroundColor: 'transparent', borderColor: theme.colors.border },
+              ]}
+              onPress={() => setShowPointsModal(true)}
+            >
               <Text style={[styles.statNumber, { color: theme.colors.text }]}>0</Text>
               <Text style={[styles.statLabel, { color: theme.colors.textSecondary }]}>Points</Text>
             </TouchableOpacity>
@@ -837,6 +887,55 @@ export function ProfileScreen() {
         socialLinks={editingSocialLinks}
         onSave={handleSaveSocialLinks}
       />
+
+      {/* Full Bio Modal */}
+      <Modal
+        visible={showFullBioModal}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setShowFullBioModal(false)}
+      >
+        <BlurredModalOverlay visible={showFullBioModal} onClose={() => setShowFullBioModal(false)}>
+          <View
+            style={[
+              styles.modalContent,
+              {
+                backgroundColor: theme.colors.surface,
+                minHeight: 200 + insets.bottom * 2,
+                maxHeight: 500 + insets.bottom * 2,
+              },
+            ]}
+          >
+            <View style={styles.modalHeader}>
+              <LinearGradient
+                colors={
+                  isDark
+                    ? [theme.colors.surface, `${theme.colors.surface}00`]
+                    : [theme.colors.surface, `${theme.colors.surface}00`]
+                }
+                style={styles.modalHeaderGradient}
+                pointerEvents="none"
+              />
+              <Text style={[styles.modalTitle, { color: theme.colors.text }]}>Bio</Text>
+              <TouchableOpacity onPress={() => setShowFullBioModal(false)}>
+                <Ionicons name="close" size={24} color={theme.colors.text} />
+              </TouchableOpacity>
+            </View>
+            <ScrollView
+              style={styles.modalBody}
+              contentContainerStyle={[
+                styles.modalBodyContent,
+                { paddingBottom: insets.bottom * 2 },
+              ]}
+              showsVerticalScrollIndicator={false}
+            >
+              <Text style={[styles.modalText, { color: theme.colors.text }]}>
+                {profileData.bio || editingBio || 'No bio'}
+              </Text>
+            </ScrollView>
+          </View>
+        </BlurredModalOverlay>
+      </Modal>
 
       {/* Points Modal */}
       <Modal
@@ -1186,9 +1285,17 @@ const styles = StyleSheet.create({
   bio: {
     fontSize: 14,
     textAlign: 'center',
-    marginBottom: 16,
+    marginBottom: 8,
     lineHeight: 20,
     maxWidth: '90%',
+  },
+  readMoreButton: {
+    marginTop: 4,
+    alignItems: 'center',
+  },
+  readMoreText: {
+    fontSize: 14,
+    fontWeight: '500',
   },
   socialLinks: {
     flexDirection: 'row',
@@ -1206,13 +1313,22 @@ const styles = StyleSheet.create({
   },
   stats: {
     flexDirection: 'row',
-    gap: 24,
+    justifyContent: 'space-between',
+    width: '100%',
+    paddingHorizontal: 16,
     marginBottom: 24,
-    flexWrap: 'wrap',
-    justifyContent: 'center',
+    gap: 12,
   },
   statItem: {
     alignItems: 'center',
+    flex: 1,
+    flexShrink: 0,
+    paddingVertical: 12,
+    paddingHorizontal: 8,
+    borderRadius: 8,
+    borderWidth: 1,
+    backgroundColor: 'transparent',
+    marginHorizontal: 2,
   },
   statNumber: {
     fontSize: 20,

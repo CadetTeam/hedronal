@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -48,22 +48,31 @@ export function PeopleScreen() {
       setLoading(true);
       const token = await getToken();
       const result = await getInvites(token || undefined);
-      if (result.success && result.invites) {
-        // Transform invites to people format
-        const peopleList = result.invites.map((invite: any) => ({
-          id: invite.id,
-          name: invite.name,
-          email: invite.email,
-          phone: invite.phone,
-          company: invite.company || '',
-          location: invite.location || '',
-          status: invite.status || 'pending', // pending, accepted, rejected
-          profileId: invite.profile_id, // If they have a profile
-        }));
+      if (result.success && result.invites && Array.isArray(result.invites)) {
+        // Transform invites to people format - ensure all fields are safe
+        const peopleList = result.invites
+          .filter((invite: any) => invite && invite.id) // Filter out invalid items
+          .map((invite: any) => {
+            // Ensure name is always a valid string (use email as fallback if name is missing)
+            const name = invite.name || invite.email?.split('@')[0] || 'Unknown';
+            return {
+              id: invite.id || '',
+              name: name,
+              email: invite.email || '',
+              phone: invite.phone || '',
+              company: invite.company || '',
+              location: invite.location || '',
+              status: invite.status || 'pending', // pending, accepted, rejected
+              profileId: invite.profile_id || null, // If they have a profile
+            };
+          });
         setPeople(peopleList);
+      } else {
+        setPeople([]);
       }
     } catch (error) {
       console.error('[PeopleScreen] Error loading people:', error);
+      setPeople([]); // Set empty array on error to prevent crashes
     } finally {
       setLoading(false);
     }
@@ -88,16 +97,26 @@ export function PeopleScreen() {
     setShowInviteModal(false);
   }
 
-  function handlePersonClick(person: any) {
-    // If person has a profileId, show their profile
-    if (person.profileId) {
-      setSelectedUserId(person.profileId);
-      setShowUserProfileModal(true);
-    } else {
-      // Otherwise, just show menu or do nothing
-      handlePersonMenu(person);
-    }
-  }
+  const handlePersonMenu = useCallback((person: any) => {
+    if (!person) return;
+    setSelectedPerson(person);
+    setShowPersonMenu(true);
+  }, []);
+
+  const handlePersonClick = useCallback(
+    (person: any) => {
+      if (!person) return;
+      // If person has a profileId, show their profile
+      if (person.profileId) {
+        setSelectedUserId(person.profileId);
+        setShowUserProfileModal(true);
+      } else {
+        // Otherwise, just show menu or do nothing
+        handlePersonMenu(person);
+      }
+    },
+    [handlePersonMenu]
+  );
 
   function handleFilter() {
     setShowFilters(!showFilters);
@@ -107,20 +126,17 @@ export function PeopleScreen() {
     // Show sort options
   }
 
-  function handleChat(person: any) {
-    // Navigate to chat
-  }
+  const handleChat = useCallback((person: any) => {
+    if (!person) return;
+    // Navigate to chat - TODO: implement chat navigation
+    console.log('[PeopleScreen] Chat with person:', person.name || person.email);
+  }, []);
 
-  function handlePersonMenu(person: any) {
-    setSelectedPerson(person);
-    setShowPersonMenu(true);
-  }
-
-  function handleMenuAction(action: string) {
+  const handleMenuAction = useCallback((action: string) => {
     // Handle follow/unfollow, block, report, delete
     setShowPersonMenu(false);
     setSelectedPerson(null);
-  }
+  }, []);
 
   function getStatusColor(status: string) {
     switch (status) {
@@ -144,133 +160,144 @@ export function PeopleScreen() {
     }
   }
 
-  function renderPerson({ item }: { item: any }) {
-    return (
-      <TouchableOpacity
-        onPress={() => handlePersonClick(item)}
-        style={[
-          styles.personCard,
-          {
-            backgroundColor: theme.colors.surface,
-            borderColor: theme.colors.border,
-          },
-        ]}
-      >
-        <View style={styles.personRow}>
-          {/* Avatar */}
-          <View style={[styles.avatar, { backgroundColor: theme.colors.primary }]}>
-            <Text style={[styles.avatarText, { color: theme.colors.background }]}>
-              {item.name.charAt(0).toUpperCase()}
-            </Text>
-          </View>
+  const renderPerson = useCallback(
+    ({ item }: { item: any }) => {
+      if (!item || !item.id) return null;
+      // Ensure name exists and is a string to prevent charAt errors
+      const personName = item.name || item.email || 'U';
+      const initials =
+        typeof personName === 'string' && personName.length > 0
+          ? personName.charAt(0).toUpperCase()
+          : 'U';
 
-          {/* Info Section */}
-          <View style={styles.personInfo}>
-            <View style={styles.personNameRow}>
-              <Text style={[styles.personName, { color: theme.colors.text }]} numberOfLines={1}>
-                {item.name}
+      return (
+        <TouchableOpacity
+          onPress={() => handlePersonClick(item)}
+          style={[
+            styles.personCard,
+            {
+              backgroundColor: theme.colors.surface,
+              borderColor: theme.colors.border,
+            },
+          ]}
+        >
+          <View style={styles.personRow}>
+            {/* Avatar */}
+            <View style={[styles.avatar, { backgroundColor: theme.colors.primary }]}>
+              <Text style={[styles.avatarText, { color: theme.colors.background }]}>
+                {initials}
               </Text>
-              {item.status && (
-                <View
-                  style={[
-                    styles.statusBadge,
-                    {
-                      backgroundColor: getStatusColor(item.status) + '20',
-                      borderColor: getStatusColor(item.status),
-                    },
-                  ]}
-                >
-                  <Text
+            </View>
+
+            {/* Info Section */}
+            <View style={styles.personInfo}>
+              <View style={styles.personNameRow}>
+                <Text style={[styles.personName, { color: theme.colors.text }]} numberOfLines={1}>
+                  {personName}
+                </Text>
+                {item.status && (
+                  <View
                     style={[
-                      styles.statusText,
+                      styles.statusBadge,
                       {
-                        color: getStatusColor(item.status),
+                        backgroundColor: getStatusColor(item.status) + '20',
+                        borderColor: getStatusColor(item.status),
                       },
                     ]}
                   >
-                    {getStatusLabel(item.status)}
-                  </Text>
-                </View>
-              )}
-            </View>
-            <View style={styles.personMetaRow}>
-              {item.company && (
-                <Text
-                  style={[styles.personMeta, { color: theme.colors.textSecondary }]}
-                  numberOfLines={1}
-                >
-                  {item.company}
-                </Text>
-              )}
-              {item.location && (
-                <>
-                  {item.company && (
-                    <Text style={[styles.metaSeparator, { color: theme.colors.textTertiary }]}>
-                      •
+                    <Text
+                      style={[
+                        styles.statusText,
+                        {
+                          color: getStatusColor(item.status),
+                        },
+                      ]}
+                    >
+                      {getStatusLabel(item.status)}
                     </Text>
-                  )}
+                  </View>
+                )}
+              </View>
+              <View style={styles.personMetaRow}>
+                {item.company && (
                   <Text
-                    style={[styles.personMeta, { color: theme.colors.textTertiary }]}
+                    style={[styles.personMeta, { color: theme.colors.textSecondary }]}
                     numberOfLines={1}
                   >
-                    {item.location}
+                    {item.company}
                   </Text>
-                </>
-              )}
+                )}
+                {item.location && (
+                  <>
+                    {item.company && (
+                      <Text style={[styles.metaSeparator, { color: theme.colors.textTertiary }]}>
+                        •
+                      </Text>
+                    )}
+                    <Text
+                      style={[styles.personMeta, { color: theme.colors.textTertiary }]}
+                      numberOfLines={1}
+                    >
+                      {item.location}
+                    </Text>
+                  </>
+                )}
+              </View>
+            </View>
+
+            {/* Action Buttons */}
+            <View style={styles.personActions}>
+              <TouchableOpacity
+                style={[
+                  styles.iconButton,
+                  {
+                    backgroundColor: theme.colors.primary,
+                  },
+                ]}
+                onPress={() => handleChat(item)}
+              >
+                <Ionicons name="chatbubble-outline" size={18} color={theme.colors.background} />
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[
+                  styles.iconButton,
+                  {
+                    backgroundColor: item.following
+                      ? theme.colors.surfaceVariant
+                      : theme.colors.secondary,
+                    borderWidth: 1,
+                    borderColor: theme.colors.border,
+                  },
+                ]}
+              >
+                <Ionicons
+                  name={item.following ? 'checkmark' : 'add'}
+                  size={18}
+                  color={theme.colors.text}
+                />
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                onPress={() => handlePersonMenu(item)}
+                style={[
+                  styles.iconButton,
+                  {
+                    backgroundColor: 'transparent',
+                  },
+                ]}
+              >
+                <Ionicons name="ellipsis-horizontal" size={18} color={theme.colors.textTertiary} />
+              </TouchableOpacity>
             </View>
           </View>
+        </TouchableOpacity>
+      );
+    },
+    [theme, handlePersonClick, handleChat, handlePersonMenu, getStatusColor, getStatusLabel]
+  );
 
-          {/* Action Buttons */}
-          <View style={styles.personActions}>
-            <TouchableOpacity
-              style={[
-                styles.iconButton,
-                {
-                  backgroundColor: theme.colors.primary,
-                },
-              ]}
-              onPress={() => handleChat(item)}
-            >
-              <Ionicons name="chatbubble-outline" size={18} color={theme.colors.background} />
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[
-                styles.iconButton,
-                {
-                  backgroundColor: item.following
-                    ? theme.colors.surfaceVariant
-                    : theme.colors.secondary,
-                  borderWidth: 1,
-                  borderColor: theme.colors.border,
-                },
-              ]}
-            >
-              <Ionicons
-                name={item.following ? 'checkmark' : 'add'}
-                size={18}
-                color={theme.colors.text}
-              />
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              onPress={() => handlePersonMenu(item)}
-              style={[
-                styles.iconButton,
-                {
-                  backgroundColor: 'transparent',
-                },
-              ]}
-            >
-              <Ionicons name="ellipsis-horizontal" size={18} color={theme.colors.textTertiary} />
-            </TouchableOpacity>
-          </View>
-        </View>
-      </TouchableOpacity>
-    );
-  }
-
-  function renderProfileSkeleton() {
+  const renderProfileSkeleton = useCallback(() => {
     return (
       <View
         style={[
@@ -347,7 +374,7 @@ export function PeopleScreen() {
         </View>
       </View>
     );
-  }
+  }, [theme]);
 
   function renderEmpty() {
     return (
@@ -443,15 +470,17 @@ export function PeopleScreen() {
           people.length === 0 ? styles.emptyContainer : styles.listContent,
           { paddingBottom: 100 },
         ]}
-        ListEmptyComponent={loading ? (
-          <View style={styles.loadingContainer}>
-            {[1, 2, 3].map(i => (
-              <View key={i}>{renderProfileSkeleton()}</View>
-            ))}
-          </View>
-        ) : (
-          renderEmpty()
-        )}
+        ListEmptyComponent={
+          loading ? (
+            <View style={styles.loadingContainer}>
+              {[1, 2, 3].map(i => (
+                <View key={i}>{renderProfileSkeleton()}</View>
+              ))}
+            </View>
+          ) : (
+            renderEmpty()
+          )
+        }
         refreshControl={
           <RefreshControl
             refreshing={refreshing}

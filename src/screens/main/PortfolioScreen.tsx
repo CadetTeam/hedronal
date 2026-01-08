@@ -72,7 +72,10 @@ export function PortfolioScreen() {
     console.log('[loadEntities] User organizations:', {
       count: organizationList?.length || 0,
       orgIds: organizationList?.map((org: any) => org.id) || [],
+      orgNames: organizationList?.map((org: any) => org.name) || [],
+      orgRoles: organizationList?.map((org: any) => org.role) || [],
       hasOrgs,
+      organizationListType: Array.isArray(organizationList) ? 'array' : typeof organizationList,
     });
 
     // Even if no orgs, we should still try to load entities (in case there are orphaned entities)
@@ -301,6 +304,8 @@ export function PortfolioScreen() {
         orgCountChanged,
         orgIdsChanged,
         orgIds: organizationList?.map((org: any) => org.id) || [],
+        orgNames: organizationList?.map((org: any) => org.name) || [],
+        orgRoles: organizationList?.map((org: any) => org.role) || [],
       });
 
       // Update refs
@@ -310,7 +315,12 @@ export function PortfolioScreen() {
       // Always try to load entities when clerk is loaded and user exists
       // This ensures we fetch entities even if org count is 0 (might have entities without orgs)
       // or if orgs were just added
-      loadEntities();
+      // Add a small delay to ensure organizationList is fully populated
+      const timer = setTimeout(() => {
+        loadEntities();
+      }, 100);
+
+      return () => clearTimeout(timer);
     }
   }, [userId, clerkLoaded, orgIdsString]);
 

@@ -34,6 +34,7 @@ export function ShareModal({ visible, onClose, post }: ShareModalProps) {
   if (!visible || !post) return null;
 
   async function handleShare(method: 'native' | 'copy' | 'link') {
+    if (!post) return;
     try {
       setSharing(true);
       const postUrl = `https://hedronal.com/post/${post.id}`;

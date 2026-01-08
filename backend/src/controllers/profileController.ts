@@ -124,15 +124,13 @@ export const profileController = {
 
         // Insert new social links
         if (socialLinks.length > 0) {
-          const { error: insertError } = await supabase
-            .from('profile_social_links')
-            .insert(
-              socialLinks.map(link => ({
-                profile_id: profile.id,
-                type: link.type.toLowerCase(),
-                url: link.url,
-              }))
-            );
+          const { error: insertError } = await supabase.from('profile_social_links').insert(
+            socialLinks.map(link => ({
+              profile_id: profile.id,
+              type: link.type.toLowerCase(),
+              url: link.url,
+            }))
+          );
 
           if (insertError) {
             console.error('[profileController] Error inserting social links:', insertError);
@@ -169,11 +167,7 @@ export const profileController = {
     try {
       const { id } = req.params;
 
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', id)
-        .single();
+      const { data, error } = await supabase.from('profiles').select('*').eq('id', id).single();
 
       if (error) {
         console.error('[profileController] Error fetching profile:', error);
@@ -206,4 +200,3 @@ export const profileController = {
     }
   },
 };
-

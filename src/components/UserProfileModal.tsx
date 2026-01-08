@@ -46,6 +46,7 @@ export function UserProfileModal({ visible, onClose, userId }: UserProfileModalP
   const [loading, setLoading] = useState(true);
   const [profile, setProfile] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
+  const [showFullBioModal, setShowFullBioModal] = useState(false);
 
   useEffect(() => {
     if (visible && userId) {
@@ -119,10 +120,7 @@ export function UserProfileModal({ visible, onClose, userId }: UserProfileModalP
           {/* Content */}
           <ScrollView
             style={styles.scrollView}
-            contentContainerStyle={[
-              styles.scrollContent,
-              { paddingBottom: insets.bottom * 2 },
-            ]}
+            contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom * 2 }]}
             showsVerticalScrollIndicator={false}
           >
             {loading ? (
@@ -138,7 +136,10 @@ export function UserProfileModal({ visible, onClose, userId }: UserProfileModalP
               </View>
             ) : !profile ? (
               <View style={styles.emptyContainer}>
-                <EmptyState title="Profile not found" message="This user profile could not be loaded." />
+                <EmptyState
+                  title="Profile not found"
+                  message="This user profile could not be loaded."
+                />
               </View>
             ) : (
               <>
@@ -148,9 +149,7 @@ export function UserProfileModal({ visible, onClose, userId }: UserProfileModalP
                     style={[
                       styles.banner,
                       {
-                        backgroundColor: profile.banner_url
-                          ? 'transparent'
-                          : theme.colors.primary,
+                        backgroundColor: profile.banner_url ? 'transparent' : theme.colors.primary,
                       },
                     ]}
                   >
@@ -199,7 +198,28 @@ export function UserProfileModal({ visible, onClose, userId }: UserProfileModalP
                   )}
 
                   {profile.bio && (
-                    <Text style={[styles.bio, { color: theme.colors.text }]}>{profile.bio}</Text>
+                    <>
+                      <Text
+                        style={[styles.bio, { color: theme.colors.text }]}
+                        numberOfLines={2}
+                        ellipsizeMode="tail"
+                      >
+                        {profile.bio}
+                      </Text>
+                      {profile.bio.length > 100 && (
+                        <TouchableOpacity
+                          onPress={() => {
+                            // Open full bio modal - for now just show full bio
+                            setShowFullBioModal(true);
+                          }}
+                          style={styles.readMoreButton}
+                        >
+                          <Text style={[styles.readMoreText, { color: theme.colors.primary }]}>
+                            Read more
+                          </Text>
+                        </TouchableOpacity>
+                      )}
+                    </>
                   )}
 
                   {/* Social Links */}
@@ -232,7 +252,12 @@ export function UserProfileModal({ visible, onClose, userId }: UserProfileModalP
 
                   {/* Stats */}
                   <View style={styles.statsContainer}>
-                    <TouchableOpacity style={styles.statItem}>
+                    <TouchableOpacity
+                      style={[
+                        styles.statItem,
+                        { backgroundColor: 'transparent', borderColor: theme.colors.border },
+                      ]}
+                    >
                       <Text style={[styles.statValue, { color: theme.colors.text }]}>
                         {profile.posts_count || 0}
                       </Text>
@@ -241,7 +266,12 @@ export function UserProfileModal({ visible, onClose, userId }: UserProfileModalP
                       </Text>
                     </TouchableOpacity>
 
-                    <TouchableOpacity style={styles.statItem}>
+                    <TouchableOpacity
+                      style={[
+                        styles.statItem,
+                        { backgroundColor: 'transparent', borderColor: theme.colors.border },
+                      ]}
+                    >
                       <Text style={[styles.statValue, { color: theme.colors.text }]}>
                         {profile.followers_count || 0}
                       </Text>
@@ -250,7 +280,12 @@ export function UserProfileModal({ visible, onClose, userId }: UserProfileModalP
                       </Text>
                     </TouchableOpacity>
 
-                    <TouchableOpacity style={styles.statItem}>
+                    <TouchableOpacity
+                      style={[
+                        styles.statItem,
+                        { backgroundColor: 'transparent', borderColor: theme.colors.border },
+                      ]}
+                    >
                       <Text style={[styles.statValue, { color: theme.colors.text }]}>
                         {profile.following_count || 0}
                       </Text>
@@ -265,6 +300,52 @@ export function UserProfileModal({ visible, onClose, userId }: UserProfileModalP
           </ScrollView>
         </View>
       </BlurredModalOverlay>
+
+      {/* Full Bio Modal */}
+      <Modal
+        visible={showFullBioModal}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setShowFullBioModal(false)}
+      >
+        <BlurredModalOverlay visible={showFullBioModal} onClose={() => setShowFullBioModal(false)}>
+          <View
+            style={[
+              styles.modalContent,
+              {
+                backgroundColor: theme.colors.surface,
+                minHeight: 200 + insets.bottom * 2,
+                maxHeight: 500 + insets.bottom * 2,
+              },
+            ]}
+          >
+            <View style={styles.modalHeader}>
+              <LinearGradient
+                colors={
+                  isDark
+                    ? [theme.colors.surface, `${theme.colors.surface}00`]
+                    : [theme.colors.surface, `${theme.colors.surface}00`]
+                }
+                style={styles.modalHeaderGradient}
+                pointerEvents="none"
+              />
+              <Text style={[styles.modalTitle, { color: theme.colors.text }]}>Bio</Text>
+              <TouchableOpacity onPress={() => setShowFullBioModal(false)}>
+                <Ionicons name="close" size={24} color={theme.colors.text} />
+              </TouchableOpacity>
+            </View>
+            <ScrollView
+              style={styles.scrollView}
+              contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom * 2 }]}
+              showsVerticalScrollIndicator={false}
+            >
+              <Text style={[styles.modalTitle, { color: theme.colors.text, marginBottom: 16 }]}>
+                {profile?.bio || 'No bio'}
+              </Text>
+            </ScrollView>
+          </View>
+        </BlurredModalOverlay>
+      </Modal>
     </Modal>
   );
 }
@@ -384,9 +465,17 @@ const styles = StyleSheet.create({
   bio: {
     fontSize: 14,
     textAlign: 'center',
-    marginBottom: 16,
+    marginBottom: 8,
     lineHeight: 20,
     maxWidth: '90%',
+  },
+  readMoreButton: {
+    marginTop: 4,
+    alignItems: 'center',
+  },
+  readMoreText: {
+    fontSize: 14,
+    fontWeight: '500',
   },
   socialLinks: {
     flexDirection: 'row',
@@ -404,14 +493,24 @@ const styles = StyleSheet.create({
   },
   statsContainer: {
     flexDirection: 'row',
-    justifyContent: 'space-around',
+    justifyContent: 'space-between',
     width: '100%',
     paddingTop: 24,
+    paddingHorizontal: 16,
     borderTopWidth: 1,
     borderTopColor: 'rgba(0,0,0,0.1)',
+    gap: 12,
   },
   statItem: {
     alignItems: 'center',
+    flex: 1,
+    flexShrink: 0,
+    paddingVertical: 12,
+    paddingHorizontal: 8,
+    borderRadius: 8,
+    borderWidth: 1,
+    backgroundColor: 'transparent',
+    marginHorizontal: 2,
   },
   statValue: {
     fontSize: 20,
@@ -424,4 +523,3 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
   },
 });
-

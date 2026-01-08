@@ -1,10 +1,10 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   Modal,
-  ScrollView,
+  FlatList,
   TouchableOpacity,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -54,10 +54,12 @@ export function NotificationsModal({ visible, onClose }: NotificationsModalProps
   const { theme, isDark } = useTheme();
   const insets = useSafeAreaInsets();
 
-  function renderNotification(item: Notification) {
+  // Memoize notifications to prevent unnecessary re-renders
+  const notifications = useMemo(() => MOCK_NOTIFICATIONS, []);
+
+  function renderNotification({ item }: { item: Notification }) {
     return (
       <TouchableOpacity
-        key={item.id}
         style={[
           styles.notificationItem,
           {
@@ -113,24 +115,24 @@ export function NotificationsModal({ visible, onClose }: NotificationsModalProps
             </TouchableOpacity>
           </View>
 
-          <ScrollView
-            style={styles.content}
+          <FlatList
+            data={notifications}
+            renderItem={renderNotification}
+            keyExtractor={(item) => item.id}
             contentContainerStyle={[
+              notifications.length === 0 && styles.emptyContainer,
               styles.contentContainer,
               { paddingBottom: insets.bottom * 2 + 100 },
             ]}
-            showsVerticalScrollIndicator={false}
-          >
-            {MOCK_NOTIFICATIONS.length === 0 ? (
+            ListEmptyComponent={
               <View style={styles.emptyContainer}>
                 <Text style={[styles.emptyText, { color: theme.colors.textSecondary }]}>
                   No notifications yet
                 </Text>
               </View>
-            ) : (
-              MOCK_NOTIFICATIONS.map((item) => renderNotification(item))
-            )}
-          </ScrollView>
+            }
+            showsVerticalScrollIndicator={false}
+          />
         </View>
       </BlurredModalOverlay>
     </Modal>
@@ -174,6 +176,7 @@ const styles = StyleSheet.create({
   },
   contentContainer: {
     padding: 16,
+    flexGrow: 1,
   },
   emptyContainer: {
     flex: 1,
