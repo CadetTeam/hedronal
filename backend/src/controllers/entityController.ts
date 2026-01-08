@@ -641,11 +641,6 @@ export const entityController = {
       // Filter to only archived entities (handles both cases: column exists or doesn't exist)
       const archivedEntities = entities?.filter((e: any) => e.is_archived === true) || [];
 
-      if (error) {
-        console.error('[entityController] Supabase error:', error);
-        return res.status(400).json({ error: error.message });
-      }
-
       console.log('[entityController] Found archived entities:', archivedEntities?.length || 0);
       return res.json({ entities: archivedEntities || [] });
     } catch (error: any) {
