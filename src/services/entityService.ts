@@ -373,6 +373,47 @@ export async function unarchiveEntity(
 }
 
 /**
+ * Permanently deletes an archived entity
+ */
+export async function deleteEntityPermanently(
+  entityId: string,
+  clerkToken?: string
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    if (!clerkToken) {
+      console.warn('[deleteEntityPermanently] No token provided - request may fail');
+    }
+
+    const response = await fetch(`${API_BASE_URL}/entities/${entityId}`, {
+      method: 'DELETE',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(clerkToken && { Authorization: `Bearer ${clerkToken}` }),
+      },
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      console.error('[deleteEntityPermanently] API error:', error);
+      return {
+        success: false,
+        error: error.error || error.message || 'Failed to delete entity',
+      };
+    }
+
+    return {
+      success: true,
+    };
+  } catch (error: any) {
+    console.error('[deleteEntityPermanently] Network error:', error);
+    return {
+      success: false,
+      error: error?.message || 'Failed to delete entity',
+    };
+  }
+}
+
+/**
  * Fetches archived entities from the backend API
  */
 export async function fetchArchivedEntities(clerkToken?: string): Promise<any[]> {

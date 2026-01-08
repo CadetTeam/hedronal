@@ -170,11 +170,23 @@ export function PortfolioScreen() {
 
       // Build the final entities list:
       // 1. Start with entities that have Supabase data
-      // 2. Add Clerk orgs that don't have Supabase data yet (as placeholder cards)
+      // 2. Filter out entities whose Clerk organization doesn't exist
+      // 3. Add Clerk orgs that don't have Supabase data yet (as placeholder cards)
       const finalEntities: any[] = [];
 
-      // First, add all entities with Supabase data
+      // First, add all entities with Supabase data, but only if their Clerk org exists
       fetchedEntities.forEach((entity: any) => {
+        // If entity has a Clerk org ID, verify it exists in the user's organization list
+        if (entity.clerk_organization_id) {
+          const orgExists = clerkOrgMap.has(entity.clerk_organization_id);
+          if (!orgExists) {
+            console.log(
+              `[loadEntities] Skipping entity ${entity.id} - Clerk org ${entity.clerk_organization_id} doesn't exist`
+            );
+            return; // Skip this entity
+          }
+        }
+
         // Transform entity_configurations array to object
         const step2Data: { [key: string]: any } = {};
         if (entity.entity_configurations && Array.isArray(entity.entity_configurations)) {

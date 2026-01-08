@@ -798,7 +798,7 @@ export function ProfileScreen() {
               {
                 backgroundColor: theme.colors.surface,
                 borderColor: theme.colors.border,
-                bottom: keyboardVisible ? keyboardHeight : insets.bottom,
+                bottom: keyboardVisible ? keyboardHeight : insets.bottom + 64 + 20, // Safe area + tab bar height (48px + 16px padding) + 20px extra
               },
             ]}
           >

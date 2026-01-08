@@ -12,4 +12,5 @@ entityRouter.get('/clerk/:clerkOrgId', entityController.getByClerkOrgId);
 entityRouter.patch('/:id', clerkAuthMiddleware, entityController.update);
 entityRouter.post('/:id/archive', clerkAuthMiddleware, entityController.archive);
 entityRouter.post('/:id/unarchive', clerkAuthMiddleware, entityController.unarchive);
+entityRouter.delete('/:id', clerkAuthMiddleware, entityController.deletePermanently);
 

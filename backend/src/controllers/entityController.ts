@@ -323,10 +323,10 @@ export const entityController = {
       // Get user's Clerk organizations
       let organizationIds: string[] = [];
       try {
-        const userOrganizations = await clerk.users.getOrganizationList({
+        const { data: memberships } = await clerk.users.getOrganizationMembershipList({
           userId: req.userId,
         });
-        organizationIds = userOrganizations.data.map((org: any) => org.id);
+        organizationIds = memberships.map((membership: any) => membership.organization.id);
         console.log('[entityController] User organizations:', organizationIds);
       } catch (orgError) {
         console.error('[entityController] Error fetching user organizations:', orgError);
@@ -495,7 +495,7 @@ export const entityController = {
 
       const { data: entity } = await supabase
         .from('entities')
-        .select('created_by')
+        .select('created_by, clerk_organization_id')
         .eq('id', id)
         .single();
 
@@ -534,6 +534,22 @@ export const entityController = {
         return res.status(400).json({ error: updateError.message });
       }
 
+      // Delete the Clerk organization to free up the handle/slug
+      if (entity.clerk_organization_id) {
+        try {
+          await clerk.organizations.deleteOrganization({
+            organizationId: entity.clerk_organization_id,
+          });
+          console.log(
+            `[entityController] Deleted Clerk organization: ${entity.clerk_organization_id}`
+          );
+        } catch (clerkError: any) {
+          // Log but don't fail - entity is already archived in Supabase
+          console.error('[entityController] Error deleting Clerk organization:', clerkError);
+          // Continue - entity is archived even if Clerk deletion fails
+        }
+      }
+
       return res.json({ entity: updatedEntity });
     } catch (error: any) {
       return res.status(500).json({ error: error.message });
@@ -563,7 +579,7 @@ export const entityController = {
 
       const { data: entity } = await supabase
         .from('entities')
-        .select('created_by')
+        .select('created_by, name, handle, clerk_organization_id')
         .eq('id', id)
         .single();
 
@@ -578,10 +594,54 @@ export const entityController = {
         return res.status(403).json({ error: 'Insufficient permissions' });
       }
 
-      // Update entity to set is_archived = false
+      // Recreate Clerk organization if it doesn't exist
+      let newClerkOrgId = entity.clerk_organization_id;
+      if (!entity.clerk_organization_id) {
+        try {
+          // Create new Clerk organization
+          const newOrg = await clerk.organizations.createOrganization({
+            name: entity.name,
+            slug: entity.handle.replace('@', ''), // Remove @ if present
+            createdBy: req.userId,
+          });
+          newClerkOrgId = newOrg.id;
+          console.log(`[entityController] Created new Clerk organization: ${newClerkOrgId}`);
+        } catch (clerkError: any) {
+          console.error('[entityController] Error creating Clerk organization:', clerkError);
+          // Continue anyway - entity can be unarchived without Clerk org
+        }
+      } else {
+        // Check if organization still exists
+        try {
+          await clerk.organizations.getOrganization({
+            organizationId: entity.clerk_organization_id,
+          });
+        } catch (clerkError: any) {
+          // Organization doesn't exist, create a new one
+          try {
+            const newOrg = await clerk.organizations.createOrganization({
+              name: entity.name,
+              slug: entity.handle.replace('@', ''),
+              createdBy: req.userId,
+            });
+            newClerkOrgId = newOrg.id;
+            console.log(`[entityController] Recreated Clerk organization: ${newClerkOrgId}`);
+          } catch (createError: any) {
+            console.error('[entityController] Error recreating Clerk organization:', createError);
+            // Continue anyway
+          }
+        }
+      }
+
+      // Update entity to set is_archived = false and update clerk_organization_id if changed
+      const updateData: any = { is_archived: false };
+      if (newClerkOrgId && newClerkOrgId !== entity.clerk_organization_id) {
+        updateData.clerk_organization_id = newClerkOrgId;
+      }
+
       const { data: updatedEntity, error: updateError } = await supabase
         .from('entities')
-        .update({ is_archived: false })
+        .update(updateData)
         .eq('id', id)
         .select()
         .single();
@@ -609,10 +669,10 @@ export const entityController = {
       // Get user's Clerk organizations
       let organizationIds: string[] = [];
       try {
-        const userOrganizations = await clerk.users.getOrganizationList({
+        const { data: memberships } = await clerk.users.getOrganizationMembershipList({
           userId: req.userId,
         });
-        organizationIds = userOrganizations.data.map((org: any) => org.id);
+        organizationIds = memberships.map((membership: any) => membership.organization.id);
         console.log('[entityController] User organizations:', organizationIds);
       } catch (orgError) {
         console.error('[entityController] Error fetching user organizations:', orgError);
@@ -648,6 +708,80 @@ export const entityController = {
       return res.status(500).json({
         error: error.message || 'Failed to fetch archived entities',
       });
+    }
+  },
+
+  deletePermanently: async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      if (!req.userId) {
+        return res.status(401).json({ error: 'Unauthorized' });
+      }
+
+      const { id } = req.params;
+
+      // Verify user has permission (owner or admin)
+      const profile = await getProfileByClerkId(req.userId);
+      if (!profile) {
+        return res.status(401).json({ error: 'Profile not found' });
+      }
+
+      const { data: member } = await supabase
+        .from('entity_members')
+        .select('role')
+        .eq('entity_id', id)
+        .eq('profile_id', profile.id)
+        .single();
+
+      const { data: entity } = await supabase
+        .from('entities')
+        .select('created_by, clerk_organization_id')
+        .eq('id', id)
+        .single();
+
+      if (!entity) {
+        return res.status(404).json({ error: 'Entity not found' });
+      }
+
+      const isOwner = entity.created_by === profile.id;
+      const isAdmin = member?.role === 'owner' || member?.role === 'admin';
+
+      if (!isOwner && !isAdmin) {
+        return res.status(403).json({ error: 'Insufficient permissions' });
+      }
+
+      // Delete related records first
+      await supabase.from('entity_configurations').delete().eq('entity_id', id);
+      await supabase.from('entity_social_links').delete().eq('entity_id', id);
+      await supabase.from('entity_members').delete().eq('entity_id', id);
+
+      // Delete the entity
+      const { error: deleteError } = await supabase.from('entities').delete().eq('id', id);
+
+      if (deleteError) {
+        return res.status(400).json({ error: deleteError.message });
+      }
+
+      // If there's a Clerk organization, try to delete it (may already be deleted from archive)
+      if (entity.clerk_organization_id) {
+        try {
+          await clerk.organizations.deleteOrganization({
+            organizationId: entity.clerk_organization_id,
+          });
+          console.log(
+            `[entityController] Deleted Clerk organization: ${entity.clerk_organization_id}`
+          );
+        } catch (clerkError: any) {
+          // Log but don't fail - entity is already deleted from Supabase
+          console.error(
+            '[entityController] Error deleting Clerk organization (may already be deleted):',
+            clerkError
+          );
+        }
+      }
+
+      return res.json({ success: true });
+    } catch (error: any) {
+      return res.status(500).json({ error: error.message });
     }
   },
 };
