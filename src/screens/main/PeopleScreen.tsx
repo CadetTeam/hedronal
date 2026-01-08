@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   RefreshControl,
   Modal,
+  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -111,20 +112,19 @@ export function PeopleScreen() {
     setShowPersonMenu(true);
   }, []);
 
-  const handlePersonClick = useCallback(
-    (person: any) => {
-      if (!person) return;
-      // If person has a profileId, show their profile
-      if (person.profileId) {
-        setSelectedUserId(person.profileId);
-        setShowUserProfileModal(true);
-      } else {
-        // Otherwise, just show menu or do nothing
-        handlePersonMenu(person);
-      }
-    },
-    [handlePersonMenu]
-  );
+  const handlePersonClick = useCallback((person: any) => {
+    if (!person) return;
+    // Always show their profile modal when clicking a user tile
+    if (person.profileId) {
+      setSelectedUserId(person.profileId);
+      setShowUserProfileModal(true);
+    } else {
+      // If person doesn't have a profileId yet (hasn't accepted invite or created profile),
+      // we can't load their profile, but we'll still open the modal to show a message
+      setSelectedUserId(null);
+      setShowUserProfileModal(true);
+    }
+  }, []);
 
   function handleFilter() {
     setShowFilters(!showFilters);
@@ -202,8 +202,7 @@ export function PeopleScreen() {
           : 'U';
 
       return (
-        <TouchableOpacity
-          onPress={() => handlePersonClick(item)}
+        <View
           style={[
             styles.personCard,
             {
@@ -213,70 +212,77 @@ export function PeopleScreen() {
           ]}
         >
           <View style={styles.personRow}>
-            {/* Avatar */}
-            <View style={[styles.avatar, { backgroundColor: theme.colors.primary }]}>
-              <Text style={[styles.avatarText, { color: theme.colors.background }]}>
-                {initials}
-              </Text>
-            </View>
-
-            {/* Info Section */}
-            <View style={styles.personInfo}>
-              <View style={styles.personNameRow}>
-                <Text style={[styles.personName, { color: theme.colors.text }]} numberOfLines={1}>
-                  {personName}
+            {/* Clickable Content Area - Avatar + Info */}
+            <TouchableOpacity
+              onPress={() => handlePersonClick(item)}
+              style={styles.personContent}
+              activeOpacity={0.7}
+            >
+              {/* Avatar */}
+              <View style={[styles.avatar, { backgroundColor: theme.colors.primary }]}>
+                <Text style={[styles.avatarText, { color: theme.colors.background }]}>
+                  {initials}
                 </Text>
-                {item.status && (
-                  <View
-                    style={[
-                      styles.statusBadge,
-                      {
-                        backgroundColor: getStatusColor(item.status) + '20',
-                        borderColor: getStatusColor(item.status),
-                      },
-                    ]}
-                  >
-                    <Text
+              </View>
+
+              {/* Info Section */}
+              <View style={styles.personInfo}>
+                <View style={styles.personNameRow}>
+                  <Text style={[styles.personName, { color: theme.colors.text }]} numberOfLines={1}>
+                    {personName}
+                  </Text>
+                  {item.status && (
+                    <View
                       style={[
-                        styles.statusText,
+                        styles.statusBadge,
                         {
-                          color: getStatusColor(item.status),
+                          backgroundColor: getStatusColor(item.status) + '20',
+                          borderColor: getStatusColor(item.status),
                         },
                       ]}
                     >
-                      {getStatusLabel(item.status)}
-                    </Text>
-                  </View>
-                )}
-              </View>
-              <View style={styles.personMetaRow}>
-                {item.company && (
-                  <Text
-                    style={[styles.personMeta, { color: theme.colors.textSecondary }]}
-                    numberOfLines={1}
-                  >
-                    {item.company}
-                  </Text>
-                )}
-                {item.location && (
-                  <>
-                    {item.company && (
-                      <Text style={[styles.metaSeparator, { color: theme.colors.textTertiary }]}>
-                        •
+                      <Text
+                        style={[
+                          styles.statusText,
+                          {
+                            color: getStatusColor(item.status),
+                          },
+                        ]}
+                      >
+                        {getStatusLabel(item.status)}
                       </Text>
-                    )}
+                    </View>
+                  )}
+                </View>
+                <View style={styles.personMetaRow}>
+                  {item.company && (
                     <Text
-                      style={[styles.personMeta, { color: theme.colors.textTertiary }]}
+                      style={[styles.personMeta, { color: theme.colors.textSecondary }]}
                       numberOfLines={1}
                     >
-                      {item.location}
+                      {item.company}
                     </Text>
-                  </>
-                )}
+                  )}
+                  {item.location && (
+                    <>
+                      {item.company && (
+                        <Text style={[styles.metaSeparator, { color: theme.colors.textTertiary }]}>
+                          •
+                        </Text>
+                      )}
+                      <Text
+                        style={[styles.personMeta, { color: theme.colors.textTertiary }]}
+                        numberOfLines={1}
+                      >
+                        {item.location}
+                      </Text>
+                    </>
+                  )}
+                </View>
               </View>
-            </View>
+            </TouchableOpacity>
 
-            {/* Action Buttons */}
+            {/* Action Buttons - Separate from clickable area */}
             <View style={styles.personActions}>
               <TouchableOpacity
                 style={[
@@ -322,7 +328,7 @@ export function PeopleScreen() {
               </TouchableOpacity>
             </View>
           </View>
-        </TouchableOpacity>
+        </View>
       );
     },
     [theme, handlePersonClick, handleChat, handlePersonMenu, getStatusColor, getStatusLabel]
@@ -890,16 +896,14 @@ export function PeopleScreen() {
       />
 
       {/* User Profile Modal */}
-      {selectedUserId && (
-        <UserProfileModal
-          visible={showUserProfileModal}
-          onClose={() => {
-            setShowUserProfileModal(false);
-            setSelectedUserId(null);
-          }}
-          userId={selectedUserId}
-        />
-      )}
+      <UserProfileModal
+        visible={showUserProfileModal}
+        onClose={() => {
+          setShowUserProfileModal(false);
+          setSelectedUserId(null);
+        }}
+        userId={selectedUserId || undefined}
+      />
     </SafeAreaView>
   );
 }
@@ -980,6 +984,13 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
+  },
+  personContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+    gap: 12,
+    minWidth: 0, // Allows text truncation
   },
   avatar: {
     width: 40,

@@ -4,11 +4,15 @@ import { supabase } from '../config/supabase';
 export const providerController = {
   /**
    * Get providers by category
-   * GET /api/providers?category=Domain
+   * Supports:
+   * - GET /api/providers?category=Domain
+   * - GET /api/providers/category/Domain
    */
   getByCategory: async (req: Request, res: Response) => {
     try {
-      const { category } = req.query;
+      // Prefer route param, fall back to query param
+      const category =
+        (req.params.category as string) || (req.query.category as string | undefined);
 
       let query = supabase.from('providers').select('*');
 

@@ -25,18 +25,12 @@ export function SwipeableEntityCard({ entity, onPress, onArchive }: SwipeableEnt
 
     return (
       <TouchableOpacity
-        style={[
-          styles.rightAction,
-          {
-            backgroundColor: theme.colors.error || '#ff3b30',
-          },
-        ]}
+        style={styles.rightAction}
         onPress={() => onArchive(entity)}
         activeOpacity={0.7}
       >
         <Animated.View style={{ transform: [{ scale }] }}>
-          <Ionicons name="archive-outline" size={24} color="#fff" />
-          <Text style={styles.actionText}>Archive</Text>
+          <Ionicons name="archive-outline" size={24} color={theme.colors.error || '#ff3b30'} />
         </Animated.View>
       </TouchableOpacity>
     );
@@ -156,13 +150,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     width: 100,
     marginBottom: 16,
-    borderRadius: 12,
     paddingHorizontal: 20,
-  },
-  actionText: {
-    color: '#fff',
-    fontSize: 12,
-    fontWeight: '600',
-    marginTop: 4,
   },
 });

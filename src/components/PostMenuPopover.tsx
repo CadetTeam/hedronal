@@ -43,10 +43,6 @@ export function PostMenuPopover({
 
   if (!visible) return null;
 
-  // Calculate menu position - top right corner should cover the ellipsis
-  const menuTop = anchorPosition.y - 8; // 8px above the anchor
-  const menuRight = SCREEN_WIDTH - anchorPosition.x - 8; // 8px from right edge
-
   const menuItems = isOwnPost
     ? [
         { label: 'Edit', icon: 'create-outline', onPress: onEdit, color: theme.colors.text },
@@ -58,6 +54,31 @@ export function PostMenuPopover({
         { label: 'Block User', icon: 'ban-outline', onPress: onBlock, color: theme.colors.text },
         { label: 'Report Post', icon: 'flag-outline', onPress: onReport, color: theme.colors.error },
       ];
+
+  // Calculate menu position - anchor to the button that triggered it
+  // Position popover below and aligned with the anchor point
+  const { height: SCREEN_HEIGHT } = Dimensions.get('window');
+  
+  // Calculate position from anchor point
+  let menuTop = anchorPosition.y + 8; // 8px below the anchor (button center)
+  let menuRight = SCREEN_WIDTH - anchorPosition.x; // Align right edge with anchor x position
+  
+  // Ensure popover doesn't go off-screen
+  // If too close to bottom, position above instead
+  const menuHeight = MENU_ITEM_HEIGHT * menuItems.length;
+  if (menuTop + menuHeight > SCREEN_HEIGHT - 20) {
+    menuTop = anchorPosition.y - menuHeight - 8; // Position above
+  }
+  
+  // Ensure popover doesn't go off right edge
+  if (menuRight < 8) {
+    menuRight = 8; // Minimum margin from right edge
+  }
+  
+  // Ensure popover doesn't go off left edge
+  if (menuRight + MENU_WIDTH > SCREEN_WIDTH - 8) {
+    menuRight = SCREEN_WIDTH - MENU_WIDTH - 8; // Adjust to fit
+  }
 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>

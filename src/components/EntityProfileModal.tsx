@@ -556,18 +556,21 @@ export function EntityProfileModal({
                             </Text>
 
                             {/* Provider Selection */}
-                            {loadingProviders[item.key] ? (
-                              <Text
-                                style={[styles.loadingText, { color: theme.colors.textSecondary }]}
-                              >
-                                Loading providers...
+                            <View style={styles.providersContainer}>
+                              <Text style={[styles.providersLabel, { color: theme.colors.text }]}>
+                                Select a Provider
                               </Text>
-                            ) : providers[item.key] && providers[item.key].length > 0 ? (
-                              <View style={styles.providersContainer}>
-                                <Text style={[styles.providersLabel, { color: theme.colors.text }]}>
-                                  Select a Provider
+                              {loadingProviders[item.key] ? (
+                                <Text
+                                  style={[
+                                    styles.loadingText,
+                                    { color: theme.colors.textSecondary },
+                                  ]}
+                                >
+                                  Loading providers...
                                 </Text>
-                                {providers[item.key].map(provider => {
+                              ) : providers[item.key] && providers[item.key].length > 0 ? (
+                                providers[item.key].map(provider => {
                                   const selectedProvider =
                                     step2Data[item.key]?.providerId === provider.id;
                                   return (
@@ -601,24 +604,32 @@ export function EntityProfileModal({
                                       }}
                                     >
                                       <View style={styles.providerInfo}>
-                                        <Text
-                                          style={[
-                                            styles.providerName,
-                                            { color: theme.colors.text },
-                                          ]}
-                                        >
-                                          {provider.company_name}
-                                        </Text>
-                                        {provider.pricing && (
+                                        {provider.company_logo ? (
+                                          <Image
+                                            source={{ uri: provider.company_logo }}
+                                            style={styles.providerLogo}
+                                          />
+                                        ) : null}
+                                        <View style={styles.providerTextInfo}>
                                           <Text
                                             style={[
-                                              styles.providerPricing,
-                                              { color: theme.colors.textSecondary },
+                                              styles.providerName,
+                                              { color: theme.colors.text },
                                             ]}
                                           >
-                                            {provider.pricing}
+                                            {provider.company_name}
                                           </Text>
-                                        )}
+                                          {provider.pricing && (
+                                            <Text
+                                              style={[
+                                                styles.providerPricing,
+                                                { color: theme.colors.textSecondary },
+                                              ]}
+                                            >
+                                              {provider.pricing}
+                                            </Text>
+                                          )}
+                                        </View>
                                       </View>
                                       {selectedProvider && (
                                         <Ionicons
@@ -629,9 +640,15 @@ export function EntityProfileModal({
                                       )}
                                     </TouchableOpacity>
                                   );
-                                })}
-                              </View>
-                            ) : null}
+                                })
+                              ) : (
+                                <Text
+                                  style={[styles.loadingText, { color: theme.colors.textTertiary }]}
+                                >
+                                  No providers available for this category
+                                </Text>
+                              )}
+                            </View>
 
                             {/* Notes/Additional Information */}
                             <TextInput
@@ -991,6 +1008,18 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   providerInfo: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  providerLogo: {
+    width: 40,
+    height: 40,
+    borderRadius: 8,
+    backgroundColor: '#f0f0f0',
+  },
+  providerTextInfo: {
     flex: 1,
   },
   providerName: {

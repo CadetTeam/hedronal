@@ -370,7 +370,8 @@ export function FeedScreen() {
             </Text>
             {isOwnPost(item) && (
               <View
-                ref={ref => {
+                collapsable={false}
+                ref={(ref) => {
                   if (ref) {
                     (item as any)._ellipsisRef = ref;
                   }
@@ -379,13 +380,19 @@ export function FeedScreen() {
                 <TouchableOpacity
                   style={styles.ellipsisButton}
                   onPress={() => {
-                    // Only show menu for user's own posts
+                    // Measure the button position to anchor the popover
                     const ref = (item as any)._ellipsisRef;
                     if (ref) {
-                      ref.measureInWindow((x: number, y: number, width: number, height: number) => {
-                        setMenuAnchorPosition({ x: x + width, y: y });
-                        setSelectedPostForMenu(item);
-                        setShowPostMenu(true);
+                      // Use requestAnimationFrame to ensure layout is complete
+                      requestAnimationFrame(() => {
+                        ref.measureInWindow((x: number, y: number, width: number, height: number) => {
+                          setMenuAnchorPosition({ 
+                            x: x + width, 
+                            y: y + height / 2 // Center vertically on button
+                          });
+                          setSelectedPostForMenu(item);
+                          setShowPostMenu(true);
+                        });
                       });
                     } else {
                       // Fallback: estimate position

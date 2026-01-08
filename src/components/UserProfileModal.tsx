@@ -53,22 +53,26 @@ export function UserProfileModal({ visible, onClose, userId }: UserProfileModalP
       loadProfile();
     } else {
       setProfile(null);
-      setError(null);
-      setLoading(true);
+      setError(userId ? null : 'No profile ID provided');
+      setLoading(false);
     }
   }, [visible, userId]);
 
-  // Don't render if no userId provided
-  if (!userId) {
-    return null;
-  }
+  // If no userId provided, show empty state
+  // This allows the modal to be opened even when profile doesn't exist yet
 
   async function loadProfile() {
+    if (!userId) {
+      setError('No profile ID provided');
+      setLoading(false);
+      return;
+    }
+
     try {
       setLoading(true);
       setError(null);
       const token = await getToken();
-      const result = await getProfileById(userId!, token || undefined);
+      const result = await getProfileById(userId, token || undefined);
 
       if (result.success && result.profile) {
         setProfile(result.profile);
