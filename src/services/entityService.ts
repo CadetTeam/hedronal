@@ -233,55 +233,104 @@ export async function updateEntity(
       console.warn('[updateEntity] No token provided - request may fail');
     }
 
-    const response = await fetch(`${API_BASE_URL}/entities/${entityId}`, {
-      method: 'PATCH',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(clerkToken && { Authorization: `Bearer ${clerkToken}` }),
-      },
-      body: JSON.stringify({
-        name: updateData.name,
-        handle: updateData.handle,
-        brief: updateData.brief,
-        banner_url: updateData.banner || null,
-        avatar_url: updateData.avatar || null,
-        type: updateData.type || null,
-        // Persist configuration data (including provider selections) to Supabase
-        step2Data: updateData.step2Data,
-        completedItems: updateData.completedItems,
-      }),
-    });
+    // Create AbortController for timeout
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
 
-    if (!response.ok) {
-      const error = await response.json();
-      console.error('[updateEntity] API error:', error);
-      console.error('[updateEntity] Response status:', response.status);
+    try {
+      const response = await fetch(`${API_BASE_URL}/entities/${entityId}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(clerkToken && { Authorization: `Bearer ${clerkToken}` }),
+        },
+        body: JSON.stringify({
+          name: updateData.name,
+          handle: updateData.handle,
+          brief: updateData.brief,
+          banner_url: updateData.banner || null,
+          avatar_url: updateData.avatar || null,
+          type: updateData.type || null,
+          // Persist configuration data (including provider selections) to Supabase
+          step2Data: updateData.step2Data,
+          completedItems: updateData.completedItems,
+        }),
+        signal: controller.signal,
+      });
 
-      if (response.status === 401) {
-        console.error('[updateEntity] Authentication failed - token may be invalid or expired');
+      clearTimeout(timeoutId);
+
+      if (!response.ok) {
+        let error;
+        try {
+          error = await response.json();
+        } catch (e) {
+          // If response isn't JSON, create a generic error
+          error = { error: `Server error (${response.status})`, message: response.statusText };
+        }
+
+        console.error('[updateEntity] API error:', error);
+        console.error('[updateEntity] Response status:', response.status);
+
+        if (response.status === 401) {
+          console.error('[updateEntity] Authentication failed - token may be invalid or expired');
+          return {
+            success: false,
+            error: 'Invalid or expired token. Please sign in again.',
+          };
+        }
+
+        if (response.status === 502 || response.status === 503 || response.status === 504) {
+          return {
+            success: false,
+            error: 'Backend service is temporarily unavailable. Please try again in a moment.',
+          };
+        }
+
+        if (response.status === 404) {
+          return {
+            success: false,
+            error: 'Entity not found. Please refresh and try again.',
+          };
+        }
+
         return {
           success: false,
-          error: 'Invalid or expired token. Please sign in again.',
+          error: error.error || error.message || 'Failed to update entity',
         };
       }
 
+      const result = await response.json();
+      console.log('[updateEntity] Success, updated entity:', result.entity?.id);
       return {
-        success: false,
-        error: error.error || error.message || 'Failed to update entity',
+        success: true,
+        entity: result.entity,
       };
+    } catch (fetchError: any) {
+      clearTimeout(timeoutId);
+      
+      if (fetchError.name === 'AbortError') {
+        console.error('[updateEntity] Request timeout');
+        return {
+          success: false,
+          error: 'Request timed out. The server may be slow. Please try again.',
+        };
+      }
+      throw fetchError;
     }
-
-    const result = await response.json();
-    console.log('[updateEntity] Success, updated entity:', result.entity?.id);
-    return {
-      success: true,
-      entity: result.entity,
-    };
   } catch (error: any) {
     console.error('[updateEntity] Network error:', error);
+    
+    if (error.message?.includes('Network request failed') || error.message?.includes('Failed to fetch')) {
+      return {
+        success: false,
+        error: 'Network error. Please check your connection and try again.',
+      };
+    }
+    
     return {
       success: false,
-      error: error?.message || 'Failed to update entity',
+      error: error?.message || 'Failed to update entity. Please try again.',
     };
   }
 }

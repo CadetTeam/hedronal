@@ -31,9 +31,7 @@
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
       "package": "com.responsenow.Hedronal",
-      "permissions": [
-        "READ_CONTACTS"
-      ]
+      "permissions": ["READ_CONTACTS"]
     },
     "web": {
       "favicon": "./assets/dark.png"
@@ -45,11 +43,7 @@
       "clerkPublishableKey": "pk_live_Y2xlcmsuaGVkcm9uYWwuY29tJA",
       "clerkAppId": "app_37mSSJfGyIm0Kg4FEhWL7zqqpfc"
     },
-    "plugins": [
-      "expo-web-browser",
-      "expo-secure-store",
-      "react-native-webview"
-    ],
+    "plugins": ["expo-web-browser", "expo-secure-store"],
     "owner": "hedronal"
   }
 }

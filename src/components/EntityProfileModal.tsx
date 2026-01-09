@@ -75,6 +75,7 @@ export function EntityProfileModal({
   const [loadingProviders, setLoadingProviders] = useState<{ [key: string]: boolean }>({});
   const [webViewUrl, setWebViewUrl] = useState<string | null>(null);
   const [webViewTitle, setWebViewTitle] = useState<string>('');
+  const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   React.useEffect(() => {
     if (entity) {
@@ -275,8 +276,18 @@ export function EntityProfileModal({
       newCompleted.add(item);
     }
     setCompletedItems(newCompleted);
-    // Persist completion state (including any provider selections/notes)
-    saveConfigurationToBackend(step2Data, newCompleted);
+    
+    // Clear any pending save
+    if (saveTimeoutRef.current) {
+      clearTimeout(saveTimeoutRef.current);
+    }
+    
+    // Debounce saves to prevent overwhelming the backend
+    // Wait 1 second after the last toggle before saving
+    saveTimeoutRef.current = setTimeout(() => {
+      saveConfigurationToBackend(step2Data, newCompleted);
+      saveTimeoutRef.current = null;
+    }, 1000);
   }
 
   function handleAccordionUpdate(updatedEntity: any) {

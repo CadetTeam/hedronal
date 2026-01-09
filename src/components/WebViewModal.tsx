@@ -27,7 +27,7 @@ export function WebViewModal({ visible, url, onClose, title }: WebViewModalProps
           // Browser closed, call onClose
           onClose();
         })
-        .catch((error) => {
+        .catch(error => {
           console.error('[WebViewModal] Error opening browser:', error);
           onClose();
         });
