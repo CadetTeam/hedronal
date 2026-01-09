@@ -276,12 +276,12 @@ export function EntityProfileModal({
       newCompleted.add(item);
     }
     setCompletedItems(newCompleted);
-    
+
     // Clear any pending save
     if (saveTimeoutRef.current) {
       clearTimeout(saveTimeoutRef.current);
     }
-    
+
     // Debounce saves to prevent overwhelming the backend
     // Wait 1 second after the last toggle before saving
     saveTimeoutRef.current = setTimeout(() => {

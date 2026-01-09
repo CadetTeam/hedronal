@@ -308,7 +308,7 @@ export async function updateEntity(
       };
     } catch (fetchError: any) {
       clearTimeout(timeoutId);
-      
+
       if (fetchError.name === 'AbortError') {
         console.error('[updateEntity] Request timeout');
         return {
@@ -320,14 +320,17 @@ export async function updateEntity(
     }
   } catch (error: any) {
     console.error('[updateEntity] Network error:', error);
-    
-    if (error.message?.includes('Network request failed') || error.message?.includes('Failed to fetch')) {
+
+    if (
+      error.message?.includes('Network request failed') ||
+      error.message?.includes('Failed to fetch')
+    ) {
       return {
         success: false,
         error: 'Network error. Please check your connection and try again.',
       };
     }
-    
+
     return {
       success: false,
       error: error?.message || 'Failed to update entity. Please try again.',
