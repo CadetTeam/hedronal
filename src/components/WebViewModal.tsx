@@ -1,10 +1,6 @@
 import React from 'react';
-import { View, Text, StyleSheet, Modal, TouchableOpacity, ActivityIndicator } from 'react-native';
-import { WebView } from 'react-native-webview';
-import { useSafeAreaInsets, SafeAreaView } from 'react-native-safe-area-context';
-import { Ionicons } from '@expo/vector-icons';
+import * as WebBrowser from 'expo-web-browser';
 import { useTheme } from '../context/ThemeContext';
-import { BlurredModalOverlay } from './BlurredModalOverlay';
 
 interface WebViewModalProps {
   visible: boolean;
@@ -15,75 +11,32 @@ interface WebViewModalProps {
 
 export function WebViewModal({ visible, url, onClose, title }: WebViewModalProps) {
   const { theme } = useTheme();
-  const insets = useSafeAreaInsets();
-  const [loading, setLoading] = React.useState(true);
 
   React.useEffect(() => {
-    if (visible) {
-      setLoading(true);
+    if (visible && url) {
+      // Open URL in full-screen browser using expo-web-browser
+      // This works with Expo Go and provides a native full-screen experience
+      // For a true in-app webview, you'll need to rebuild with react-native-webview
+      WebBrowser.openBrowserAsync(url, {
+        presentationStyle: WebBrowser.WebBrowserPresentationStyle.FULL_SCREEN,
+        controlsColor: theme.colors.primary,
+        toolbarColor: theme.colors.surface,
+        enableBarCollapsing: false,
+      })
+        .then(() => {
+          // Browser closed, call onClose
+          onClose();
+        })
+        .catch((error) => {
+          console.error('[WebViewModal] Error opening browser:', error);
+          onClose();
+        });
     }
-  }, [visible, url]);
+  }, [visible, url, theme.colors.primary, theme.colors.surface, onClose]);
 
-  if (!url) {
-    return null;
-  }
-
-  return (
-    <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
-      <BlurredModalOverlay visible={visible} onClose={onClose}>
-        <SafeAreaView
-          style={[styles.container, { backgroundColor: theme.colors.surface }]}
-          edges={['top']}
-        >
-          {/* Header */}
-          <View
-            style={[
-              styles.header,
-              {
-                backgroundColor: theme.colors.surface,
-                borderBottomColor: theme.colors.border,
-                paddingTop: insets.top,
-              },
-            ]}
-          >
-            <View style={styles.headerContent}>
-              <TouchableOpacity onPress={onClose} style={styles.closeButton}>
-                <Ionicons name="close" size={24} color={theme.colors.text} />
-              </TouchableOpacity>
-              {title && (
-                <Text style={[styles.title, { color: theme.colors.text }]} numberOfLines={1}>
-                  {title}
-                </Text>
-              )}
-              <View style={styles.closeButton} />
-            </View>
-          </View>
-
-          {/* WebView */}
-          <View style={styles.webViewContainer}>
-            {loading && (
-              <View style={styles.loadingContainer}>
-                <ActivityIndicator size="large" color={theme.colors.primary} />
-              </View>
-            )}
-            <WebView
-              source={{ uri: url }}
-              style={styles.webView}
-              onLoadStart={() => setLoading(true)}
-              onLoadEnd={() => setLoading(false)}
-              onError={() => setLoading(false)}
-              startInLoadingState={true}
-              renderLoading={() => (
-                <View style={styles.loadingContainer}>
-                  <ActivityIndicator size="large" color={theme.colors.primary} />
-                </View>
-              )}
-            />
-          </View>
-        </SafeAreaView>
-      </BlurredModalOverlay>
-    </Modal>
-  );
+  // Return null since we're opening external browser
+  // The modal UI isn't needed when using expo-web-browser
+  return null;
 }
 
 const styles = StyleSheet.create({
