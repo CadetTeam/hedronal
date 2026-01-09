@@ -641,8 +641,11 @@ export function ProfileScreen() {
                   key={index}
                   style={styles.socialLink}
                   onPress={() => {
-                    const normalizedUrl = link.url.startsWith('http') ? link.url : `https://${link.url}`;
-                    const socialName = SOCIAL_ICONS.find(s => s.type === link.type)?.label || 'Link';
+                    const normalizedUrl = link.url.startsWith('http')
+                      ? link.url
+                      : `https://${link.url}`;
+                    const socialName =
+                      SOCIAL_ICONS.find(s => s.type === link.type)?.label || 'Link';
                     setWebViewTitle(socialName);
                     setWebViewUrl(normalizedUrl);
                   }}

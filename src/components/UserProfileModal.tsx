@@ -247,14 +247,24 @@ export function UserProfileModal({ visible, onClose, userId }: UserProfileModalP
                             ]}
                             onPress={() => {
                               if (link.url) {
-                                const normalizedUrl = link.url.startsWith('http') ? link.url : `https://${link.url}`;
-                                const socialName = SOCIAL_ICONS[link.type] ? 
-                                  (link.type === 'x' ? 'X.com' : 
-                                   link.type === 'linkedin' ? 'LinkedIn' :
-                                   link.type === 'github' ? 'GitHub' :
-                                   link.type === 'instagram' ? 'Instagram' :
-                                   link.type === 'website' ? 'Website' :
-                                   link.type === 'email' ? 'Email' : 'Link') : 'Link';
+                                const normalizedUrl = link.url.startsWith('http')
+                                  ? link.url
+                                  : `https://${link.url}`;
+                                const socialName = SOCIAL_ICONS[link.type]
+                                  ? link.type === 'x'
+                                    ? 'X.com'
+                                    : link.type === 'linkedin'
+                                      ? 'LinkedIn'
+                                      : link.type === 'github'
+                                        ? 'GitHub'
+                                        : link.type === 'instagram'
+                                          ? 'Instagram'
+                                          : link.type === 'website'
+                                            ? 'Website'
+                                            : link.type === 'email'
+                                              ? 'Email'
+                                              : 'Link'
+                                  : 'Link';
                                 setWebViewTitle(socialName);
                                 setWebViewUrl(normalizedUrl);
                               }
