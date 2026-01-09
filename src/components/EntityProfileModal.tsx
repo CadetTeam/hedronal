@@ -17,6 +17,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../context/ThemeContext';
 import { BlurredModalOverlay } from './BlurredModalOverlay';
 import { LinearGradient } from 'expo-linear-gradient';
+import { XIcon } from './XIcon';
 import { EntityCreationModal } from './EntityCreationModal';
 import { updateEntity } from '../services/entityService';
 import { useAuth } from '@clerk/clerk-expo';
@@ -290,7 +291,7 @@ export function EntityProfileModal({
   if (!entity) return null;
 
   const SOCIAL_ICONS: { [key: string]: keyof typeof Ionicons.glyphMap } = {
-    x: 'close-circle-outline',
+    x: 'close-circle-outline', // Not used, XIcon component handles this
     linkedin: 'logo-linkedin',
     github: 'logo-github',
     instagram: 'logo-instagram',
@@ -451,7 +452,11 @@ export function EntityProfileModal({
                             { backgroundColor: theme.colors.surfaceVariant },
                           ]}
                         >
-                          <Ionicons name={iconName} size={20} color={theme.colors.text} />
+                          {link.type === 'x' ? (
+                            <XIcon size={20} />
+                          ) : (
+                            <Ionicons name={iconName} size={20} color={theme.colors.text} />
+                          )}
                         </TouchableOpacity>
                       );
                     })}

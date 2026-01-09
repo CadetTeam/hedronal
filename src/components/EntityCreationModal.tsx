@@ -25,6 +25,7 @@ import { useClerkContext } from '../context/ClerkContext';
 import { BlurredModalOverlay } from './BlurredModalOverlay';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Button } from './Button';
+import { XIcon } from './XIcon';
 import { useEntityCreation } from '../services/entityService';
 import { fetchProvidersByCategory, Provider } from '../services/providerService';
 import { useAuth } from '@clerk/clerk-expo';
@@ -72,7 +73,7 @@ const ACCORDION_ITEMS = [
 ];
 
 const SOCIAL_ICONS = [
-  { name: 'close-circle-outline', label: 'X.com', type: 'x' },
+  { name: 'x-icon', label: 'X.com', type: 'x' },
   { name: 'logo-linkedin', label: 'LinkedIn', type: 'linkedin' },
   { name: 'logo-github', label: 'GitHub', type: 'github' },
   { name: 'logo-instagram', label: 'Instagram', type: 'instagram' },
@@ -685,7 +686,11 @@ export function EntityCreationModal({ visible, onClose, onComplete }: EntityCrea
                       style={styles.socialIconButton}
                       onPress={() => setShowSocialDropdown(isDropdownOpen ? null : index)}
                     >
-                      <Ionicons name={icon?.name as any} size={20} color={theme.colors.text} />
+                      {icon?.type === 'x' ? (
+                        <XIcon size={20} />
+                      ) : (
+                        <Ionicons name={icon?.name as any} size={20} color={theme.colors.text} />
+                      )}
                       <Ionicons name="chevron-down" size={16} color={theme.colors.textTertiary} />
                     </TouchableOpacity>
                     <TextInput
@@ -733,9 +738,13 @@ export function EntityCreationModal({ visible, onClose, onComplete }: EntityCrea
                             setShowSocialDropdown(null);
                           }}
                         >
-                          <Ionicons name={social.name as any} size={20} color={theme.colors.text} />
+                          {social.type === 'x' ? (
+                            <XIcon size={20} />
+                          ) : (
+                            <Ionicons name={social.name as any} size={20} color={theme.colors.text} />
+                          )}
                           <Text style={[styles.socialDropdownText, { color: theme.colors.text }]}>
-                            {social.type.charAt(0).toUpperCase() + social.type.slice(1)}
+                            {social.label}
                           </Text>
                         </TouchableOpacity>
                       ))}

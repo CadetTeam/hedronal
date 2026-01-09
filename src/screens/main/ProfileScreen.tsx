@@ -28,11 +28,12 @@ import { SocialLinksModal } from '../../components/SocialLinksModal';
 import { ArchivedEntitiesModal } from '../../components/ArchivedEntitiesModal';
 import { LoadingSpinner } from '../../components/LoadingSpinner';
 import { Skeleton } from '../../components/Skeleton';
+import { XIcon } from '../../components/XIcon';
 import { getProfile, updateProfile } from '../../services/profileService';
 import { uploadProfileImages } from '../../utils/imageUpload';
 
 const SOCIAL_ICONS = [
-  { name: 'close-circle-outline', label: 'X' },
+  { name: 'x-icon', label: 'X.com', type: 'x' },
   { name: 'logo-linkedin', label: 'LinkedIn' },
   { name: 'logo-github', label: 'GitHub' },
   { name: 'logo-instagram', label: 'Instagram' },
@@ -467,6 +468,7 @@ export function ProfileScreen() {
   }
 
   function getSocialIcon(type: string) {
+    if (type === 'x') return 'x-icon';
     const icon = SOCIAL_ICONS.find(i => i.name.includes(type.toLowerCase()));
     return icon?.name || 'globe-outline';
   }
@@ -633,11 +635,15 @@ export function ProfileScreen() {
             {profileData.socialLinks.map((link, index) =>
               link.url ? (
                 <TouchableOpacity key={index} style={styles.socialLink}>
-                  <Ionicons
-                    name={getSocialIcon(link.type) as any}
-                    size={20}
-                    color={theme.colors.text}
-                  />
+                  {link.type === 'x' ? (
+                    <XIcon size={20} />
+                  ) : (
+                    <Ionicons
+                      name={getSocialIcon(link.type) as any}
+                      size={20}
+                      color={theme.colors.text}
+                    />
+                  )}
                 </TouchableOpacity>
               ) : null
             )}

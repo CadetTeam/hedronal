@@ -19,9 +19,10 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { getProfileById } from '../services/profileService';
 import { useAuth } from '@clerk/clerk-expo';
 import { EmptyState } from './EmptyState';
+import { XIcon } from './XIcon';
 
 const SOCIAL_ICONS: { [key: string]: keyof typeof Ionicons.glyphMap } = {
-  x: 'close-circle-outline',
+  x: 'close-circle-outline', // Not used, XIcon component handles this
   linkedin: 'logo-linkedin',
   github: 'logo-github',
   instagram: 'logo-instagram',
@@ -247,7 +248,11 @@ export function UserProfileModal({ visible, onClose, userId }: UserProfileModalP
                               }
                             }}
                           >
-                            <Ionicons name={iconName} size={20} color={theme.colors.text} />
+                            {link.type === 'x' ? (
+                              <XIcon size={20} />
+                            ) : (
+                              <Ionicons name={iconName} size={20} color={theme.colors.text} />
+                            )}
                           </TouchableOpacity>
                         );
                       })}
