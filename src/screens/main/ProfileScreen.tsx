@@ -791,17 +791,18 @@ export function ProfileScreen() {
               Keyboard.dismiss();
             }}
           />
-          <View
-            style={[
-              styles.stickyInputBar,
-              styles.stickyInputBarMultiline,
-              {
-                backgroundColor: theme.colors.surface,
-                borderColor: theme.colors.border,
-                bottom: keyboardVisible ? keyboardHeight : insets.bottom + 64 + 20, // Safe area + tab bar height (48px + 16px padding) + 20px extra
-              },
-            ]}
-          >
+            <View
+              style={[
+                styles.stickyInputBar,
+                styles.stickyInputBarMultiline,
+                {
+                  backgroundColor: theme.colors.surface,
+                  borderColor: theme.colors.border,
+                  bottom: keyboardVisible ? keyboardHeight : insets.bottom + 64 + 20, // Safe area + tab bar height (48px + 16px padding) + 20px extra
+                  paddingBottom: insets.bottom + 20, // Extra padding for safe area and spacing
+                },
+              ]}
+            >
             <View style={styles.stickyInputHeader}>
               <View style={styles.bioHeaderLeft}>
                 <Text style={[styles.stickyInputLabel, { color: theme.colors.text }]}>Bio</Text>
@@ -835,7 +836,10 @@ export function ProfileScreen() {
               style={[
                 styles.stickyInput,
                 styles.stickyInputMultiline,
-                { color: theme.colors.text },
+                { 
+                  color: theme.colors.text,
+                  paddingBottom: 8, // Extra padding at bottom of text input
+                },
               ]}
               placeholder="Write your bio..."
               placeholderTextColor={theme.colors.textTertiary}
@@ -848,6 +852,7 @@ export function ProfileScreen() {
               multiline
               maxLength={750}
               autoFocus
+              textAlignVertical="top"
             />
             {editingBio.length > 0 && (
               <TouchableOpacity onPress={() => setEditingBio('')} style={styles.clearButton}>
@@ -1590,7 +1595,7 @@ const styles = StyleSheet.create({
     elevation: 5,
   },
   stickyInputBarMultiline: {
-    paddingBottom: 16,
+    paddingBottom: 0, // Will be set dynamically via style prop
   },
   stickyInputHeader: {
     flexDirection: 'row',
@@ -1639,8 +1644,9 @@ const styles = StyleSheet.create({
     minHeight: 20,
   },
   stickyInputMultiline: {
-    minHeight: 60,
+    minHeight: 80,
     textAlignVertical: 'top',
+    maxHeight: 200, // Allow scrolling if content is long
   },
   clearButton: {
     marginLeft: 8,
