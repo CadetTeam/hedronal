@@ -10,3 +10,4 @@ export { WalletModal } from './WalletModal';
 export { NotificationsModal } from './NotificationsModal';
 export { SocialLinksModal } from './SocialLinksModal';
 export { InvitePeopleModal } from './InvitePeopleModal';
+export { WebViewModal } from './WebViewModal';

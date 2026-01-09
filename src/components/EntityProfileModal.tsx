@@ -22,6 +22,7 @@ import { EntityCreationModal } from './EntityCreationModal';
 import { updateEntity } from '../services/entityService';
 import { useAuth } from '@clerk/clerk-expo';
 import { fetchProvidersByCategory, Provider } from '../services/providerService';
+import { WebViewModal } from './WebViewModal';
 
 const ACCORDION_ITEMS = [
   { key: 'Domain', description: "Configure your entity's domain name and website settings" },
@@ -72,6 +73,8 @@ export function EntityProfileModal({
   const [keyboardHeight, setKeyboardHeight] = useState(0);
   const [providers, setProviders] = useState<{ [key: string]: Provider[] }>({});
   const [loadingProviders, setLoadingProviders] = useState<{ [key: string]: boolean }>({});
+  const [webViewUrl, setWebViewUrl] = useState<string | null>(null);
+  const [webViewTitle, setWebViewTitle] = useState<string>('');
 
   React.useEffect(() => {
     if (entity) {
@@ -451,6 +454,20 @@ export function EntityProfileModal({
                             styles.socialLink,
                             { backgroundColor: theme.colors.surfaceVariant },
                           ]}
+                          onPress={() => {
+                            if (link.url) {
+                              const normalizedUrl = link.url.startsWith('http') ? link.url : `https://${link.url}`;
+                              const socialName = SOCIAL_ICONS[link.type] ? 
+                                (link.type === 'x' ? 'X.com' : 
+                                 link.type === 'linkedin' ? 'LinkedIn' :
+                                 link.type === 'github' ? 'GitHub' :
+                                 link.type === 'instagram' ? 'Instagram' :
+                                 link.type === 'website' ? 'Website' :
+                                 link.type === 'email' ? 'Email' : 'Link') : 'Link';
+                              setWebViewTitle(socialName);
+                              setWebViewUrl(normalizedUrl);
+                            }
+                          }}
                         >
                           {link.type === 'x' ? (
                             <XIcon size={20} />
@@ -743,6 +760,17 @@ export function EntityProfileModal({
         visible={showAccordionModal}
         onClose={() => setShowAccordionModal(false)}
         onComplete={handleAccordionUpdate}
+      />
+
+      {/* WebView Modal */}
+      <WebViewModal
+        visible={!!webViewUrl}
+        url={webViewUrl || ''}
+        title={webViewTitle}
+        onClose={() => {
+          setWebViewUrl(null);
+          setWebViewTitle('');
+        }}
       />
     </>
   );

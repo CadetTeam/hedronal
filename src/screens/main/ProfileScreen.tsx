@@ -29,6 +29,7 @@ import { ArchivedEntitiesModal } from '../../components/ArchivedEntitiesModal';
 import { LoadingSpinner } from '../../components/LoadingSpinner';
 import { Skeleton } from '../../components/Skeleton';
 import { XIcon } from '../../components/XIcon';
+import { WebViewModal } from '../../components/WebViewModal';
 import { getProfile, updateProfile } from '../../services/profileService';
 import { uploadProfileImages } from '../../utils/imageUpload';
 
@@ -94,6 +95,8 @@ export function ProfileScreen() {
   const [showSocialLinksModal, setShowSocialLinksModal] = useState(false);
   const [showFullBioModal, setShowFullBioModal] = useState(false);
   const [bioExpanded, setBioExpanded] = useState(false);
+  const [webViewUrl, setWebViewUrl] = useState<string | null>(null);
+  const [webViewTitle, setWebViewTitle] = useState<string>('');
   const [bioHasChanged, setBioHasChanged] = useState(false);
   const [bioSaving, setBioSaving] = useState(false);
   const [bioSaved, setBioSaved] = useState(false);
@@ -634,7 +637,16 @@ export function ProfileScreen() {
           <View style={styles.socialLinks}>
             {profileData.socialLinks.map((link, index) =>
               link.url ? (
-                <TouchableOpacity key={index} style={styles.socialLink}>
+                <TouchableOpacity
+                  key={index}
+                  style={styles.socialLink}
+                  onPress={() => {
+                    const normalizedUrl = link.url.startsWith('http') ? link.url : `https://${link.url}`;
+                    const socialName = SOCIAL_ICONS.find(s => s.type === link.type)?.label || 'Link';
+                    setWebViewTitle(socialName);
+                    setWebViewUrl(normalizedUrl);
+                  }}
+                >
                   {link.type === 'x' ? (
                     <XIcon size={20} />
                   ) : (
@@ -1534,6 +1546,17 @@ export function ProfileScreen() {
         onClose={() => setShowArchivedEntitiesModal(false)}
         onUnarchive={() => {
           // Refresh could be handled here if needed
+        }}
+      />
+
+      {/* WebView Modal */}
+      <WebViewModal
+        visible={!!webViewUrl}
+        url={webViewUrl || ''}
+        title={webViewTitle}
+        onClose={() => {
+          setWebViewUrl(null);
+          setWebViewTitle('');
         }}
       />
     </SafeAreaView>

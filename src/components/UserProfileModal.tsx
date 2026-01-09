@@ -20,6 +20,7 @@ import { getProfileById } from '../services/profileService';
 import { useAuth } from '@clerk/clerk-expo';
 import { EmptyState } from './EmptyState';
 import { XIcon } from './XIcon';
+import { WebViewModal } from './WebViewModal';
 
 const SOCIAL_ICONS: { [key: string]: keyof typeof Ionicons.glyphMap } = {
   x: 'close-circle-outline', // Not used, XIcon component handles this
@@ -48,6 +49,8 @@ export function UserProfileModal({ visible, onClose, userId }: UserProfileModalP
   const [profile, setProfile] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
   const [showFullBioModal, setShowFullBioModal] = useState(false);
+  const [webViewUrl, setWebViewUrl] = useState<string | null>(null);
+  const [webViewTitle, setWebViewTitle] = useState<string>('');
 
   useEffect(() => {
     if (visible && userId) {
@@ -244,7 +247,16 @@ export function UserProfileModal({ visible, onClose, userId }: UserProfileModalP
                             ]}
                             onPress={() => {
                               if (link.url) {
-                                // Open URL
+                                const normalizedUrl = link.url.startsWith('http') ? link.url : `https://${link.url}`;
+                                const socialName = SOCIAL_ICONS[link.type] ? 
+                                  (link.type === 'x' ? 'X.com' : 
+                                   link.type === 'linkedin' ? 'LinkedIn' :
+                                   link.type === 'github' ? 'GitHub' :
+                                   link.type === 'instagram' ? 'Instagram' :
+                                   link.type === 'website' ? 'Website' :
+                                   link.type === 'email' ? 'Email' : 'Link') : 'Link';
+                                setWebViewTitle(socialName);
+                                setWebViewUrl(normalizedUrl);
                               }
                             }}
                           >
@@ -355,6 +367,17 @@ export function UserProfileModal({ visible, onClose, userId }: UserProfileModalP
           </View>
         </BlurredModalOverlay>
       </Modal>
+
+      {/* WebView Modal */}
+      <WebViewModal
+        visible={!!webViewUrl}
+        url={webViewUrl || ''}
+        title={webViewTitle}
+        onClose={() => {
+          setWebViewUrl(null);
+          setWebViewTitle('');
+        }}
+      />
     </Modal>
   );
 }
