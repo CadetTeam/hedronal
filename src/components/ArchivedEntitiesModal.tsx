@@ -5,17 +5,18 @@ import {
   StyleSheet,
   Modal,
   TouchableOpacity,
-  FlatList,
+  ScrollView,
   Image,
   RefreshControl,
+  Alert,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../context/ThemeContext';
 import { BlurredModalOverlay } from './BlurredModalOverlay';
-import { LinearGradient } from 'expo-linear-gradient';
 import { EmptyState } from './EmptyState';
-import { fetchArchivedEntities, unarchiveEntity } from '../services/entityService';
+import { Skeleton, SkeletonCard } from './Skeleton';
+import { fetchArchivedEntities, unarchiveEntity, deleteEntityPermanently } from '../services/entityService';
 import { useAuth } from '@clerk/clerk-expo';
 
 interface ArchivedEntitiesModalProps {
@@ -35,6 +36,8 @@ export function ArchivedEntitiesModal({
   const [archivedEntities, setArchivedEntities] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [restoringId, setRestoringId] = useState<string | null>(null);
 
   useEffect(() => {
     if (visible) {
@@ -86,9 +89,11 @@ export function ArchivedEntitiesModal({
 
   async function handleUnarchive(entity: any) {
     try {
+      setRestoringId(entity.id);
       const token = await getToken();
       if (!token) {
-        console.error('[ArchivedEntitiesModal] No token available');
+        Alert.alert('Error', 'Authentication required. Please try again.');
+        setRestoringId(null);
         return;
       }
 
@@ -102,10 +107,52 @@ export function ArchivedEntitiesModal({
         }
       } else {
         console.error('[ArchivedEntitiesModal] Failed to unarchive:', result.error);
+        Alert.alert('Error', result.error || 'Failed to restore entity. Please try again.');
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('[ArchivedEntitiesModal] Error unarchiving entity:', error);
+      Alert.alert('Error', 'Failed to restore entity. Please try again.');
+    } finally {
+      setRestoringId(null);
     }
+  }
+
+  async function handleDeletePermanently(entity: any) {
+    Alert.alert(
+      'Delete Permanently',
+      `Are you sure you want to permanently delete "${entity.name}"? This action cannot be undone.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              setDeletingId(entity.id);
+              const token = await getToken();
+              if (!token) {
+                Alert.alert('Error', 'Authentication required. Please try again.');
+                setDeletingId(null);
+                return;
+              }
+
+              const result = await deleteEntityPermanently(entity.id, token);
+              if (result.success) {
+                // Remove from list
+                setArchivedEntities(archivedEntities.filter(e => e.id !== entity.id));
+              } else {
+                Alert.alert('Error', result.error || 'Failed to delete entity. Please try again.');
+              }
+            } catch (error: any) {
+              console.error('[ArchivedEntitiesModal] Error deleting entity:', error);
+              Alert.alert('Error', 'Failed to delete entity. Please try again.');
+            } finally {
+              setDeletingId(null);
+            }
+          },
+        },
+      ]
+    );
   }
 
   async function onRefresh() {
@@ -114,23 +161,29 @@ export function ArchivedEntitiesModal({
     setRefreshing(false);
   }
 
-  function renderEntity({ item }: { item: any }) {
+  function renderEntity(entity: any) {
+    const isDeleting = deletingId === entity.id;
+    const isRestoring = restoringId === entity.id;
+    const isProcessing = isDeleting || isRestoring;
+
     return (
       <View
+        key={entity.id}
         style={[
           styles.entityCard,
           {
             backgroundColor: theme.colors.surface,
             borderColor: theme.colors.border,
+            opacity: isProcessing ? 0.6 : 1,
           },
         ]}
       >
-        {item.banner && (
-          <Image source={{ uri: item.banner }} style={styles.entityBanner} resizeMode="cover" />
+        {entity.banner && (
+          <Image source={{ uri: entity.banner }} style={styles.entityBanner} resizeMode="cover" />
         )}
         <View style={styles.entityCardContent}>
-          {item.avatar ? (
-            <Image source={{ uri: item.avatar }} style={styles.entityAvatar} />
+          {entity.avatar ? (
+            <Image source={{ uri: entity.avatar }} style={styles.entityAvatar} />
           ) : (
             <View
               style={[
@@ -140,46 +193,86 @@ export function ArchivedEntitiesModal({
               ]}
             >
               <Text style={[styles.entityAvatarText, { color: theme.colors.background }]}>
-                {item.name.charAt(0).toUpperCase()}
+                {entity.name.charAt(0).toUpperCase()}
               </Text>
             </View>
           )}
           <View style={styles.entityInfo}>
-            <Text style={[styles.entityName, { color: theme.colors.text }]}>{item.name}</Text>
-            {item.handle && (
+            <Text style={[styles.entityName, { color: theme.colors.text }]}>{entity.name}</Text>
+            {entity.handle && (
               <Text style={[styles.entityHandle, { color: theme.colors.textSecondary }]}>
-                @{item.handle}
+                @{entity.handle}
               </Text>
             )}
-            {item.brief && (
+            {entity.brief && (
               <Text
                 style={[styles.entityBrief, { color: theme.colors.textSecondary }]}
                 numberOfLines={2}
               >
-                {item.brief}
+                {entity.brief}
               </Text>
             )}
-            {item.type && (
+            {entity.type && (
               <Text style={[styles.entityType, { color: theme.colors.textTertiary }]}>
-                {item.type}
+                {entity.type}
               </Text>
             )}
           </View>
+        </View>
+        <View style={styles.entityActions}>
           <TouchableOpacity
             style={[
-              styles.unarchiveButton,
+              styles.restoreButton,
               {
                 backgroundColor: theme.colors.primary,
+                opacity: isProcessing ? 0.5 : 1,
               },
             ]}
-            onPress={() => handleUnarchive(item)}
+            onPress={() => handleUnarchive(entity)}
+            disabled={isProcessing}
           >
-            <Ionicons name="arrow-undo-outline" size={20} color={theme.colors.background} />
-            <Text style={[styles.unarchiveButtonText, { color: theme.colors.background }]}>
-              Unarchive
+            {isRestoring ? (
+              <Ionicons name="hourglass-outline" size={18} color={theme.colors.background} />
+            ) : (
+              <Ionicons name="arrow-undo-outline" size={18} color={theme.colors.background} />
+            )}
+            <Text style={[styles.actionButtonText, { color: theme.colors.background }]}>
+              Restore
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[
+              styles.deleteButton,
+              {
+                backgroundColor: theme.colors.error,
+                opacity: isProcessing ? 0.5 : 1,
+              },
+            ]}
+            onPress={() => handleDeletePermanently(entity)}
+            disabled={isProcessing}
+          >
+            {isDeleting ? (
+              <Ionicons name="hourglass-outline" size={18} color={theme.colors.background} />
+            ) : (
+              <Ionicons name="trash-outline" size={18} color={theme.colors.background} />
+            )}
+            <Text style={[styles.actionButtonText, { color: theme.colors.background }]}>
+              Delete
             </Text>
           </TouchableOpacity>
         </View>
+      </View>
+    );
+  }
+
+  function renderSkeleton() {
+    return (
+      <View style={styles.skeletonContainer}>
+        {[1, 2, 3].map(i => (
+          <View key={i} style={styles.skeletonCard}>
+            <SkeletonCard />
+          </View>
+        ))}
       </View>
     );
   }
@@ -192,44 +285,27 @@ export function ArchivedEntitiesModal({
             styles.modalContent,
             {
               backgroundColor: theme.colors.surface,
-              minHeight: 200 + insets.bottom * 2,
+              paddingBottom: insets.bottom + 40,
+              maxHeight: '85%',
+              minHeight: 500,
             },
           ]}
         >
-          <View style={styles.modalHeader}>
-            <LinearGradient
-              colors={
-                isDark
-                  ? ['rgba(30, 30, 30, 1)', 'rgba(30, 30, 30, 0)']
-                  : ['rgba(245, 245, 220, 1)', 'rgba(245, 245, 220, 0)']
-              }
-              style={styles.modalHeaderGradient}
-              pointerEvents="none"
-            />
-            <Text style={[styles.modalTitle, { color: theme.colors.text }]}>Archived Entities</Text>
-            <TouchableOpacity onPress={onClose}>
+          {/* Header */}
+          <View style={styles.header}>
+            <TouchableOpacity onPress={onClose} style={styles.closeButton}>
               <Ionicons name="close" size={24} color={theme.colors.text} />
             </TouchableOpacity>
+            <Text style={[styles.headerTitle, { color: theme.colors.text }]}>Archived Entities</Text>
+            <View style={styles.closeButton} />
           </View>
 
-          <FlatList
-            data={archivedEntities}
-            renderItem={renderEntity}
-            keyExtractor={item => item.id || `archived-entity-${item.name}`}
+          <ScrollView
+            style={styles.scrollView}
             contentContainerStyle={[
-              styles.listContent,
-              archivedEntities.length === 0 && styles.emptyContainer,
-              { paddingBottom: insets.bottom * 2 },
+              styles.scrollContent,
+              { paddingBottom: 20 },
             ]}
-            ListEmptyComponent={
-              !loading ? (
-                <EmptyState
-                  title="No archived entities"
-                  message="Entities you archive will appear here"
-                  icon="archive-outline"
-                />
-              ) : null
-            }
             refreshControl={
               <RefreshControl
                 refreshing={refreshing}
@@ -238,7 +314,19 @@ export function ArchivedEntitiesModal({
               />
             }
             showsVerticalScrollIndicator={false}
-          />
+          >
+            {loading ? (
+              renderSkeleton()
+            ) : archivedEntities.length === 0 ? (
+              <EmptyState
+                title="No archived entities"
+                message="Entities you archive will appear here. You can restore them or delete them permanently."
+                icon="archive-outline"
+              />
+            ) : (
+              archivedEntities.map(entity => renderEntity(entity))
+            )}
+          </ScrollView>
         </View>
       </BlurredModalOverlay>
     </Modal>
@@ -247,40 +335,44 @@ export function ArchivedEntitiesModal({
 
 const styles = StyleSheet.create({
   modalContent: {
-    flex: 1,
+    width: '100%',
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     overflow: 'hidden',
+    alignSelf: 'flex-end',
+    flexDirection: 'column',
   },
-  modalHeader: {
+  header: {
     flexDirection: 'row',
-    alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    paddingTop: 20,
-    paddingBottom: 16,
-    position: 'relative',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: 'rgba(0,0,0,0.1)',
+    flexShrink: 0,
   },
-  modalHeaderGradient: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    height: 100,
-    zIndex: -1,
+  closeButton: {
+    padding: 4,
+    width: 32,
   },
-  modalTitle: {
-    fontSize: 20,
+  headerTitle: {
+    fontSize: 18,
     fontWeight: '700',
   },
-  listContent: {
-    padding: 16,
-  },
-  emptyContainer: {
+  scrollView: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    minHeight: 300,
+    flexShrink: 1,
+  },
+  scrollContent: {
+    padding: 16,
+    flexGrow: 1,
+  },
+  skeletonContainer: {
+    gap: 16,
+  },
+  skeletonCard: {
+    marginBottom: 16,
   },
   entityCard: {
     borderRadius: 12,
@@ -332,15 +424,32 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '500',
   },
-  unarchiveButton: {
+  entityActions: {
+    flexDirection: 'row',
+    gap: 12,
+    paddingHorizontal: 16,
+    paddingBottom: 16,
+    paddingTop: 8,
+  },
+  restoreButton: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 10,
+    justifyContent: 'center',
+    paddingVertical: 12,
     borderRadius: 8,
     gap: 6,
   },
-  unarchiveButtonText: {
+  deleteButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    borderRadius: 8,
+    gap: 6,
+  },
+  actionButtonText: {
     fontSize: 14,
     fontWeight: '600',
   },

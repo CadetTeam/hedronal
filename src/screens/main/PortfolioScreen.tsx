@@ -483,16 +483,6 @@ export function PortfolioScreen() {
 
   async function handleArchive(entity: any) {
     try {
-      // Check if this is a placeholder entity (no Supabase data yet)
-      if (!entity.hasSupabaseData || entity.id.startsWith('clerk-')) {
-        Alert.alert(
-          'Cannot Archive',
-          'This entity needs to be set up first before it can be archived. Please complete the entity setup.',
-          [{ text: 'OK' }]
-        );
-        return;
-      }
-
       const token = await getToken();
       if (!token) {
         console.error('[handleArchive] No token available');
@@ -500,7 +490,15 @@ export function PortfolioScreen() {
         return;
       }
 
-      // Only archive entities that exist in Supabase
+      // For placeholder entities (no Supabase data), just remove from local list
+      if (!entity.hasSupabaseData || entity.id.startsWith('clerk-')) {
+        // Remove from list immediately
+        setEntities(entities.filter(e => e.id !== entity.id));
+        console.log('[handleArchive] Removed placeholder entity from list');
+        return;
+      }
+
+      // Archive entities that exist in Supabase
       const result = await archiveEntity(entity.id, token);
       if (result.success) {
         // Remove from list
