@@ -21,7 +21,7 @@ import { useAuth } from '@clerk/clerk-expo';
 import { EmptyState } from './EmptyState';
 
 const SOCIAL_ICONS: { [key: string]: keyof typeof Ionicons.glyphMap } = {
-  twitter: 'close-circle-outline',
+  x: 'close-circle-outline',
   linkedin: 'logo-linkedin',
   github: 'logo-github',
   instagram: 'logo-instagram',

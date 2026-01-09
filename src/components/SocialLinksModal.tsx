@@ -15,7 +15,7 @@ import { BlurredModalOverlay } from './BlurredModalOverlay';
 import { LinearGradient } from 'expo-linear-gradient';
 
 const SOCIAL_ICONS = [
-  { name: 'close-circle-outline', label: 'X', type: 'twitter' },
+  { name: 'close-circle-outline', label: 'X.com', type: 'x' },
   { name: 'logo-linkedin', label: 'LinkedIn', type: 'linkedin' },
   { name: 'logo-github', label: 'GitHub', type: 'github' },
   { name: 'logo-instagram', label: 'Instagram', type: 'instagram' },
@@ -30,10 +30,16 @@ interface SocialLinksModalProps {
   onSave: (socialLinks: Array<{ type: string; url: string }>) => void;
 }
 
-export function SocialLinksModal({ visible, onClose, socialLinks: initialSocialLinks, onSave }: SocialLinksModalProps) {
+export function SocialLinksModal({
+  visible,
+  onClose,
+  socialLinks: initialSocialLinks,
+  onSave,
+}: SocialLinksModalProps) {
   const { theme, isDark } = useTheme();
   const insets = useSafeAreaInsets();
-  const [socialLinks, setSocialLinks] = useState<Array<{ type: string; url: string }>>(initialSocialLinks);
+  const [socialLinks, setSocialLinks] =
+    useState<Array<{ type: string; url: string }>>(initialSocialLinks);
   const [showSocialDropdown, setShowSocialDropdown] = useState<number | null>(null);
 
   React.useEffect(() => {
@@ -63,7 +69,11 @@ export function SocialLinksModal({ visible, onClose, socialLinks: initialSocialL
         >
           <View style={styles.modalHeader}>
             <LinearGradient
-              colors={isDark ? [theme.colors.surface, `${theme.colors.surface}00`] : [theme.colors.surface, `${theme.colors.surface}00`]}
+              colors={
+                isDark
+                  ? [theme.colors.surface, `${theme.colors.surface}00`]
+                  : [theme.colors.surface, `${theme.colors.surface}00`]
+              }
               style={styles.modalHeaderGradient}
               pointerEvents="none"
             />
@@ -75,27 +85,44 @@ export function SocialLinksModal({ visible, onClose, socialLinks: initialSocialL
 
           <ScrollView
             style={styles.scrollView}
-            contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom * 2 + 100 }]}
+            contentContainerStyle={[
+              styles.scrollContent,
+              { paddingBottom: insets.bottom * 2 + 100 },
+            ]}
             showsVerticalScrollIndicator={false}
           >
             <View style={styles.inputGroup}>
               <View style={styles.socialLinksHeader}>
                 <Text style={[styles.label, { color: theme.colors.text }]}>Social Links</Text>
                 <TouchableOpacity
-                  style={[styles.addSocialLinkIconButton, { backgroundColor: theme.colors.surfaceVariant, borderColor: theme.colors.border }]}
+                  style={[
+                    styles.addSocialLinkIconButton,
+                    {
+                      backgroundColor: theme.colors.surfaceVariant,
+                      borderColor: theme.colors.border,
+                    },
+                  ]}
                   onPress={() => {
-                    setSocialLinks([...socialLinks, { type: 'twitter', url: '' }]);
+                    setSocialLinks([...socialLinks, { type: 'x', url: '' }]);
                   }}
                 >
                   <Ionicons name="add" size={20} color={theme.colors.primary} />
                 </TouchableOpacity>
               </View>
               {socialLinks.map((link, index) => {
-                const icon = SOCIAL_ICONS.find((s) => s.type === link.type);
+                const icon = SOCIAL_ICONS.find(s => s.type === link.type);
                 const isDropdownOpen = showSocialDropdown === index;
                 return (
                   <View key={index} style={styles.socialLinkRow}>
-                    <View style={[styles.socialLinkItem, { backgroundColor: theme.colors.surfaceVariant, borderColor: theme.colors.border }]}>
+                    <View
+                      style={[
+                        styles.socialLinkItem,
+                        {
+                          backgroundColor: theme.colors.surfaceVariant,
+                          borderColor: theme.colors.border,
+                        },
+                      ]}
+                    >
                       <TouchableOpacity
                         style={styles.socialIconButton}
                         onPress={() => setShowSocialDropdown(isDropdownOpen ? null : index)}
@@ -106,7 +133,7 @@ export function SocialLinksModal({ visible, onClose, socialLinks: initialSocialL
                       <TextInput
                         style={[styles.socialLinkInput, { color: theme.colors.text }]}
                         value={link.url}
-                        onChangeText={(url) => {
+                        onChangeText={url => {
                           const updated = [...socialLinks];
                           updated[index] = { ...updated[index], url };
                           setSocialLinks(updated);
@@ -116,18 +143,33 @@ export function SocialLinksModal({ visible, onClose, socialLinks: initialSocialL
                         keyboardType="url"
                         autoCapitalize="none"
                       />
-                      <TouchableOpacity onPress={() => setSocialLinks(socialLinks.filter((_, i) => i !== index))}>
+                      <TouchableOpacity
+                        onPress={() => setSocialLinks(socialLinks.filter((_, i) => i !== index))}
+                      >
                         <Ionicons name="close-circle" size={20} color={theme.colors.error} />
                       </TouchableOpacity>
                     </View>
                     {isDropdownOpen && (
-                      <View style={[styles.socialDropdown, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}>
-                        {SOCIAL_ICONS.map((social) => (
+                      <View
+                        style={[
+                          styles.socialDropdown,
+                          {
+                            backgroundColor: theme.colors.surface,
+                            borderColor: theme.colors.border,
+                          },
+                        ]}
+                      >
+                        {SOCIAL_ICONS.map(social => (
                           <TouchableOpacity
                             key={social.type}
                             style={[
                               styles.socialDropdownItem,
-                              { backgroundColor: link.type === social.type ? theme.colors.surfaceVariant : 'transparent' },
+                              {
+                                backgroundColor:
+                                  link.type === social.type
+                                    ? theme.colors.surfaceVariant
+                                    : 'transparent',
+                              },
                             ]}
                             onPress={() => {
                               const updated = [...socialLinks];
@@ -136,7 +178,11 @@ export function SocialLinksModal({ visible, onClose, socialLinks: initialSocialL
                               setShowSocialDropdown(null);
                             }}
                           >
-                            <Ionicons name={social.name as any} size={20} color={theme.colors.text} />
+                            <Ionicons
+                              name={social.name as any}
+                              size={20}
+                              color={theme.colors.text}
+                            />
                             <Text style={[styles.socialDropdownText, { color: theme.colors.text }]}>
                               {social.type.charAt(0).toUpperCase() + social.type.slice(1)}
                             </Text>
@@ -150,7 +196,12 @@ export function SocialLinksModal({ visible, onClose, socialLinks: initialSocialL
             </View>
           </ScrollView>
 
-          <View style={[styles.navigationButtons, { borderTopColor: theme.colors.border, paddingBottom: insets.bottom }]}>
+          <View
+            style={[
+              styles.navigationButtons,
+              { borderTopColor: theme.colors.border, paddingBottom: insets.bottom },
+            ]}
+          >
             <TouchableOpacity
               style={[styles.saveButton, { backgroundColor: theme.colors.primary }]}
               onPress={handleSave}
@@ -276,4 +327,3 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
 });
-

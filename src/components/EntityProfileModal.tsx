@@ -290,7 +290,7 @@ export function EntityProfileModal({
   if (!entity) return null;
 
   const SOCIAL_ICONS: { [key: string]: keyof typeof Ionicons.glyphMap } = {
-    twitter: 'remove',
+    x: 'close-circle-outline',
     linkedin: 'logo-linkedin',
     github: 'logo-github',
     instagram: 'logo-instagram',

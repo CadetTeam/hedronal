@@ -78,7 +78,7 @@ export function ProfileScreen() {
     avatar: null as string | null,
     banner: null as string | null,
     socialLinks: [
-      { type: 'twitter', url: '' },
+      { type: 'x', url: '' },
       { type: 'linkedin', url: '' },
       { type: 'website', url: '' },
     ],

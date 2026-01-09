@@ -72,7 +72,7 @@ const ACCORDION_ITEMS = [
 ];
 
 const SOCIAL_ICONS = [
-  { name: 'close-circle-outline', label: 'X', type: 'twitter' },
+  { name: 'close-circle-outline', label: 'X.com', type: 'x' },
   { name: 'logo-linkedin', label: 'LinkedIn', type: 'linkedin' },
   { name: 'logo-github', label: 'GitHub', type: 'github' },
   { name: 'logo-instagram', label: 'Instagram', type: 'instagram' },
@@ -661,7 +661,7 @@ export function EntityCreationModal({ visible, onClose, onComplete }: EntityCrea
                   },
                 ]}
                 onPress={() => {
-                  setSocialLinks([...socialLinks, { type: 'twitter', url: '' }]);
+                  setSocialLinks([...socialLinks, { type: 'x', url: '' }]);
                 }}
               >
                 <Ionicons name="add" size={20} color={theme.colors.primary} />

@@ -31,7 +31,7 @@ CREATE TABLE IF NOT EXISTS profiles (
 CREATE TABLE IF NOT EXISTS profile_social_links (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   profile_id UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
-  type TEXT NOT NULL CHECK (type IN ('twitter', 'linkedin', 'github', 'instagram', 'website', 'email')),
+  type TEXT NOT NULL CHECK (type IN ('x', 'linkedin', 'github', 'instagram', 'website', 'email')),
   url TEXT NOT NULL,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   UNIQUE(profile_id, type)
@@ -73,7 +73,7 @@ CREATE TABLE IF NOT EXISTS entities (
 CREATE TABLE IF NOT EXISTS entity_social_links (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   entity_id UUID NOT NULL REFERENCES entities(id) ON DELETE CASCADE,
-  type TEXT NOT NULL CHECK (type IN ('twitter', 'linkedin', 'github', 'instagram', 'website', 'email')),
+  type TEXT NOT NULL CHECK (type IN ('x', 'linkedin', 'github', 'instagram', 'website', 'email')),
   url TEXT NOT NULL,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   UNIQUE(entity_id, type)
