@@ -741,7 +741,11 @@ export function EntityCreationModal({ visible, onClose, onComplete }: EntityCrea
                           {social.type === 'x' ? (
                             <XIcon size={20} />
                           ) : (
-                            <Ionicons name={social.name as any} size={20} color={theme.colors.text} />
+                            <Ionicons
+                              name={social.name as any}
+                              size={20}
+                              color={theme.colors.text}
+                            />
                           )}
                           <Text style={[styles.socialDropdownText, { color: theme.colors.text }]}>
                             {social.label}

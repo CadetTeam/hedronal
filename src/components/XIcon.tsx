@@ -1,5 +1,5 @@
 import React from 'react';
-import { Image, StyleSheet, View, Text } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 import { SvgXml } from 'react-native-svg';
 import { useTheme } from '../context/ThemeContext';
 
@@ -8,58 +8,27 @@ interface XIconProps {
   style?: any;
 }
 
-// X.com logo SVG - white version for dark backgrounds
-const xLogoSvgWhite = `<svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-<path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" fill="white"/>
+// X.com logo SVG content from assets
+// x-logo-light.svg: white X (for dark backgrounds)
+// x-logo-dark.svg: black X (for light backgrounds)
+const xLogoSvgLight = `<svg width="1200" height="1227" viewBox="0 0 1200 1227" fill="none" xmlns="http://www.w3.org/2000/svg">
+<path d="M714.163 519.284L1160.89 0H1055.03L667.137 450.887L357.328 0H0L468.492 681.821L0 1226.37H105.866L515.491 750.218L842.672 1226.37H1200L714.137 519.284H714.163ZM569.165 687.828L521.697 619.934L144.011 79.6944H306.615L611.412 515.685L658.88 583.579L1055.08 1150.3H892.476L569.165 687.854V687.828Z" fill="white"/>
 </svg>`;
 
-// X.com logo SVG - black version for light backgrounds
-const xLogoSvgBlack = `<svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-<path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" fill="black"/>
+const xLogoSvgDark = `<svg width="1200" height="1227" viewBox="0 0 1200 1227" fill="none" xmlns="http://www.w3.org/2000/svg">
+<path d="M714.163 519.284L1160.89 0H1055.03L667.137 450.887L357.328 0H0L468.492 681.821L0 1226.37H105.866L515.491 750.218L842.672 1226.37H1200L714.137 519.284H714.163ZM569.165 687.828L521.697 619.934L144.011 79.6944H306.615L611.412 515.685L658.88 583.579L1055.08 1150.3H892.476L569.165 687.854V687.828Z" fill="black"/>
 </svg>`;
 
 export function XIcon({ size = 20, style }: XIconProps) {
   const { isDark } = useTheme();
 
-  // Use inline SVG (X.com official logo shape)
-  // If you have custom SVG files, place them in assets/ as x-logo-light.svg and x-logo-dark.svg
-  // and uncomment the try/catch block below
+  // Dark mode (dark background) → use white X (xLogoSvgLight)
+  // Light mode (light background) → use black X (xLogoSvgDark)
   return (
     <View style={[styles.container, { width: size, height: size }, style]}>
-      <SvgXml
-        xml={isDark ? xLogoSvgWhite : xLogoSvgBlack}
-        width={size}
-        height={size}
-      />
+      <SvgXml xml={isDark ? xLogoSvgLight : xLogoSvgDark} width={size} height={size} />
     </View>
   );
-
-  // Uncomment this block if you add x-logo-light.svg and x-logo-dark.svg to assets/
-  /*
-  try {
-    const xLogoLight = require('../../assets/x-logo-light.svg');
-    const xLogoDark = require('../../assets/x-logo-dark.svg');
-    
-    return (
-      <Image
-        source={isDark ? xLogoDark : xLogoLight}
-        style={[styles.icon, { width: size, height: size }, style]}
-        resizeMode="contain"
-      />
-    );
-  } catch (error) {
-    // Fallback to inline SVG
-    return (
-      <View style={[styles.container, { width: size, height: size }, style]}>
-        <SvgXml
-          xml={isDark ? xLogoSvgWhite : xLogoSvgBlack}
-          width={size}
-          height={size}
-        />
-      </View>
-    );
-  }
-  */
 }
 
 const styles = StyleSheet.create({

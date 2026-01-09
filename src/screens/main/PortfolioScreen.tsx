@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   RefreshControl,
   Image,
+  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -482,21 +483,35 @@ export function PortfolioScreen() {
 
   async function handleArchive(entity: any) {
     try {
-      const token = await getToken();
-      if (!token) {
-        console.error('[handleArchive] No token available');
+      // Check if this is a placeholder entity (no Supabase data yet)
+      if (!entity.hasSupabaseData || entity.id.startsWith('clerk-')) {
+        Alert.alert(
+          'Cannot Archive',
+          'This entity needs to be set up first before it can be archived. Please complete the entity setup.',
+          [{ text: 'OK' }]
+        );
         return;
       }
 
+      const token = await getToken();
+      if (!token) {
+        console.error('[handleArchive] No token available');
+        Alert.alert('Error', 'Authentication required. Please try again.');
+        return;
+      }
+
+      // Only archive entities that exist in Supabase
       const result = await archiveEntity(entity.id, token);
       if (result.success) {
         // Remove from list
         setEntities(entities.filter(e => e.id !== entity.id));
       } else {
         console.error('[handleArchive] Failed to archive:', result.error);
+        Alert.alert('Error', result.error || 'Failed to archive entity. Please try again.');
       }
     } catch (error) {
       console.error('[handleArchive] Error archiving entity:', error);
+      Alert.alert('Error', 'Failed to archive entity. Please try again.');
     }
   }
 
