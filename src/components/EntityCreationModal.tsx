@@ -72,7 +72,7 @@ const ACCORDION_ITEMS = [
 ];
 
 const SOCIAL_ICONS = [
-  { name: 'logo-twitter', label: 'Twitter', type: 'twitter' },
+  { name: 'close-circle-outline', label: 'X', type: 'twitter' },
   { name: 'logo-linkedin', label: 'LinkedIn', type: 'linkedin' },
   { name: 'logo-github', label: 'GitHub', type: 'github' },
   { name: 'logo-instagram', label: 'Instagram', type: 'instagram' },

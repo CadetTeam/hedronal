@@ -27,11 +27,12 @@ import { Logo } from '../../components/Logo';
 import { SocialLinksModal } from '../../components/SocialLinksModal';
 import { ArchivedEntitiesModal } from '../../components/ArchivedEntitiesModal';
 import { LoadingSpinner } from '../../components/LoadingSpinner';
+import { Skeleton } from '../../components/Skeleton';
 import { getProfile, updateProfile } from '../../services/profileService';
 import { uploadProfileImages } from '../../utils/imageUpload';
 
 const SOCIAL_ICONS = [
-  { name: 'logo-twitter', label: 'Twitter' },
+  { name: 'close-circle-outline', label: 'X' },
   { name: 'logo-linkedin', label: 'LinkedIn' },
   { name: 'logo-github', label: 'GitHub' },
   { name: 'logo-instagram', label: 'Instagram' },
@@ -53,6 +54,21 @@ export function ProfileScreen() {
   const [showFollowingModal, setShowFollowingModal] = useState(false);
   const [showPostsModal, setShowPostsModal] = useState(false);
   const [activity, setActivity] = useState<any[]>([]);
+
+  // Stats state
+  const [stats, setStats] = useState({
+    followers: 0,
+    following: 0,
+    posts: 0,
+    points: 0,
+  });
+  const [statsLoading, setStatsLoading] = useState(true);
+
+  // Modal data state
+  const [followersList, setFollowersList] = useState<any[]>([]);
+  const [followingList, setFollowingList] = useState<any[]>([]);
+  const [userPosts, setUserPosts] = useState<any[]>([]);
+  const [modalLoading, setModalLoading] = useState(false);
 
   // Profile data state
   const [profileData, setProfileData] = useState({
@@ -121,6 +137,93 @@ export function ProfileScreen() {
     };
   }, []);
 
+  // Load modal data when modals open
+  useEffect(() => {
+    if (showFollowersModal) {
+      loadModalData('followers');
+    }
+  }, [showFollowersModal]);
+
+  useEffect(() => {
+    if (showFollowingModal) {
+      loadModalData('following');
+    }
+  }, [showFollowingModal]);
+
+  useEffect(() => {
+    if (showPostsModal) {
+      loadModalData('posts');
+    }
+  }, [showPostsModal]);
+
+  async function loadStats() {
+    try {
+      setStatsLoading(true);
+      const token = await getToken();
+      if (!token) return;
+
+      // Get current user profile ID
+      const profileResult = await getProfile(token);
+      const currentUserProfileId = profileResult.profile?.id;
+
+      if (!currentUserProfileId) {
+        setStats({ followers: 0, following: 0, posts: 0, points: 0 });
+        return;
+      }
+
+      // Load posts count
+      const postService = require('../../services/postService');
+      const allPosts = await postService.fetchPosts(1000, 0, token);
+      const userPostsCount = allPosts.filter(
+        (p: any) => p.authorId === currentUserProfileId
+      ).length;
+
+      // TODO: Replace with actual API calls when endpoints are available
+      // For now, using placeholder data
+      setStats({
+        followers: 0, // TODO: Fetch from /profiles/me/followers
+        following: 0, // TODO: Fetch from /profiles/me/following
+        posts: userPostsCount,
+        points: 0, // TODO: Calculate from user activity
+      });
+    } catch (error) {
+      console.error('[ProfileScreen] Error loading stats:', error);
+      setStats({ followers: 0, following: 0, posts: 0, points: 0 });
+    } finally {
+      setStatsLoading(false);
+    }
+  }
+
+  async function loadModalData(modalType: 'followers' | 'following' | 'posts') {
+    try {
+      setModalLoading(true);
+      const token = await getToken();
+      if (!token) return;
+
+      const profileResult = await getProfile(token);
+      const currentUserProfileId = profileResult.profile?.id;
+      if (!currentUserProfileId) return;
+
+      if (modalType === 'posts') {
+        const postService = require('../../services/postService');
+        const allPosts = await postService.fetchPosts(100, 0, token);
+        const userPosts = allPosts.filter((p: any) => p.authorId === currentUserProfileId);
+        setUserPosts(userPosts);
+      } else {
+        // TODO: Fetch followers/following when endpoints are available
+        if (modalType === 'followers') {
+          setFollowersList([]);
+        } else {
+          setFollowingList([]);
+        }
+      }
+    } catch (error) {
+      console.error(`[ProfileScreen] Error loading ${modalType}:`, error);
+    } finally {
+      setModalLoading(false);
+    }
+  }
+
   async function loadProfile() {
     try {
       setLoading(true);
@@ -145,6 +248,9 @@ export function ProfileScreen() {
         setEditingSocialLinks(loadedSocialLinks);
         setBioHasChanged(false);
         setBioSaved(false);
+
+        // Load stats after profile is loaded
+        await loadStats();
       }
     } catch (error) {
       console.error('[ProfileScreen] Error loading profile:', error);
@@ -557,7 +663,9 @@ export function ProfileScreen() {
               ]}
               onPress={() => setShowFollowersModal(true)}
             >
-              <Text style={[styles.statNumber, { color: theme.colors.text }]}>0</Text>
+              <Text style={[styles.statNumber, { color: theme.colors.text }]}>
+                {statsLoading ? '...' : stats.followers}
+              </Text>
               <Text style={[styles.statLabel, { color: theme.colors.textSecondary }]}>
                 Followers
               </Text>
@@ -569,7 +677,9 @@ export function ProfileScreen() {
               ]}
               onPress={() => setShowFollowingModal(true)}
             >
-              <Text style={[styles.statNumber, { color: theme.colors.text }]}>0</Text>
+              <Text style={[styles.statNumber, { color: theme.colors.text }]}>
+                {statsLoading ? '...' : stats.following}
+              </Text>
               <Text style={[styles.statLabel, { color: theme.colors.textSecondary }]}>
                 Following
               </Text>
@@ -581,7 +691,9 @@ export function ProfileScreen() {
               ]}
               onPress={() => setShowPostsModal(true)}
             >
-              <Text style={[styles.statNumber, { color: theme.colors.text }]}>0</Text>
+              <Text style={[styles.statNumber, { color: theme.colors.text }]}>
+                {statsLoading ? '...' : stats.posts}
+              </Text>
               <Text style={[styles.statLabel, { color: theme.colors.textSecondary }]}>Posts</Text>
             </TouchableOpacity>
             <TouchableOpacity
@@ -591,7 +703,9 @@ export function ProfileScreen() {
               ]}
               onPress={() => setShowPointsModal(true)}
             >
-              <Text style={[styles.statNumber, { color: theme.colors.text }]}>0</Text>
+              <Text style={[styles.statNumber, { color: theme.colors.text }]}>
+                {statsLoading ? '...' : stats.points}
+              </Text>
               <Text style={[styles.statLabel, { color: theme.colors.textSecondary }]}>Points</Text>
             </TouchableOpacity>
           </View>
@@ -780,88 +894,80 @@ export function ProfileScreen() {
         </BlurredModalOverlay>
       </Modal>
 
-      {/* Bio Modal - Sticky Input Bar */}
-      {showBioModal && (
-        <>
-          <TouchableOpacity
-            style={styles.inputOverlay}
-            activeOpacity={1}
-            onPress={() => {
-              setShowBioModal(false);
-              Keyboard.dismiss();
-            }}
-          />
-            <View
-              style={[
-                styles.stickyInputBar,
-                styles.stickyInputBarMultiline,
-                {
-                  backgroundColor: theme.colors.surface,
-                  borderColor: theme.colors.border,
-                  bottom: keyboardVisible ? keyboardHeight : insets.bottom + 64 + 20, // Safe area + tab bar height (48px + 16px padding) + 20px extra
-                  paddingBottom: insets.bottom + 20, // Extra padding for safe area and spacing
-                },
-              ]}
-            >
-            <View style={styles.stickyInputHeader}>
-              <View style={styles.bioHeaderLeft}>
-                <Text style={[styles.stickyInputLabel, { color: theme.colors.text }]}>Bio</Text>
-              </View>
-              <View style={styles.bioHeaderCenter}>
+      {/* Bio Modal */}
+      <Modal
+        visible={showBioModal}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setShowBioModal(false)}
+      >
+        <BlurredModalOverlay visible={showBioModal} onClose={() => setShowBioModal(false)}>
+          <View
+            style={[
+              styles.bioModalContent,
+              {
+                backgroundColor: theme.colors.surface,
+                paddingBottom: keyboardVisible ? keyboardHeight : insets.bottom + 40,
+                maxHeight: '85%',
+                minHeight: 300,
+              },
+            ]}
+          >
+            {/* Header */}
+            <View style={[styles.bioModalHeader, { borderBottomColor: theme.colors.border }]}>
+              <View style={styles.bioModalCloseButton} />
+              <Text style={[styles.bioModalTitle, { color: theme.colors.text }]}>Edit Bio</Text>
+              <View style={styles.bioModalRight}>
                 {bioHasChanged && !bioSaving && !bioSaved && (
-                  <TouchableOpacity onPress={saveBio} style={styles.saveBioButton}>
-                    <Text style={[styles.saveBioButtonText, { color: theme.colors.primary }]}>
+                  <TouchableOpacity onPress={saveBio} style={styles.bioModalSaveButton}>
+                    <Text style={[styles.bioModalSaveButtonText, { color: theme.colors.primary }]}>
                       Save
                     </Text>
                   </TouchableOpacity>
                 )}
                 {bioSaving && (
-                  <View style={styles.bioStatusIcon}>
+                  <View style={styles.bioModalStatusIcon}>
                     <LoadingSpinner size="small" />
                   </View>
                 )}
                 {bioSaved && (
-                  <View style={styles.bioStatusIcon}>
-                    <Ionicons name="checkmark-circle" size={20} color="#4CAF50" />
+                  <View style={styles.bioModalStatusIcon}>
+                    <Ionicons name="checkmark-circle" size={24} color="#4CAF50" />
                   </View>
                 )}
-              </View>
-              <View style={styles.bioHeaderRight}>
-                <Text style={[styles.charCount, { color: theme.colors.textTertiary }]}>
-                  {editingBio.length}/750
-                </Text>
+                {!bioHasChanged && !bioSaving && !bioSaved && (
+                  <Text style={[styles.charCount, { color: theme.colors.textTertiary }]}>
+                    {editingBio.length}/750
+                  </Text>
+                )}
               </View>
             </View>
-            <TextInput
-              style={[
-                styles.stickyInput,
-                styles.stickyInputMultiline,
-                { 
-                  color: theme.colors.text,
-                  paddingBottom: 8, // Extra padding at bottom of text input
-                },
-              ]}
-              placeholder="Write your bio..."
-              placeholderTextColor={theme.colors.textTertiary}
-              value={editingBio}
-              onChangeText={text => {
-                setEditingBio(text);
-                setBioHasChanged(text !== (profileData.bio || ''));
-                setBioSaved(false);
-              }}
-              multiline
-              maxLength={750}
-              autoFocus
-              textAlignVertical="top"
-            />
-            {editingBio.length > 0 && (
-              <TouchableOpacity onPress={() => setEditingBio('')} style={styles.clearButton}>
-                <Ionicons name="close-circle" size={20} color={theme.colors.textTertiary} />
-              </TouchableOpacity>
-            )}
+
+            <ScrollView
+              style={styles.bioModalScrollView}
+              contentContainerStyle={[styles.bioModalScrollContent, { paddingBottom: 20 }]}
+              keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator={false}
+            >
+              <TextInput
+                style={[styles.bioModalTextInput, { color: theme.colors.text }]}
+                placeholder="Write your bio..."
+                placeholderTextColor={theme.colors.textTertiary}
+                value={editingBio}
+                onChangeText={text => {
+                  setEditingBio(text);
+                  setBioHasChanged(text !== (profileData.bio || ''));
+                  setBioSaved(false);
+                }}
+                multiline
+                maxLength={750}
+                autoFocus
+                textAlignVertical="top"
+              />
+            </ScrollView>
           </View>
-        </>
-      )}
+        </BlurredModalOverlay>
+      </Modal>
 
       {/* Name Modal - Sticky Input Bar */}
       {showNameModal && (
@@ -1046,9 +1152,36 @@ export function ProfileScreen() {
               ]}
               showsVerticalScrollIndicator={false}
             >
-              <Text style={[styles.modalText, { color: theme.colors.textSecondary }]}>
-                Points tracker coming soon
-              </Text>
+              <View style={styles.emptyStateContainer}>
+                <Ionicons
+                  name="trophy-outline"
+                  size={64}
+                  color={theme.colors.textTertiary}
+                  style={{ marginBottom: 16 }}
+                />
+                <Text style={[styles.emptyStateTitle, { color: theme.colors.text }]}>
+                  Points tracker coming soon
+                </Text>
+                <Text style={[styles.emptyStateMessage, { color: theme.colors.textSecondary }]}>
+                  Earn points by engaging with the community, creating content, and building your
+                  network. Your points will appear here once the feature launches.
+                </Text>
+                <TouchableOpacity
+                  style={[styles.emptyStateCTA, { backgroundColor: theme.colors.primary }]}
+                  onPress={() => {
+                    setShowPointsModal(false);
+                  }}
+                >
+                  <Ionicons
+                    name="checkmark-circle-outline"
+                    size={20}
+                    color={theme.colors.background}
+                  />
+                  <Text style={[styles.emptyStateCTAText, { color: theme.colors.background }]}>
+                    Got it
+                  </Text>
+                </TouchableOpacity>
+              </View>
             </ScrollView>
           </View>
         </BlurredModalOverlay>
@@ -1215,10 +1348,175 @@ export function ProfileScreen() {
               ]}
               showsVerticalScrollIndicator={false}
             >
-              <EmptyState
-                title="Empty"
-                message={`No ${showFollowersModal ? 'followers' : showFollowingModal ? 'following' : 'posts'} yet`}
-              />
+              {modalLoading ? (
+                <View style={styles.modalSkeletonContainer}>
+                  {showPostsModal ? (
+                    // Post skeletons
+                    <>
+                      {[1, 2, 3].map(i => (
+                        <View
+                          key={i}
+                          style={[
+                            styles.skeletonPostCard,
+                            {
+                              backgroundColor: theme.colors.surface,
+                              borderColor: theme.colors.border,
+                            },
+                          ]}
+                        >
+                          <View style={styles.skeletonPostHeader}>
+                            <Skeleton width={40} height={40} borderRadius={20} />
+                            <View style={styles.skeletonPostHeaderText}>
+                              <Skeleton width={120} height={16} style={{ marginBottom: 8 }} />
+                              <Skeleton width={80} height={12} />
+                            </View>
+                          </View>
+                          <Skeleton
+                            width="100%"
+                            height={200}
+                            borderRadius={8}
+                            style={{ marginTop: 12 }}
+                          />
+                          <Skeleton width="90%" height={16} style={{ marginTop: 12 }} />
+                          <Skeleton width="70%" height={16} style={{ marginTop: 8 }} />
+                        </View>
+                      ))}
+                    </>
+                  ) : (
+                    // User card skeletons
+                    <>
+                      {[1, 2, 3, 4, 5].map(i => (
+                        <View
+                          key={i}
+                          style={[
+                            styles.skeletonUserCard,
+                            {
+                              backgroundColor: theme.colors.surface,
+                              borderColor: theme.colors.border,
+                            },
+                          ]}
+                        >
+                          <Skeleton width={60} height={60} borderRadius={30} />
+                          <View style={styles.skeletonUserInfo}>
+                            <Skeleton width={150} height={18} style={{ marginBottom: 8 }} />
+                            <Skeleton width={100} height={14} />
+                          </View>
+                        </View>
+                      ))}
+                    </>
+                  )}
+                </View>
+              ) : (
+                <>
+                  {showPostsModal && userPosts.length === 0 && (
+                    <View style={styles.emptyStateContainer}>
+                      <Ionicons
+                        name="document-text-outline"
+                        size={64}
+                        color={theme.colors.textTertiary}
+                        style={{ marginBottom: 16 }}
+                      />
+                      <Text style={[styles.emptyStateTitle, { color: theme.colors.text }]}>
+                        No posts yet
+                      </Text>
+                      <Text
+                        style={[styles.emptyStateMessage, { color: theme.colors.textSecondary }]}
+                      >
+                        Share your thoughts, updates, and insights with the community. Your first
+                        post is just a tap away!
+                      </Text>
+                      <TouchableOpacity
+                        style={[styles.emptyStateCTA, { backgroundColor: theme.colors.primary }]}
+                        onPress={() => {
+                          setShowPostsModal(false);
+                          // Navigate to post creation - you may need to adjust this based on your navigation setup
+                        }}
+                      >
+                        <Ionicons
+                          name="add-circle-outline"
+                          size={20}
+                          color={theme.colors.background}
+                        />
+                        <Text
+                          style={[styles.emptyStateCTAText, { color: theme.colors.background }]}
+                        >
+                          Create Your First Post
+                        </Text>
+                      </TouchableOpacity>
+                    </View>
+                  )}
+                  {showFollowersModal && followersList.length === 0 && (
+                    <View style={styles.emptyStateContainer}>
+                      <Ionicons
+                        name="people-outline"
+                        size={64}
+                        color={theme.colors.textTertiary}
+                        style={{ marginBottom: 16 }}
+                      />
+                      <Text style={[styles.emptyStateTitle, { color: theme.colors.text }]}>
+                        No followers yet
+                      </Text>
+                      <Text
+                        style={[styles.emptyStateMessage, { color: theme.colors.textSecondary }]}
+                      >
+                        Build your network by sharing great content and engaging with others.
+                        Followers will appear here as your community grows.
+                      </Text>
+                      <TouchableOpacity
+                        style={[styles.emptyStateCTA, { backgroundColor: theme.colors.primary }]}
+                        onPress={() => {
+                          setShowFollowersModal(false);
+                          // Navigate to explore or feed
+                        }}
+                      >
+                        <Ionicons
+                          name="compass-outline"
+                          size={20}
+                          color={theme.colors.background}
+                        />
+                        <Text
+                          style={[styles.emptyStateCTAText, { color: theme.colors.background }]}
+                        >
+                          Explore Community
+                        </Text>
+                      </TouchableOpacity>
+                    </View>
+                  )}
+                  {showFollowingModal && followingList.length === 0 && (
+                    <View style={styles.emptyStateContainer}>
+                      <Ionicons
+                        name="person-add-outline"
+                        size={64}
+                        color={theme.colors.textTertiary}
+                        style={{ marginBottom: 16 }}
+                      />
+                      <Text style={[styles.emptyStateTitle, { color: theme.colors.text }]}>
+                        Not following anyone yet
+                      </Text>
+                      <Text
+                        style={[styles.emptyStateMessage, { color: theme.colors.textSecondary }]}
+                      >
+                        Discover interesting people and organizations to follow. Stay updated with
+                        their latest posts and updates.
+                      </Text>
+                      <TouchableOpacity
+                        style={[styles.emptyStateCTA, { backgroundColor: theme.colors.primary }]}
+                        onPress={() => {
+                          setShowFollowingModal(false);
+                          // Navigate to explore or people screen
+                        }}
+                      >
+                        <Ionicons name="search-outline" size={20} color={theme.colors.background} />
+                        <Text
+                          style={[styles.emptyStateCTAText, { color: theme.colors.background }]}
+                        >
+                          Discover People
+                        </Text>
+                      </TouchableOpacity>
+                    </View>
+                  )}
+                </>
+              )}
             </ScrollView>
           </View>
         </BlurredModalOverlay>
@@ -1652,6 +1950,64 @@ const styles = StyleSheet.create({
     marginLeft: 8,
     padding: 4,
   },
+  // Bio Modal Styles (matching PostCreationModal pattern)
+  bioModalContent: {
+    width: '100%',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    overflow: 'hidden',
+    alignSelf: 'flex-end',
+    flexDirection: 'column',
+  },
+  bioModalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    flexShrink: 0,
+  },
+  bioModalCloseButton: {
+    padding: 4,
+  },
+  bioModalTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    flex: 1,
+    textAlign: 'center',
+  },
+  bioModalRight: {
+    minWidth: 60,
+    alignItems: 'flex-end',
+  },
+  bioModalSaveButton: {
+    padding: 8,
+  },
+  bioModalSaveButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  bioModalStatusIcon: {
+    width: 24,
+    height: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  bioModalScrollView: {
+    flex: 1,
+    flexShrink: 1,
+  },
+  bioModalScrollContent: {
+    padding: 16,
+    flexGrow: 1,
+  },
+  bioModalTextInput: {
+    fontSize: 16,
+    lineHeight: 24,
+    minHeight: 200,
+    textAlignVertical: 'top',
+  },
   saveButton: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1745,5 +2101,70 @@ const styles = StyleSheet.create({
   appVersion: {
     fontSize: 12,
     marginTop: 8,
+  },
+  // Modal skeleton styles
+  modalSkeletonContainer: {
+    padding: 16,
+    gap: 16,
+  },
+  skeletonUserCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+    marginBottom: 12,
+    gap: 12,
+  },
+  skeletonUserInfo: {
+    flex: 1,
+  },
+  skeletonPostCard: {
+    padding: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+    marginBottom: 16,
+  },
+  skeletonPostHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  skeletonPostHeaderText: {
+    flex: 1,
+  },
+  // Empty state styles
+  emptyStateContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 32,
+    minHeight: 300,
+  },
+  emptyStateTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  emptyStateMessage: {
+    fontSize: 14,
+    lineHeight: 20,
+    textAlign: 'center',
+    marginBottom: 24,
+    maxWidth: 280,
+  },
+  emptyStateCTA: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 8,
+    gap: 8,
+  },
+  emptyStateCTAText: {
+    fontSize: 16,
+    fontWeight: '600',
   },
 });
