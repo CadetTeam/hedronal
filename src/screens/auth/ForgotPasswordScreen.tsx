@@ -7,6 +7,7 @@ import {
   Platform,
   ScrollView,
   Alert,
+  Dimensions,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useSignIn } from '@clerk/clerk-expo';
@@ -15,6 +16,9 @@ import { Logo } from '../../components/Logo';
 import { TextInput } from '../../components/TextInput';
 import { Button } from '../../components/Button';
 import { OTPModal } from '../../components/OTPModal';
+
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
+const MAX_FORM_WIDTH = 440; // Mobile-friendly max width for iPad
 
 interface ForgotPasswordScreenProps {
   navigation: any;
@@ -160,16 +164,17 @@ export function ForgotPasswordScreen({ navigation }: ForgotPasswordScreenProps) 
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
-          <View style={styles.logoContainer}>
-            <Logo size={80} />
-          </View>
+          <View style={styles.contentContainer}>
+            <View style={styles.logoContainer}>
+              <Logo size={80} />
+            </View>
 
-          <Text style={[styles.title, { color: theme.colors.text }]}>Forgot Password?</Text>
-          <Text style={[styles.subtitle, { color: theme.colors.textSecondary }]}>
-            Enter your email address and we'll send you instructions to reset your password.
-          </Text>
+            <Text style={[styles.title, { color: theme.colors.text }]}>Forgot Password?</Text>
+            <Text style={[styles.subtitle, { color: theme.colors.textSecondary }]}>
+              Enter your email address and we'll send you instructions to reset your password.
+            </Text>
 
-          <View style={styles.form}>
+            <View style={styles.form}>
             <TextInput
               label="Email"
               value={email}
@@ -181,19 +186,20 @@ export function ForgotPasswordScreen({ navigation }: ForgotPasswordScreenProps) 
               error={errors.email}
             />
 
-            <Button
-              title="Send Reset Instructions"
-              onPress={handleResetPassword}
-              loading={loading}
-              style={styles.button}
-            />
+              <Button
+                title="Send Reset Instructions"
+                onPress={handleResetPassword}
+                loading={loading}
+                style={styles.button}
+              />
 
-            <Button
-              title="Back to Login"
-              onPress={() => navigation.navigate('Login')}
-              variant="outline"
-              style={styles.button}
-            />
+              <Button
+                title="Back to Login"
+                onPress={() => navigation.navigate('Login')}
+                variant="outline"
+                style={styles.button}
+              />
+            </View>
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
@@ -224,6 +230,12 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     padding: 24,
     justifyContent: 'center',
+    alignItems: 'center',
+  },
+  contentContainer: {
+    width: '100%',
+    maxWidth: MAX_FORM_WIDTH,
+    alignSelf: 'center',
   },
   centerContent: {
     flex: 1,

@@ -8,6 +8,7 @@ import {
   ScrollView,
   Alert,
   Image,
+  Dimensions,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useVideoPlayer, VideoView } from 'expo-video';
@@ -22,6 +23,9 @@ import { OTPModal } from '../../components/OTPModal';
 interface LoginScreenProps {
   navigation: any;
 }
+
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
+const MAX_FORM_WIDTH = 400; // Maximum width for form on iPad/larger screens
 
 export function LoginScreen({ navigation }: LoginScreenProps) {
   const { theme } = useTheme();
@@ -127,57 +131,59 @@ export function LoginScreen({ navigation }: LoginScreenProps) {
             keyboardShouldPersistTaps="handled"
             showsVerticalScrollIndicator={false}
           >
-            <View style={styles.logoContainer}>
-              <Image
-                source={require('../../../assets/dark.png')}
-                style={[styles.logo, { width: 100, height: 100 }]}
-                resizeMode="contain"
-              />
-              {isDemoMode && <Text style={styles.demoBadge}>DEMO MODE</Text>}
-            </View>
+            <View style={styles.contentContainer}>
+              <View style={styles.logoContainer}>
+                <Image
+                  source={require('../../../assets/dark.png')}
+                  style={[styles.logo, { width: 100, height: 100 }]}
+                  resizeMode="contain"
+                />
+                {isDemoMode && <Text style={styles.demoBadge}>DEMO MODE</Text>}
+              </View>
 
-            <View style={styles.form}>
-              <AuthTextInput
-                label="Email"
-                value={email}
-                onChangeText={setEmail}
-                placeholder="Enter your email"
-                keyboardType="email-address"
-                autoCapitalize="none"
-                autoComplete="email"
-                error={errors.email}
-              />
+              <View style={styles.form}>
+                <AuthTextInput
+                  label="Email"
+                  value={email}
+                  onChangeText={setEmail}
+                  placeholder="Enter your email"
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                  autoComplete="email"
+                  error={errors.email}
+                />
 
-              <AuthTextInput
-                label="Password"
-                value={password}
-                onChangeText={setPassword}
-                placeholder="Enter your password"
-                secureTextEntry
-                autoCapitalize="none"
-                error={errors.password}
-              />
+                <AuthTextInput
+                  label="Password"
+                  value={password}
+                  onChangeText={setPassword}
+                  placeholder="Enter your password"
+                  secureTextEntry
+                  autoCapitalize="none"
+                  error={errors.password}
+                />
 
-              <Button
-                title="Sign In"
-                onPress={handleLogin}
-                loading={loading}
-                style={styles.button}
-              />
+                <Button
+                  title="Sign In"
+                  onPress={handleLogin}
+                  loading={loading}
+                  style={styles.button}
+                />
 
-              <Button
-                title="Forgot Password?"
-                onPress={() => navigation.navigate('ForgotPassword')}
-                variant="outline"
-                style={styles.button}
-              />
-            </View>
+                <Button
+                  title="Forgot Password?"
+                  onPress={() => navigation.navigate('ForgotPassword')}
+                  variant="outline"
+                  style={styles.button}
+                />
+              </View>
 
-            <View style={styles.footer}>
-              <Text style={styles.footerText}>Don't have an account? </Text>
-              <Text style={styles.footerLink} onPress={() => navigation.navigate('Register')}>
-                Sign Up
-              </Text>
+              <View style={styles.footer}>
+                <Text style={styles.footerText}>Don't have an account? </Text>
+                <Text style={styles.footerLink} onPress={() => navigation.navigate('Register')}>
+                  Sign Up
+                </Text>
+              </View>
             </View>
           </ScrollView>
         </KeyboardAvoidingView>
@@ -275,6 +281,12 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     padding: 24,
     justifyContent: 'center',
+    alignItems: 'center',
+  },
+  contentContainer: {
+    width: '100%',
+    maxWidth: MAX_FORM_WIDTH,
+    alignSelf: 'center',
   },
   logoContainer: {
     alignItems: 'center',

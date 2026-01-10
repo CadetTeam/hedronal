@@ -10,6 +10,7 @@ import {
   TouchableOpacity,
   Linking,
   Image,
+  Dimensions,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useVideoPlayer, VideoView } from 'expo-video';
@@ -19,6 +20,9 @@ import { AuthTextInput } from '../../components/AuthTextInput';
 import { Button } from '../../components/Button';
 import { OTPModal } from '../../components/OTPModal';
 import { Ionicons } from '@expo/vector-icons';
+
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
+const MAX_FORM_WIDTH = 440; // Mobile-friendly max width for iPad
 
 interface RegisterScreenProps {
   navigation: any;
@@ -223,15 +227,16 @@ export function RegisterScreen({ navigation }: RegisterScreenProps) {
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
-          <View style={styles.logoContainer}>
-            <Image
-              source={require('../../../assets/dark.png')}
-              style={[styles.logo, { width: 80, height: 80 }]}
-              resizeMode="contain"
-            />
-          </View>
+          <View style={styles.contentContainer}>
+            <View style={styles.logoContainer}>
+              <Image
+                source={require('../../../assets/dark.png')}
+                style={[styles.logo, { width: 80, height: 80 }]}
+                resizeMode="contain"
+              />
+            </View>
 
-          <View style={styles.form}>
+            <View style={styles.form}>
             <AuthTextInput
               label="Full Name"
               value={name}
@@ -313,24 +318,25 @@ export function RegisterScreen({ navigation }: RegisterScreenProps) {
               </Text>
             )}
 
-            <Button
-              title="Sign Up"
-              onPress={handleRegister}
-              loading={loading}
-              style={styles.button}
-            />
-          </View>
+              <Button
+                title="Sign Up"
+                onPress={handleRegister}
+                loading={loading}
+                style={styles.button}
+              />
+            </View>
 
-          <View style={styles.footer}>
-            <Text style={styles.footerText}>
-              Already have an account?{' '}
-            </Text>
-            <Text
-              style={styles.footerLink}
-              onPress={() => navigation.navigate('Login')}
-            >
-              Sign In
-            </Text>
+            <View style={styles.footer}>
+              <Text style={styles.footerText}>
+                Already have an account?{' '}
+              </Text>
+              <Text
+                style={styles.footerLink}
+                onPress={() => navigation.navigate('Login')}
+              >
+                Sign In
+              </Text>
+            </View>
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
@@ -389,6 +395,12 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     padding: 24,
     justifyContent: 'center',
+    alignItems: 'center',
+  },
+  contentContainer: {
+    width: '100%',
+    maxWidth: MAX_FORM_WIDTH,
+    alignSelf: 'center',
   },
   logoContainer: {
     alignItems: 'center',
